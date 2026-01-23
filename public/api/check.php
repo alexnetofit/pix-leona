@@ -80,9 +80,6 @@ function abacateGet($endpoint, $abacateKey) {
         'Content-Type: application/json',
         'Authorization: Bearer ' . $abacateKey
     ]);
-    // Desabilita cache
-    curl_setopt($ch, CURLOPT_FRESH_CONNECT, true);
-    curl_setopt($ch, CURLOPT_FORBID_REUSE, true);
     
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -125,60 +122,53 @@ function stripeRequest($endpoint, $stripeSecret, $method = 'GET', $data = null) 
 }
 
 try {
-    // 1. Lista todos os PIX e encontra o nosso pelo ID
-    $listResponse = abacateGet('pixQrCode/list', $abacateKey);
+    // 1. Consulta o status do PIX no AbacatePay
+    // Tenta primeiro pelo endpoint de status
+    $pixResponse = abacateGet('pixQrCode/status/' . urlencode($pixId), $abacateKey);
     
-    $pixData = null;
-    $isPaid = false;
-    $status = 'PENDING';
-    
-    if ($listResponse['code'] === 200 && isset($listResponse['data']['data'])) {
-        // Procura o PIX pelo ID
-        foreach ($listResponse['data']['data'] as $pix) {
-            if ($pix['id'] === $pixId) {
-                $pixData = $pix;
-                $status = strtoupper($pix['status'] ?? 'PENDING');
-                break;
-            }
-        }
-    }
-    
-    // Se não encontrou na lista, tenta endpoint direto
-    if (!$pixData) {
-        // Tenta diferentes endpoints
-        $endpoints = [
-            'pixQrCode/' . urlencode($pixId),
-            'pixQrCode/show/' . urlencode($pixId),
-            'pixQrCode/status/' . urlencode($pixId)
-        ];
+    // Se não encontrar, tenta listar
+    if ($pixResponse['code'] !== 200) {
+        $listResponse = abacateGet('pixQrCode/list', $abacateKey);
         
-        foreach ($endpoints as $endpoint) {
-            $directResponse = abacateGet($endpoint, $abacateKey);
-            if ($directResponse['code'] === 200) {
-                $pixData = $directResponse['data']['data'] ?? $directResponse['data'];
-                $status = strtoupper($pixData['status'] ?? 'PENDING');
-                break;
+        $found = false;
+        if ($listResponse['code'] === 200 && isset($listResponse['data']['data'])) {
+            foreach ($listResponse['data']['data'] as $pix) {
+                if ($pix['id'] === $pixId) {
+                    $pixData = $pix;
+                    $found = true;
+                    break;
+                }
             }
         }
+        
+        if (!$found) {
+            // Tenta check sem endpoint específico
+            $checkResponse = abacateGet('pixQrCode/check/' . urlencode($pixId), $abacateKey);
+            if ($checkResponse['code'] === 200) {
+                $pixData = $checkResponse['data']['data'] ?? $checkResponse['data'];
+                $found = true;
+            }
+        }
+        
+        if (!$found) {
+            throw new Exception('PIX não encontrado no AbacatePay');
+        }
+    } else {
+        $pixData = $pixResponse['data']['data'] ?? $pixResponse['data'];
     }
     
-    // Verifica se está pago
-    // Status possíveis: PENDING, PAID, EXPIRED, CANCELLED
-    $isPaid = in_array($status, ['PAID', 'COMPLETED', 'CONFIRMED', 'APPROVED', 'RECEIVED']);
+    // 2. Verifica o status do pagamento
+    $status = $pixData['status'] ?? 'PENDING';
+    $isPaid = in_array(strtoupper($status), ['PAID', 'COMPLETED', 'CONFIRMED', 'APPROVED', 'RECEIVED']);
     
     $response = [
         'paid' => $isPaid,
         'status' => $status,
         'invoice_updated' => false,
-        'pix_id' => $pixId,
-        'debug' => [
-            'list_code' => $listResponse['code'],
-            'found_in_list' => $pixData !== null,
-            'pix_data' => $pixData
-        ]
+        'pix_data' => $pixData
     ];
     
-    // 2. Se pago, marca a fatura na Stripe
+    // 3. Se pago, marca a fatura na Stripe
     if ($isPaid) {
         // Primeiro verifica se a fatura ainda está aberta
         $invoiceResponse = stripeRequest('invoices/' . urlencode($invoiceId), $stripeSecret);
@@ -205,8 +195,6 @@ try {
                 // Já estava paga
                 $response['invoice_updated'] = true;
                 $response['stripe_status'] = 'already_paid';
-            } else {
-                $response['stripe_status'] = $invoice['status'];
             }
         }
     }

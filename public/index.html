@@ -814,20 +814,13 @@
                     showMessage('🎉 Pagamento confirmado e fatura atualizada na Stripe!', 'success');
                     
                 } else {
-                    // Ainda não pago - mostra debug
-                    const debugInfo = data.debug ? JSON.stringify(data.debug, null, 2) : '';
+                    // Ainda não pago
                     statusDiv.innerHTML = `
                         <div style="background: rgba(255, 193, 7, 0.1); border: 1px solid #ffc107; padding: 12px; border-radius: 8px; text-align: center;">
                             <span style="color: #ffc107;">⏳ Aguardando pagamento...</span>
                             <div style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 4px;">
-                                Status AbacatePay: ${data.status || 'PENDING'}
+                                Status: ${data.status || 'PENDING'}
                             </div>
-                            ${debugInfo ? `
-                                <details style="margin-top: 10px; text-align: left;">
-                                    <summary style="color: var(--text-secondary); cursor: pointer; font-size: 0.75rem;">Ver detalhes técnicos</summary>
-                                    <pre style="background: var(--bg-primary); padding: 10px; border-radius: 6px; font-size: 0.7rem; overflow-x: auto; margin-top: 8px; color: var(--text-secondary);">${debugInfo}</pre>
-                                </details>
-                            ` : ''}
                         </div>
                     `;
                     

@@ -184,7 +184,7 @@ try {
     // 3. Cria PIX QR Code no AbacatePay (endpoint correto!)
     $pixData = [
         'amount' => $amountCents, // Em centavos
-        'expiresIn' => 86400, // 24 horas para expirar
+        'expiresIn' => 3600, // 1 hora para expirar
         'description' => 'Fatura ' . $invoiceId,
         'customer' => [
             'name' => $customerName,
@@ -229,7 +229,7 @@ try {
             'cpf' => substr($cpfClean, 0, 3) . '.***.***-' . substr($cpfClean, -2)
         ],
         'invoice_id' => $invoiceId,
-        'expires_in' => 86400,
+        'expires_in' => 3600,
         'raw_response' => $pixResult // Para debug
     ];
     
