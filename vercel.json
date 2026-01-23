@@ -3,7 +3,7 @@
   "builds": [
     {
       "src": "public/api/*.php",
-      "use": "vercel-php@0.6.2"
+      "use": "vercel-php@0.6.0"
     },
     {
       "src": "public/index.html",
