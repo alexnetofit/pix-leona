@@ -1,9 +1,11 @@
 <?php
 /**
- * stripe.php - Busca cliente e faturas em aberto na Stripe
+ * stripe.php - Busca cliente e TODAS as faturas na Stripe
  * 
  * Recebe: { "email": "cliente@exemplo.com" }
- * Retorna: { "customer": {...}, "invoices": [...] }
+ * Retorna: { "customer": {...}, "subscriptions": [...] }
+ * 
+ * As faturas são agrupadas por assinatura
  */
 
 // Headers CORS e JSON
@@ -57,6 +59,9 @@ if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
     exit;
 }
 
+// Normaliza email para minúsculas
+$email = strtolower(trim($email));
+
 /**
  * Faz requisição para a API da Stripe
  */
@@ -84,10 +89,38 @@ function stripeRequest($endpoint, $stripeSecret, $method = 'GET', $data = null) 
     ];
 }
 
+/**
+ * Traduz status da fatura para português
+ */
+function translateStatus($status) {
+    $translations = [
+        'draft' => 'Rascunho',
+        'open' => 'Em Aberto',
+        'paid' => 'Paga',
+        'uncollectible' => 'Não Cobrável',
+        'void' => 'Cancelada'
+    ];
+    return $translations[$status] ?? $status;
+}
+
+/**
+ * Retorna cor do status para o frontend
+ */
+function getStatusColor($status) {
+    $colors = [
+        'draft' => '#6c757d',
+        'open' => '#ffc107',
+        'paid' => '#00d4aa',
+        'uncollectible' => '#dc3545',
+        'void' => '#6c757d'
+    ];
+    return $colors[$status] ?? '#6c757d';
+}
+
 try {
-    // 1. Busca cliente pelo e-mail
+    // 1. Busca cliente pelo e-mail (case insensitive - Stripe já faz isso)
     $customersResponse = stripeRequest(
-        'customers?email=' . urlencode($email) . '&limit=1',
+        'customers?email=' . urlencode($email) . '&limit=100',
         $stripeSecret
     );
     
@@ -103,12 +136,13 @@ try {
         exit;
     }
     
+    // Pode ter múltiplos clientes com emails similares
     $customer = $customers[0];
     $customerId = $customer['id'];
     
-    // 2. Busca faturas em aberto do cliente
+    // 2. Busca TODAS as faturas do cliente (sem filtro de status)
     $invoicesResponse = stripeRequest(
-        'invoices?customer=' . urlencode($customerId) . '&status=open&limit=100',
+        'invoices?customer=' . urlencode($customerId) . '&limit=100',
         $stripeSecret
     );
     
@@ -118,17 +152,98 @@ try {
     
     $invoicesData = $invoicesResponse['data']['data'] ?? [];
     
-    // 3. Formata resposta
-    $invoices = [];
-    foreach ($invoicesData as $invoice) {
-        $invoices[] = [
-            'invoice_id' => $invoice['id'],
-            'amount_due' => $invoice['amount_due'],
-            'customer_id' => $invoice['customer'],
-            'description' => $invoice['description'] ?? 'Fatura Stripe',
-            'created' => $invoice['created']
+    // 3. Busca assinaturas do cliente
+    $subscriptionsResponse = stripeRequest(
+        'subscriptions?customer=' . urlencode($customerId) . '&limit=100&status=all',
+        $stripeSecret
+    );
+    
+    $subscriptionsData = [];
+    if ($subscriptionsResponse['code'] === 200) {
+        $subscriptionsData = $subscriptionsResponse['data']['data'] ?? [];
+    }
+    
+    // Mapa de assinaturas para fácil acesso
+    $subscriptionsMap = [];
+    foreach ($subscriptionsData as $sub) {
+        // Pega o nome do produto da assinatura
+        $productName = 'Assinatura';
+        if (!empty($sub['items']['data'])) {
+            $item = $sub['items']['data'][0];
+            $productName = $item['price']['nickname'] ?? $item['plan']['nickname'] ?? 'Assinatura';
+            
+            // Tenta pegar o nome do produto
+            if (isset($item['price']['product'])) {
+                $productId = $item['price']['product'];
+                $productResponse = stripeRequest('products/' . $productId, $stripeSecret);
+                if ($productResponse['code'] === 200) {
+                    $productName = $productResponse['data']['name'] ?? $productName;
+                }
+            }
+        }
+        
+        $subscriptionsMap[$sub['id']] = [
+            'id' => $sub['id'],
+            'status' => $sub['status'],
+            'product_name' => $productName,
+            'current_period_end' => $sub['current_period_end'],
+            'invoices' => []
         ];
     }
+    
+    // 4. Agrupa faturas por assinatura
+    $invoicesWithoutSubscription = [];
+    
+    foreach ($invoicesData as $invoice) {
+        $invoiceFormatted = [
+            'invoice_id' => $invoice['id'],
+            'amount_due' => $invoice['amount_due'],
+            'amount_paid' => $invoice['amount_paid'] ?? 0,
+            'status' => $invoice['status'],
+            'status_label' => translateStatus($invoice['status']),
+            'status_color' => getStatusColor($invoice['status']),
+            'customer_id' => $invoice['customer'],
+            'subscription_id' => $invoice['subscription'] ?? null,
+            'description' => $invoice['description'] ?? 'Fatura Stripe',
+            'created' => $invoice['created'],
+            'due_date' => $invoice['due_date'] ?? null,
+            'invoice_url' => $invoice['hosted_invoice_url'] ?? null,
+            'can_generate_pix' => ($invoice['status'] === 'open')
+        ];
+        
+        $subscriptionId = $invoice['subscription'] ?? null;
+        
+        if ($subscriptionId && isset($subscriptionsMap[$subscriptionId])) {
+            $subscriptionsMap[$subscriptionId]['invoices'][] = $invoiceFormatted;
+        } else {
+            $invoicesWithoutSubscription[] = $invoiceFormatted;
+        }
+    }
+    
+    // 5. Monta resposta final
+    $subscriptions = array_values($subscriptionsMap);
+    
+    // Adiciona grupo de faturas avulsas (sem assinatura) se houver
+    if (!empty($invoicesWithoutSubscription)) {
+        $subscriptions[] = [
+            'id' => 'no_subscription',
+            'status' => 'active',
+            'product_name' => 'Faturas Avulsas',
+            'current_period_end' => null,
+            'invoices' => $invoicesWithoutSubscription
+        ];
+    }
+    
+    // Ordena faturas dentro de cada assinatura (mais recentes primeiro)
+    foreach ($subscriptions as &$sub) {
+        usort($sub['invoices'], function($a, $b) {
+            return $b['created'] - $a['created'];
+        });
+    }
+    
+    // Conta totais
+    $totalInvoices = count($invoicesData);
+    $openInvoices = count(array_filter($invoicesData, fn($i) => $i['status'] === 'open'));
     
     // Retorna dados
     echo json_encode([
@@ -137,7 +252,11 @@ try {
             'email' => $customer['email'],
             'name' => $customer['name'] ?? null
         ],
-        'invoices' => $invoices
+        'subscriptions' => $subscriptions,
+        'totals' => [
+            'total_invoices' => $totalInvoices,
+            'open_invoices' => $openInvoices
+        ]
     ]);
     
 } catch (Exception $e) {
