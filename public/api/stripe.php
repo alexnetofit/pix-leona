@@ -243,7 +243,7 @@ try {
     
     // Conta totais
     $totalInvoices = count($invoicesData);
-    $openInvoices = count(array_filter($invoicesData, fn($i) => $i['status'] === 'open'));
+    $openInvoices = count(array_filter($invoicesData, function($i) { return $i['status'] === 'open'; }));
     
     // Retorna dados
     echo json_encode([
