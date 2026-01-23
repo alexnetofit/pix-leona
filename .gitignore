@@ -1,0 +1,19 @@
+# Arquivo de ambiente com chaves secretas
+.env
+
+# Logs
+*.log
+
+# Cache
+*.cache
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+.vercel
