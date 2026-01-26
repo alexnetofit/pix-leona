@@ -130,8 +130,11 @@ export default async function handler(req, res) {
 
     // 2. Verifica o status do pagamento
     const status = pixData?.status || 'PENDING';
-    const paidStatuses = ['PAID', 'COMPLETED', 'CONFIRMED', 'APPROVED', 'RECEIVED'];
+    const paidStatuses = ['PAID', 'COMPLETED', 'CONFIRMED', 'APPROVED', 'RECEIVED', 'SETTLED', 'SUCCESS'];
     const isPaid = paidStatuses.includes(status.toUpperCase());
+    
+    // Log para debug
+    console.log('PIX Status:', status, 'isPaid:', isPaid, 'pixData:', JSON.stringify(pixData));
 
     const responseData = {
       paid: isPaid,
