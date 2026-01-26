@@ -94,12 +94,17 @@ export default async function handler(req, res) {
     let pixData = null;
 
     // 1. Consulta o status do PIX no AbacatePay
-    // Tenta primeiro pelo endpoint de status
-    const pixResponse = await abacateGet(`pixQrCode/status/${encodeURIComponent(pix_id)}`);
+    // Endpoint correto: GET /pixQrCode/check?id=<pix_id>
+    const pixResponse = await abacateGet(`pixQrCode/check?id=${encodeURIComponent(pix_id)}`);
+    
+    console.log('AbacatePay check response:', JSON.stringify(pixResponse));
 
-    if (pixResponse.code !== 200) {
-      // Se não encontrar, tenta listar
+    if (pixResponse.code === 200 && pixResponse.data) {
+      pixData = pixResponse.data?.data || pixResponse.data;
+    } else {
+      // Fallback: tenta listar todos e encontrar pelo ID
       const listResponse = await abacateGet('pixQrCode/list');
+      console.log('AbacatePay list response:', JSON.stringify(listResponse));
 
       let found = false;
       if (listResponse.code === 200 && listResponse.data?.data) {
@@ -113,19 +118,8 @@ export default async function handler(req, res) {
       }
 
       if (!found) {
-        // Tenta check sem endpoint específico
-        const checkResponse = await abacateGet(`pixQrCode/check/${encodeURIComponent(pix_id)}`);
-        if (checkResponse.code === 200) {
-          pixData = checkResponse.data?.data || checkResponse.data;
-          found = true;
-        }
-      }
-
-      if (!found) {
         throw new Error('PIX não encontrado no AbacatePay');
       }
-    } else {
-      pixData = pixResponse.data?.data || pixResponse.data;
     }
 
     // 2. Verifica o status do pagamento
