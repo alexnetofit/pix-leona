@@ -546,7 +546,12 @@
 
         function showMessage(text, type = 'error') {
             const msgEl = document.getElementById('message');
-            msgEl.textContent = text;
+            // Garante que text seja sempre uma string
+            let message = text;
+            if (typeof text === 'object') {
+                message = text.message || text.error || JSON.stringify(text);
+            }
+            msgEl.textContent = message;
             msgEl.className = `message ${type} active`;
             setTimeout(() => msgEl.classList.remove('active'), 5000);
         }
@@ -577,16 +582,22 @@
             setButtonLoading(btn, true, 'Buscar');
             
             try {
-                const response = await fetch('/api/stripe.php', {
+                const response = await fetch('/api/stripe', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email })
                 });
                 
-                const data = await response.json();
+                let data;
+                try {
+                    data = await response.json();
+                } catch (parseError) {
+                    throw new Error(`Erro no servidor (${response.status})`);
+                }
                 
                 if (!response.ok) {
-                    throw new Error(data.error || 'Erro ao buscar faturas');
+                    const errorMsg = typeof data.error === 'string' ? data.error : 'Erro ao buscar faturas';
+                    throw new Error(errorMsg);
                 }
                 
                 currentCustomer = data.customer;
@@ -780,7 +791,7 @@
             setButtonLoading(btn, true, 'Gerar PIX');
             
             try {
-                const response = await fetch('/api/pix.php', {
+                const response = await fetch('/api/pix', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
@@ -901,7 +912,7 @@
             const statusDiv = document.getElementById(`paymentStatus-${invoiceId}`);
             
             try {
-                const response = await fetch('/api/check.php', {
+                const response = await fetch('/api/check', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ invoice_id: invoiceId, pix_id: pixId })
