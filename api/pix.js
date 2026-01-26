@@ -144,7 +144,7 @@ export default async function handler(req, res) {
     const pixData = {
       amount: amountCents, // Em centavos
       expiresIn: 3600, // 1 hora para expirar
-      description: `Fatura ${invoice_id}`,
+      description: `Fatura Leona Stripe ${invoice_id}`,
       customer: {
         name: customerName,
         cellphone: phoneFormatted,
@@ -173,6 +173,14 @@ export default async function handler(req, res) {
     const qrCodeImage = pixResult?.qrCode?.image || pixResult?.qrCodeImage || pixResult?.image || null;
     const pixCode = pixResult?.qrCode?.payload || pixResult?.brCode || pixResult?.payload || pixResult?.emv || null;
     const pixId = pixResult?.id || null;
+
+    // 5. Salva o pix_id nos metadados da fatura na Stripe
+    if (pixId) {
+      await stripeRequest(`invoices/${encodeURIComponent(invoice_id)}`, 'POST', {
+        'metadata[abacate_pix_id]': pixId,
+        'metadata[abacate_pix_created]': new Date().toISOString()
+      });
+    }
 
     // Formata valor
     const amountFormatted = new Intl.NumberFormat('pt-BR', {

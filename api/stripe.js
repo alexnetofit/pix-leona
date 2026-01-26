@@ -175,7 +175,10 @@ export default async function handler(req, res) {
         created: invoice.created,
         due_date: invoice.due_date || null,
         invoice_url: invoice.hosted_invoice_url || null,
-        can_generate_pix: invoice.status === 'open'
+        can_generate_pix: invoice.status === 'open',
+        // Metadados do PIX AbacatePay
+        abacate_pix_id: invoice.metadata?.abacate_pix_id || null,
+        abacate_pix_created: invoice.metadata?.abacate_pix_created || null
       };
 
       const subscriptionId = invoice.subscription;

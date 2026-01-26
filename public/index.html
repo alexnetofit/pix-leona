@@ -669,6 +669,7 @@
 
         function renderInvoiceCard(invoice) {
             const canGeneratePix = invoice.can_generate_pix;
+            const hasExistingPix = invoice.abacate_pix_id;
             
             return `
                 <div class="invoice-card ${!canGeneratePix ? 'disabled' : ''}" id="invoice-${invoice.invoice_id}">
@@ -678,6 +679,11 @@
                             <span class="invoice-status" style="background: ${invoice.status_color}20; color: ${invoice.status_color}; margin-left: 8px;">
                                 ${invoice.status_label}
                             </span>
+                            ${hasExistingPix ? `
+                                <span class="invoice-status" style="background: rgba(0, 212, 170, 0.2); color: var(--accent); margin-left: 8px;">
+                                    PIX Gerado
+                                </span>
+                            ` : ''}
                         </div>
                         <div style="text-align: right;">
                             <div class="invoice-amount">${formatCurrency(invoice.amount_due)}</div>
@@ -686,42 +692,101 @@
                     </div>
                     
                     ${canGeneratePix ? `
-                        <div class="customer-details">
-                            <h4 style="color: var(--accent); margin-bottom: 12px; font-size: 0.9rem;">📋 Dados do Cliente</h4>
-                            <div style="display: grid; gap: 8px; font-size: 0.9rem;">
-                                <div style="display: flex; justify-content: space-between;">
-                                    <span style="color: var(--text-secondary);">Nome:</span>
-                                    <span style="color: var(--text-primary);">${currentCustomer?.name || 'Não informado'}</span>
-                                </div>
-                                <div style="display: flex; justify-content: space-between;">
-                                    <span style="color: var(--text-secondary);">Email:</span>
-                                    <span style="color: var(--text-primary);">${currentCustomer?.email || 'Não informado'}</span>
+                        ${hasExistingPix ? `
+                            <div style="background: rgba(0, 212, 170, 0.1); border: 1px solid var(--accent); padding: 16px; border-radius: 10px; margin: 16px 0;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                                    <div>
+                                        <div style="color: var(--accent); font-weight: 600; font-size: 0.9rem;">✓ PIX já foi gerado para esta fatura</div>
+                                        <div style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 4px;">
+                                            Criado em: ${invoice.abacate_pix_created ? new Date(invoice.abacate_pix_created).toLocaleString('pt-BR') : 'N/A'}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div style="margin-top: 16px;">
-                                <label style="display: block; color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 6px;">
-                                    CPF <span style="color: var(--error);">*</span> (obrigatório para PIX)
-                                </label>
-                                <input 
-                                    type="text" 
-                                    id="cpf-${invoice.invoice_id}"
-                                    placeholder="000.000.000-00"
-                                    maxlength="14"
-                                    oninput="formatCPF(this)"
-                                    style="width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 1rem;"
-                                >
-                            </div>
-                        </div>
-                        <div class="invoice-actions">
-                            <button class="btn-primary" onclick="generatePix('${invoice.invoice_id}', this)">
-                                Gerar PIX
-                            </button>
-                            ${invoice.invoice_url ? `
-                                <button class="btn-secondary btn-small" onclick="window.open('${invoice.invoice_url}', '_blank')">
-                                    Ver fatura
+                            <div class="invoice-actions">
+                                <button class="btn-primary" onclick="loadExistingPix('${invoice.invoice_id}', '${invoice.abacate_pix_id}', this)">
+                                    Ver PIX Gerado
                                 </button>
-                            ` : ''}
-                        </div>
+                                <button class="btn-secondary btn-small" onclick="showNewPixForm('${invoice.invoice_id}')">
+                                    Gerar Novo PIX
+                                </button>
+                                ${invoice.invoice_url ? `
+                                    <button class="btn-secondary btn-small" onclick="window.open('${invoice.invoice_url}', '_blank')">
+                                        Ver fatura
+                                    </button>
+                                ` : ''}
+                            </div>
+                            <div id="newPixForm-${invoice.invoice_id}" style="display: none;">
+                                <div class="customer-details">
+                                    <h4 style="color: var(--accent); margin-bottom: 12px; font-size: 0.9rem;">📋 Dados do Cliente</h4>
+                                    <div style="display: grid; gap: 8px; font-size: 0.9rem;">
+                                        <div style="display: flex; justify-content: space-between;">
+                                            <span style="color: var(--text-secondary);">Nome:</span>
+                                            <span style="color: var(--text-primary);">${currentCustomer?.name || 'Não informado'}</span>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between;">
+                                            <span style="color: var(--text-secondary);">Email:</span>
+                                            <span style="color: var(--text-primary);">${currentCustomer?.email || 'Não informado'}</span>
+                                        </div>
+                                    </div>
+                                    <div style="margin-top: 16px;">
+                                        <label style="display: block; color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 6px;">
+                                            CPF <span style="color: var(--error);">*</span> (obrigatório para PIX)
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            id="cpf-${invoice.invoice_id}"
+                                            placeholder="000.000.000-00"
+                                            maxlength="14"
+                                            oninput="formatCPF(this)"
+                                            style="width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 1rem;"
+                                        >
+                                    </div>
+                                </div>
+                                <div class="invoice-actions">
+                                    <button class="btn-primary" onclick="generatePix('${invoice.invoice_id}', this)">
+                                        Gerar Novo PIX
+                                    </button>
+                                </div>
+                            </div>
+                        ` : `
+                            <div class="customer-details">
+                                <h4 style="color: var(--accent); margin-bottom: 12px; font-size: 0.9rem;">📋 Dados do Cliente</h4>
+                                <div style="display: grid; gap: 8px; font-size: 0.9rem;">
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <span style="color: var(--text-secondary);">Nome:</span>
+                                        <span style="color: var(--text-primary);">${currentCustomer?.name || 'Não informado'}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <span style="color: var(--text-secondary);">Email:</span>
+                                        <span style="color: var(--text-primary);">${currentCustomer?.email || 'Não informado'}</span>
+                                    </div>
+                                </div>
+                                <div style="margin-top: 16px;">
+                                    <label style="display: block; color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 6px;">
+                                        CPF <span style="color: var(--error);">*</span> (obrigatório para PIX)
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        id="cpf-${invoice.invoice_id}"
+                                        placeholder="000.000.000-00"
+                                        maxlength="14"
+                                        oninput="formatCPF(this)"
+                                        style="width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 1rem;"
+                                    >
+                                </div>
+                            </div>
+                            <div class="invoice-actions">
+                                <button class="btn-primary" onclick="generatePix('${invoice.invoice_id}', this)">
+                                    Gerar PIX
+                                </button>
+                                ${invoice.invoice_url ? `
+                                    <button class="btn-secondary btn-small" onclick="window.open('${invoice.invoice_url}', '_blank')">
+                                        Ver fatura
+                                    </button>
+                                ` : ''}
+                            </div>
+                        `}
                     ` : `
                         <div style="text-align: center; padding: 10px; color: var(--text-secondary); font-size: 0.9rem;">
                             ${invoice.status === 'paid' ? '✅ Fatura já paga' : '⚠️ Não é possível gerar PIX para esta fatura'}
@@ -730,6 +795,17 @@
                     <div class="pix-section" id="pix-${invoice.invoice_id}"></div>
                 </div>
             `;
+        }
+        
+        // ============================================
+        // MOSTRAR FORMULÁRIO NOVO PIX
+        // ============================================
+        
+        function showNewPixForm(invoiceId) {
+            const form = document.getElementById(`newPixForm-${invoiceId}`);
+            if (form) {
+                form.style.display = form.style.display === 'none' ? 'block' : 'none';
+            }
         }
 
         // ============================================
@@ -901,6 +977,145 @@
                 document.body.removeChild(textarea);
                 showMessage('Código PIX copiado!', 'success');
             });
+        }
+
+        // ============================================
+        // CARREGAR PIX EXISTENTE
+        // ============================================
+        
+        async function loadExistingPix(invoiceId, pixId, btn) {
+            setButtonLoading(btn, true, 'Ver PIX');
+            
+            try {
+                // Busca o status do PIX existente
+                const response = await fetch('/api/check', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ invoice_id: invoiceId, pix_id: pixId })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Erro ao buscar PIX');
+                }
+                
+                const pixSection = document.getElementById(`pix-${invoiceId}`);
+                const pixData = data.pix_data || {};
+                
+                // Verifica se o PIX está pago
+                if (data.paid) {
+                    pixSection.innerHTML = `
+                        <div style="background: rgba(0, 212, 170, 0.1); border: 1px solid var(--success); padding: 24px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 2rem; margin-bottom: 10px;">✅</div>
+                            <div style="color: var(--success); font-weight: 600; font-size: 1.1rem;">Pagamento Confirmado!</div>
+                            <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">
+                                ${data.invoice_updated ? 'Fatura marcada como paga na Stripe' : 'O pagamento foi confirmado'}
+                            </div>
+                        </div>
+                    `;
+                    pixSection.classList.add('active');
+                    showMessage('Pagamento já foi confirmado!', 'success');
+                    return;
+                }
+                
+                // Extrai dados do PIX
+                const qrCodeUrl = pixData.qrCode?.image || pixData.qrCodeImage || '';
+                const pixCode = pixData.qrCode?.payload || pixData.brCode || pixData.payload || '';
+                const status = data.status || 'PENDING';
+                
+                // Verifica se o PIX expirou
+                const isExpired = status.toUpperCase() === 'EXPIRED';
+                
+                if (isExpired || (!qrCodeUrl && !pixCode)) {
+                    pixSection.innerHTML = `
+                        <div style="background: rgba(255, 193, 7, 0.1); border: 1px solid var(--warning); padding: 24px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 2rem; margin-bottom: 10px;">⏰</div>
+                            <div style="color: var(--warning); font-weight: 600; font-size: 1.1rem;">PIX Expirado</div>
+                            <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">
+                                Este PIX não está mais disponível. Gere um novo PIX clicando no botão abaixo.
+                            </div>
+                            <button class="btn-primary" style="margin-top: 16px;" onclick="showNewPixForm('${invoiceId}')">
+                                Gerar Novo PIX
+                            </button>
+                        </div>
+                    `;
+                    pixSection.classList.add('active');
+                    showMessage('PIX expirado. Gere um novo.', 'error');
+                    return;
+                }
+                
+                // Mostra o QR Code e código PIX
+                let qrCodeHtml = '';
+                if (qrCodeUrl) {
+                    qrCodeHtml = `<div class="qr-code-container"><img src="${qrCodeUrl}" alt="QR Code PIX"></div>`;
+                } else if (pixCode) {
+                    qrCodeHtml = `<div class="qr-code-container"><img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(pixCode)}" alt="QR Code PIX"></div>`;
+                }
+                
+                pixSection.innerHTML = `
+                    <h3 class="pix-title">📱 PIX Disponível</h3>
+                    
+                    <div style="background: var(--bg-primary); padding: 14px; border-radius: 10px; margin-bottom: 16px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div style="text-align: left;">
+                                <div style="color: var(--text-secondary); font-size: 0.8rem;">Status</div>
+                                <div style="color: var(--warning); font-weight: 600;">⏳ Aguardando pagamento</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="color: var(--text-secondary); font-size: 0.8rem;">Valor</div>
+                                <div style="font-size: 1.3rem; color: var(--accent); font-weight: 700;">${formatCurrency(pixData.amount || 0)}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    ${qrCodeHtml}
+                    
+                    ${pixCode ? `
+                        <p style="margin-bottom: 8px; color: var(--text-secondary); font-size: 0.85rem;">
+                            📋 Código PIX Copia e Cola:
+                        </p>
+                        <div class="pix-code" id="pixCode-${invoiceId}">${pixCode}</div>
+                        <button class="copy-btn" onclick="copyPixCode('${invoiceId}')">
+                            📋 Copiar código PIX
+                        </button>
+                    ` : ''}
+                    
+                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+                        <p style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 10px;">
+                            Clique para verificar se o PIX foi pago:
+                        </p>
+                        <button class="btn-primary btn-small" onclick="checkPayment('${invoiceId}', '${pixId}', this)">
+                            🔍 Verificar Pagamento
+                        </button>
+                        <div id="paymentStatus-${invoiceId}" style="margin-top: 10px;"></div>
+                    </div>
+                `;
+                
+                pixSection.classList.add('active');
+                pixSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                showMessage('PIX carregado com sucesso!', 'success');
+                
+            } catch (error) {
+                showMessage(error.message);
+                // Se der erro, mostra opção de gerar novo PIX
+                const pixSection = document.getElementById(`pix-${invoiceId}`);
+                pixSection.innerHTML = `
+                    <div style="background: rgba(255, 107, 107, 0.1); border: 1px solid var(--error); padding: 24px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 2rem; margin-bottom: 10px;">❌</div>
+                        <div style="color: var(--error); font-weight: 600; font-size: 1.1rem;">Erro ao carregar PIX</div>
+                        <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">
+                            ${error.message}
+                        </div>
+                        <button class="btn-primary" style="margin-top: 16px;" onclick="showNewPixForm('${invoiceId}')">
+                            Gerar Novo PIX
+                        </button>
+                    </div>
+                `;
+                pixSection.classList.add('active');
+            } finally {
+                setButtonLoading(btn, false, 'Ver PIX Gerado');
+            }
         }
 
         // ============================================
