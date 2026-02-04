@@ -1,0 +1,155 @@
+// API para simular upgrade/downgrade de assinatura
+// Busca os dados reais da Stripe e calcula os valores
+
+export default async function handler(req, res) {
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Método não permitido' });
+  }
+
+  const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+
+  if (!STRIPE_SECRET_KEY) {
+    return res.status(500).json({ error: 'Stripe não configurado' });
+  }
+
+  try {
+    const { subscription_id, new_quantity } = req.body;
+
+    if (!subscription_id || !new_quantity) {
+      return res.status(400).json({ error: 'subscription_id e new_quantity são obrigatórios' });
+    }
+
+    const newQty = parseInt(new_quantity);
+    if (newQty < 1) {
+      return res.status(400).json({ error: 'Quantidade deve ser pelo menos 1' });
+    }
+
+    // Função para fazer requisições à Stripe
+    async function stripeRequest(endpoint, method = 'GET', body = null) {
+      const options = {
+        method,
+        headers: {
+          'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      };
+
+      if (body) {
+        options.body = new URLSearchParams(body).toString();
+      }
+
+      const response = await fetch(`https://api.stripe.com/v1/${endpoint}`, options);
+      const data = await response.json();
+      return { code: response.status, data };
+    }
+
+    // 1. Busca a subscription
+    const subResponse = await stripeRequest(`subscriptions/${subscription_id}`);
+    if (subResponse.code !== 200) {
+      return res.status(404).json({ error: 'Assinatura não encontrada' });
+    }
+
+    const subscription = subResponse.data;
+    const currentPeriodStart = subscription.current_period_start;
+    const currentPeriodEnd = subscription.current_period_end;
+
+    // 2. Busca os items da subscription
+    const itemsResponse = await stripeRequest(`subscription_items?subscription=${subscription_id}`);
+    if (itemsResponse.code !== 200 || !itemsResponse.data.data?.length) {
+      return res.status(400).json({ error: 'Não foi possível obter os items da assinatura' });
+    }
+
+    const item = itemsResponse.data.data[0];
+    const subscriptionItemId = item.id;
+    const currentQuantity = item.quantity || 1;
+    const priceId = item.price?.id;
+
+    if (newQty === currentQuantity) {
+      return res.status(400).json({ error: 'A nova quantidade é igual à atual' });
+    }
+
+    // 3. Busca o preço
+    const priceResponse = await stripeRequest(`prices/${priceId}`);
+    if (priceResponse.code !== 200) {
+      return res.status(400).json({ error: 'Não foi possível obter o preço' });
+    }
+
+    const unitAmount = priceResponse.data.unit_amount || 0;
+    const currency = priceResponse.data.currency || 'brl';
+
+    // 4. Busca o nome do produto
+    let productName = 'Assinatura';
+    if (priceResponse.data.product) {
+      const productResponse = await stripeRequest(`products/${priceResponse.data.product}`);
+      if (productResponse.code === 200) {
+        productName = productResponse.data.name || productName;
+      }
+    }
+
+    // 5. Calcula os valores
+    const isUpgrade = newQty > currentQuantity;
+    const diff = Math.abs(newQty - currentQuantity);
+
+    const currentMonthly = currentQuantity * unitAmount;
+    const newMonthly = newQty * unitAmount;
+    const monthlyDiff = newMonthly - currentMonthly;
+
+    // Cálculo pro-rata (dias restantes no ciclo)
+    const now = Math.floor(Date.now() / 1000);
+    const totalSeconds = currentPeriodEnd - currentPeriodStart;
+    const remainingSeconds = Math.max(0, currentPeriodEnd - now);
+    const proRataFactor = totalSeconds > 0 ? remainingSeconds / totalSeconds : 0;
+
+    // Dias restantes
+    const remainingDays = Math.ceil(remainingSeconds / 86400);
+
+    // Valor pro-rata (apenas para upgrade)
+    const proRataAmount = isUpgrade ? Math.round(diff * unitAmount * proRataFactor) : 0;
+
+    // 6. Verifica se tem faturas em aberto
+    const invoicesResponse = await stripeRequest(
+      `invoices?subscription=${subscription_id}&status=open&limit=10`
+    );
+    const openInvoices = invoicesResponse.code === 200 ? (invoicesResponse.data.data || []) : [];
+
+    return res.status(200).json({
+      success: true,
+      simulation: {
+        subscription_id,
+        subscription_item_id: subscriptionItemId,
+        product_name: productName,
+        currency,
+        current_quantity: currentQuantity,
+        new_quantity: newQty,
+        is_upgrade: isUpgrade,
+        difference: diff,
+        unit_amount: unitAmount,
+        current_monthly: currentMonthly,
+        new_monthly: newMonthly,
+        monthly_difference: monthlyDiff,
+        remaining_days: remainingDays,
+        pro_rata_factor: proRataFactor,
+        pro_rata_amount: proRataAmount,
+        open_invoices_count: openInvoices.length,
+        open_invoices: openInvoices.map(inv => ({
+          id: inv.id,
+          amount_due: inv.amount_due,
+          status: inv.status
+        }))
+      }
+    });
+
+  } catch (error) {
+    console.error('Simulate upgrade error:', error);
+    return res.status(500).json({ error: 'Erro ao simular alteração: ' + error.message });
+  }
+}
