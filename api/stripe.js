@@ -135,9 +135,9 @@ export default async function handler(req, res) {
 
     const invoicesData = invoicesResponse.data.data || [];
 
-    // 3. Busca assinaturas do cliente
+    // 3. Busca assinaturas do cliente (com expand para pegar dados do price)
     const subscriptionsResponse = await stripeRequest(
-      `subscriptions?customer=${encodeURIComponent(customerId)}&limit=100&status=all`
+      `subscriptions?customer=${encodeURIComponent(customerId)}&limit=100&status=all&expand[]=data.items.data.price`
     );
 
     const subscriptionsData = subscriptionsResponse.code === 200 
