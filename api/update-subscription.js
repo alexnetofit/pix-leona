@@ -142,9 +142,13 @@ export default async function handler(req, res) {
       quantity: qty.toString()
     };
 
-    // Upgrade: não gera proration automatica (vamos criar fatura manualmente)
-    // Downgrade: não gera fatura
-    updateData.proration_behavior = 'none';
+    // Upgrade: usa always_invoice para gerar fatura pro-rata automaticamente
+    // Downgrade: não gera fatura (none)
+    if (isUpgrade) {
+      updateData.proration_behavior = 'always_invoice';
+    } else {
+      updateData.proration_behavior = 'none';
+    }
 
     const updateResponse = await stripeRequest(
       `subscription_items/${encodeURIComponent(subscription_item_id)}`,
@@ -156,27 +160,33 @@ export default async function handler(req, res) {
       throw new Error(updateResponse.data?.error?.message || 'Erro ao atualizar assinatura');
     }
 
-    // 5. Se foi upgrade, cria nova fatura com a quantidade correta
+    // 5. Se foi upgrade, busca a fatura que foi criada automaticamente
     let invoice = null;
     if (isUpgrade) {
-      // Cria uma nova fatura para a assinatura
-      const createInvoiceResponse = await stripeRequest('invoices', 'POST', {
-        customer: subscription.customer,
-        subscription: subscription_id,
-        auto_advance: 'true'
-      });
+      // A Stripe cria automaticamente uma fatura com proration_behavior: always_invoice
+      // Busca a fatura mais recente da assinatura
+      const invoicesResponse = await stripeRequest(
+        `invoices?subscription=${encodeURIComponent(subscription_id)}&limit=1`
+      );
       
-      if (createInvoiceResponse.code === 200) {
-        const newInvoice = createInvoiceResponse.data;
+      if (invoicesResponse.code === 200 && invoicesResponse.data?.data?.length > 0) {
+        const latestInvoice = invoicesResponse.data.data[0];
         
-        // Finaliza a fatura se estiver em draft
-        if (newInvoice.status === 'draft') {
+        // Se a fatura está em draft, finaliza e envia
+        if (latestInvoice.status === 'draft') {
           const finalizeResponse = await stripeRequest(
-            `invoices/${encodeURIComponent(newInvoice.id)}/finalize`,
-            'POST'
+            `invoices/${encodeURIComponent(latestInvoice.id)}/finalize`,
+            'POST',
+            { auto_advance: 'true' }
           );
           
           if (finalizeResponse.code === 200) {
+            // Envia a fatura por email
+            await stripeRequest(
+              `invoices/${encodeURIComponent(latestInvoice.id)}/send`,
+              'POST'
+            );
+            
             invoice = {
               id: finalizeResponse.data.id,
               status: finalizeResponse.data.status,
@@ -186,10 +196,10 @@ export default async function handler(req, res) {
           }
         } else {
           invoice = {
-            id: newInvoice.id,
-            status: newInvoice.status,
-            amount_due: newInvoice.amount_due,
-            hosted_invoice_url: newInvoice.hosted_invoice_url
+            id: latestInvoice.id,
+            status: latestInvoice.status,
+            amount_due: latestInvoice.amount_due,
+            hosted_invoice_url: latestInvoice.hosted_invoice_url
           };
         }
       }
