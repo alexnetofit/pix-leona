@@ -93,8 +93,20 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Não foi possível obter o preço' });
     }
 
-    const unitAmount = priceResponse.data.unit_amount || 0;
+    // O preço pode ser unit_amount ou tiered (tiers)
+    let unitAmount = priceResponse.data.unit_amount || 0;
     const currency = priceResponse.data.currency || 'brl';
+    const pricingType = priceResponse.data.billing_scheme || 'per_unit';
+    
+    // Se for tiered, pega o primeiro tier
+    if (pricingType === 'tiered' && priceResponse.data.tiers?.length > 0) {
+      unitAmount = priceResponse.data.tiers[0].unit_amount || priceResponse.data.tiers[0].flat_amount || 0;
+    }
+    
+    // Se ainda for 0, tenta pegar do item da subscription
+    if (unitAmount === 0 && item.price?.unit_amount) {
+      unitAmount = item.price.unit_amount;
+    }
 
     // 4. Busca o nome do produto
     let productName = 'Assinatura';
@@ -117,41 +129,37 @@ export default async function handler(req, res) {
     const remainingSeconds = Math.max(0, currentPeriodEnd - now);
     const remainingDays = Math.ceil(remainingSeconds / 86400);
 
-    // 6. USA A API INVOICES/UPCOMING PARA SIMULAR PRO-RATA EXATO
+    // 6. USA A NOVA API INVOICES/CREATE_PREVIEW PARA SIMULAR PRO-RATA
     let proRataAmount = 0;
     let upcomingInvoiceLines = [];
     let upcomingDebug = null;
     
     if (isUpgrade) {
-      // Constrói a query string manualmente para evitar problemas de encoding
-      const queryParts = [
-        `customer=${encodeURIComponent(customerId)}`,
-        `subscription=${encodeURIComponent(subscription_id)}`,
-        `subscription_items[0][id]=${encodeURIComponent(subscriptionItemId)}`,
-        `subscription_items[0][quantity]=${newQty}`,
-        `subscription_proration_behavior=always_invoice`
-      ];
-      const upcomingQuery = queryParts.join('&');
+      // Usa POST /v1/invoices/create_preview (nova API da Stripe)
+      const previewBody = new URLSearchParams();
+      previewBody.append('customer', customerId);
+      previewBody.append('subscription', subscription_id);
+      previewBody.append('subscription_details[items][0][id]', subscriptionItemId);
+      previewBody.append('subscription_details[items][0][quantity]', newQty.toString());
+      previewBody.append('subscription_details[proration_behavior]', 'always_invoice');
       
-      // Faz a requisição diretamente sem usar stripeRequest
-      const upcomingUrl = `https://api.stripe.com/v1/invoices/upcoming?${upcomingQuery}`;
-      const upcomingFetch = await fetch(upcomingUrl, {
-        method: 'GET',
+      const previewFetch = await fetch('https://api.stripe.com/v1/invoices/create_preview', {
+        method: 'POST',
         headers: {
-          'Authorization': `Bearer ${stripeSecret}`
-        }
+          'Authorization': `Bearer ${stripeSecret}`,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: previewBody.toString()
       });
-      const upcomingData = await upcomingFetch.json();
-      upcomingDebug = { code: upcomingFetch.status, data: upcomingData };
+      const previewData = await previewFetch.json();
+      upcomingDebug = { code: previewFetch.status, data: previewData };
       
-      if (upcomingFetch.status === 200) {
-        const upcomingInvoice = upcomingData;
-        
+      if (previewFetch.status === 200) {
         // Pega o amount_due diretamente - é o valor que será cobrado
-        proRataAmount = upcomingInvoice.amount_due || 0;
+        proRataAmount = previewData.amount_due || 0;
         
         // Filtra itens de proration para mostrar detalhes
-        upcomingInvoiceLines = (upcomingInvoice.lines?.data || []).filter(line => 
+        upcomingInvoiceLines = (previewData.lines?.data || []).filter(line => 
           line.proration === true
         );
       }
@@ -196,19 +204,24 @@ export default async function handler(req, res) {
         subscription_response: {
           current_period_start: currentPeriodStart,
           current_period_end: currentPeriodEnd,
-          customer: customerId
+          customer: customerId,
+          status: subscription.status
         },
         item_response: {
           id: subscriptionItemId,
           quantity: currentQuantity,
-          price_id: priceId
+          price_id: priceId,
+          item_price_unit_amount: item.price?.unit_amount
         },
         price_response: {
-          unit_amount: unitAmount,
+          unit_amount: priceResponse.data?.unit_amount,
+          billing_scheme: priceResponse.data?.billing_scheme,
+          tiers: priceResponse.data?.tiers,
           currency: currency,
-          product: priceResponse.data?.product
+          product: priceResponse.data?.product,
+          calculated_unit_amount: unitAmount
         },
-        upcoming_response: upcomingDebug
+        preview_response: upcomingDebug
       }
     });
 
