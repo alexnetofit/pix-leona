@@ -135,9 +135,9 @@ export default async function handler(req, res) {
 
     const invoicesData = invoicesResponse.data.data || [];
 
-    // 3. Busca assinaturas do cliente (com expand para pegar dados do price)
+    // 3. Busca assinaturas do cliente
     const subscriptionsResponse = await stripeRequest(
-      `subscriptions?customer=${encodeURIComponent(customerId)}&limit=100&status=all&expand[]=data.items.data.price`
+      `subscriptions?customer=${encodeURIComponent(customerId)}&limit=100&status=all`
     );
 
     const subscriptionsData = subscriptionsResponse.code === 200 
@@ -150,37 +150,35 @@ export default async function handler(req, res) {
     for (const sub of subscriptionsData) {
       let productName = 'Assinatura';
       let unitAmount = 0;
-      let priceId = null;
+      let subscriptionItemId = null;
+      let currentQuantity = 1;
 
-      console.log('Processing subscription:', sub.id, 'items:', JSON.stringify(sub.items?.data?.[0]));
-
-      if (sub.items?.data?.length > 0) {
-        const item = sub.items.data[0];
-        priceId = item.price?.id || item.plan?.id;
-        console.log('Found priceId:', priceId);
-        productName = item.price?.nickname || item.plan?.nickname || 'Assinatura';
-
-        // Tenta pegar o nome do produto
-        if (item.price?.product) {
-          const productResponse = await stripeRequest(`products/${item.price.product}`);
-          if (productResponse.code === 200) {
-            productName = productResponse.data.name || productName;
-          }
-        }
+      // Busca os items da subscription diretamente
+      const itemsResponse = await stripeRequest(`subscription_items?subscription=${sub.id}`);
+      
+      if (itemsResponse.code === 200 && itemsResponse.data.data?.length > 0) {
+        const item = itemsResponse.data.data[0];
+        subscriptionItemId = item.id;
+        currentQuantity = item.quantity || 1;
         
-        // Busca o preço diretamente da API para garantir o unit_amount
+        const priceId = item.price?.id;
+        
+        // Busca o preço para pegar o unit_amount
         if (priceId) {
           const priceResponse = await stripeRequest(`prices/${priceId}`);
-          console.log('Price API response code:', priceResponse.code, 'unit_amount:', priceResponse.data?.unit_amount);
           if (priceResponse.code === 200) {
             unitAmount = priceResponse.data.unit_amount || 0;
+            
+            // Busca o nome do produto
+            if (priceResponse.data.product) {
+              const productResponse = await stripeRequest(`products/${priceResponse.data.product}`);
+              if (productResponse.code === 200) {
+                productName = productResponse.data.name || productName;
+              }
+            }
           }
         }
-      } else {
-        console.log('No items found for subscription:', sub.id);
       }
-      
-      console.log('Final unitAmount for', sub.id, ':', unitAmount);
       
       subscriptionsMap[sub.id] = {
         id: sub.id,
@@ -188,8 +186,8 @@ export default async function handler(req, res) {
         product_name: productName,
         current_period_start: sub.current_period_start,
         current_period_end: sub.current_period_end,
-        subscription_item_id: sub.items?.data?.[0]?.id || null,
-        current_quantity: sub.items?.data?.[0]?.quantity || 1,
+        subscription_item_id: subscriptionItemId,
+        current_quantity: currentQuantity,
         unit_amount: unitAmount,
         invoices: []
       };
