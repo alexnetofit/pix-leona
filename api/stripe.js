@@ -149,9 +149,12 @@ export default async function handler(req, res) {
 
     for (const sub of subscriptionsData) {
       let productName = 'Assinatura';
+      let unitAmount = 0;
+      let priceId = null;
 
       if (sub.items?.data?.length > 0) {
         const item = sub.items.data[0];
+        priceId = item.price?.id || item.plan?.id;
         productName = item.price?.nickname || item.plan?.nickname || 'Assinatura';
 
         // Tenta pegar o nome do produto
@@ -161,11 +164,15 @@ export default async function handler(req, res) {
             productName = productResponse.data.name || productName;
           }
         }
+        
+        // Busca o preço diretamente da API para garantir o unit_amount
+        if (priceId) {
+          const priceResponse = await stripeRequest(`prices/${priceId}`);
+          if (priceResponse.code === 200) {
+            unitAmount = priceResponse.data.unit_amount || 0;
+          }
+        }
       }
-
-      // Pega o preço unitário
-      const priceData = sub.items?.data?.[0]?.price;
-      const unitAmount = priceData?.unit_amount || 0;
       
       subscriptionsMap[sub.id] = {
         id: sub.id,
