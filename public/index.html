@@ -1132,10 +1132,25 @@
                                     <span style="color: var(--text-primary);">${sim.remaining_days} dias</span>
                                 </div>
                                 
+                                ${sim.proration_lines && sim.proration_lines.length > 0 ? `
+                                    <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px; margin-top: 8px;">
+                                        <div style="color: var(--text-secondary); font-size: 0.75rem; margin-bottom: 8px;">Detalhes do cálculo (Stripe):</div>
+                                        ${sim.proration_lines.map(line => `
+                                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; padding: 4px 0; border-bottom: 1px solid var(--border);">
+                                                <span style="color: var(--text-secondary); max-width: 70%;">${line.description}</span>
+                                                <span style="color: ${line.amount >= 0 ? 'var(--success)' : 'var(--error)'}; font-weight: 500;">${line.amount >= 0 ? '+' : ''}${formatCurrency(line.amount)}</span>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                ` : ''}
+                                
                                 <div style="background: rgba(0, 212, 170, 0.15); padding: 16px; border-radius: 10px; margin-top: 8px;">
                                     <div style="display: flex; justify-content: space-between; align-items: center;">
                                         <span style="color: var(--accent); font-weight: 600; font-size: 1rem;">💰 Cobrança agora (pro-rata):</span>
                                         <span style="color: var(--accent); font-weight: 700; font-size: 1.3rem;">${formatCurrency(sim.pro_rata_amount)}</span>
+                                    </div>
+                                    <div style="color: var(--text-secondary); font-size: 0.75rem; text-align: center; margin-top: 8px;">
+                                        * Fatura será gerada e enviada por email
                                     </div>
                                 </div>
                                 

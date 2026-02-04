@@ -1,5 +1,5 @@
 // API para simular upgrade/downgrade de assinatura
-// Busca os dados reais da Stripe e calcula os valores
+// Usa a API invoices/upcoming da Stripe para calcular valores exatos
 
 export default async function handler(req, res) {
   // CORS headers
@@ -59,6 +59,7 @@ export default async function handler(req, res) {
     }
 
     const subscription = subResponse.data;
+    const customerId = subscription.customer;
     const currentPeriodStart = subscription.current_period_start;
     const currentPeriodEnd = subscription.current_period_end;
 
@@ -95,27 +96,53 @@ export default async function handler(req, res) {
       }
     }
 
-    // 5. Calcula os valores
+    // 5. Calcula valores básicos
     const isUpgrade = newQty > currentQuantity;
     const diff = Math.abs(newQty - currentQuantity);
-
     const currentMonthly = currentQuantity * unitAmount;
     const newMonthly = newQty * unitAmount;
     const monthlyDiff = newMonthly - currentMonthly;
 
-    // Cálculo pro-rata (dias restantes no ciclo)
+    // Dias restantes no ciclo
     const now = Math.floor(Date.now() / 1000);
-    const totalSeconds = currentPeriodEnd - currentPeriodStart;
     const remainingSeconds = Math.max(0, currentPeriodEnd - now);
-    const proRataFactor = totalSeconds > 0 ? remainingSeconds / totalSeconds : 0;
-
-    // Dias restantes
     const remainingDays = Math.ceil(remainingSeconds / 86400);
 
-    // Valor pro-rata (apenas para upgrade)
-    const proRataAmount = isUpgrade ? Math.round(diff * unitAmount * proRataFactor) : 0;
+    // 6. USA A API INVOICES/UPCOMING PARA SIMULAR PRO-RATA EXATO
+    let proRataAmount = 0;
+    let upcomingInvoiceLines = [];
+    
+    if (isUpgrade) {
+      // Simula a fatura pro-rata usando a API da Stripe
+      const upcomingParams = {
+        customer: customerId,
+        subscription: subscription_id,
+        [`subscription_items[0][id]`]: subscriptionItemId,
+        [`subscription_items[0][quantity]`]: newQty.toString(),
+        subscription_proration_behavior: 'always_invoice'
+      };
+      
+      const upcomingResponse = await stripeRequest('invoices/upcoming', 'GET', upcomingParams);
+      
+      if (upcomingResponse.code === 200) {
+        const upcomingInvoice = upcomingResponse.data;
+        
+        // Filtra apenas os itens de proration (créditos e débitos)
+        upcomingInvoiceLines = (upcomingInvoice.lines?.data || []).filter(line => 
+          line.proration === true
+        );
+        
+        // Soma os valores de proration
+        proRataAmount = upcomingInvoiceLines.reduce((sum, line) => sum + line.amount, 0);
+        
+        // Se não encontrou linhas de proration, usa o total da invoice menos o valor mensal
+        if (proRataAmount === 0 && upcomingInvoice.amount_due > 0) {
+          proRataAmount = upcomingInvoice.amount_due;
+        }
+      }
+    }
 
-    // 6. Verifica se tem faturas em aberto
+    // 7. Verifica se tem faturas em aberto
     const invoicesResponse = await stripeRequest(
       `invoices?subscription=${subscription_id}&status=open&limit=10`
     );
@@ -137,8 +164,11 @@ export default async function handler(req, res) {
         new_monthly: newMonthly,
         monthly_difference: monthlyDiff,
         remaining_days: remainingDays,
-        pro_rata_factor: proRataFactor,
         pro_rata_amount: proRataAmount,
+        proration_lines: upcomingInvoiceLines.map(line => ({
+          description: line.description,
+          amount: line.amount
+        })),
         open_invoices_count: openInvoices.length,
         open_invoices: openInvoices.map(inv => ({
           id: inv.id,
