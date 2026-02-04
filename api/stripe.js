@@ -92,6 +92,14 @@ export default async function handler(req, res) {
   }
 
   try {
+    // 0. Busca o produto disponível para criar assinatura
+    const productResponse = await stripeRequest('products/prod_TfvzDiSiAGWTaP');
+    const availableProduct = productResponse.code === 200 ? {
+      id: 'prod_TfvzDiSiAGWTaP',
+      name: productResponse.data.name,
+      price_id: 'price_1Sia7qC7W0AK1mCaLqcjn0b9'
+    } : null;
+
     // 1. Busca cliente pelo e-mail
     const customersResponse = await stripeRequest(
       `customers?email=${encodeURIComponent(normalizedEmail)}&limit=100`
@@ -103,8 +111,14 @@ export default async function handler(req, res) {
 
     const customers = customersResponse.data.data || [];
 
+    // Se cliente não existe, retorna com flag e produto disponível
     if (customers.length === 0) {
-      return res.status(404).json({ error: 'Cliente não encontrado na Stripe' });
+      return res.status(200).json({ 
+        customer_exists: false,
+        has_subscriptions: false,
+        available_product: availableProduct,
+        email: normalizedEmail
+      });
     }
 
     const customer = customers[0];
@@ -212,8 +226,16 @@ export default async function handler(req, res) {
     // Conta totais
     const totalInvoices = invoicesData.length;
     const openInvoices = invoicesData.filter(i => i.status === 'open').length;
+    
+    // Verifica se tem assinaturas ativas
+    const hasActiveSubscriptions = subscriptionsData.some(s => 
+      ['active', 'trialing', 'past_due'].includes(s.status)
+    );
 
     return res.status(200).json({
+      customer_exists: true,
+      has_subscriptions: hasActiveSubscriptions,
+      available_product: hasActiveSubscriptions ? null : availableProduct,
       customer: {
         id: customer.id,
         email: customer.email,

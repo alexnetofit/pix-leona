@@ -520,6 +520,52 @@
             </div>
             <div id="subscriptionsList"></div>
         </section>
+
+        <!-- Seção para criar assinatura -->
+        <section class="search-section" id="createSubscriptionSection" style="display: none;">
+            <h2 id="createSubTitle">Criar Nova Assinatura</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px;" id="createSubDescription"></p>
+            
+            <div id="productInfo" style="background: var(--bg-secondary); padding: 16px; border-radius: 10px; margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="color: var(--text-secondary); font-size: 0.8rem;">Produto</div>
+                        <div style="color: var(--accent); font-weight: 600; font-size: 1.1rem;" id="productName"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Campo Nome (só aparece se não tem customer) -->
+            <div id="nameFieldContainer" style="margin-bottom: 16px; display: none;">
+                <label style="display: block; color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 6px;">
+                    Nome do Cliente <span style="color: var(--error);">*</span>
+                </label>
+                <input 
+                    type="text" 
+                    id="customerNameInput" 
+                    placeholder="Nome completo"
+                    style="width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); font-size: 1rem;"
+                >
+            </div>
+
+            <!-- Campo Quantidade -->
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 6px;">
+                    Quantidade
+                </label>
+                <input 
+                    type="number" 
+                    id="quantityInput" 
+                    value="1"
+                    min="1"
+                    style="width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); font-size: 1rem;"
+                >
+            </div>
+
+            <button class="btn-primary" id="createSubBtn" onclick="createSubscription()" style="width: 100%;">
+                Criar Assinatura
+            </button>
+        </section>
     </div>
 
     <script>
@@ -527,6 +573,8 @@
         // VARIÁVEIS GLOBAIS
         // ============================================
         let currentCustomer = null;
+        let currentEmail = null;
+        let availableProduct = null;
 
         // ============================================
         // FUNÇÕES UTILITÁRIAS
@@ -579,7 +627,12 @@
                 return;
             }
             
+            currentEmail = email;
             setButtonLoading(btn, true, 'Buscar');
+            
+            // Esconde seções
+            document.getElementById('resultsSection').classList.remove('active');
+            document.getElementById('createSubscriptionSection').style.display = 'none';
             
             try {
                 const response = await fetch('/api/stripe', {
@@ -600,11 +653,28 @@
                     throw new Error(errorMsg);
                 }
                 
+                // Salva produto disponível
+                availableProduct = data.available_product;
+                
+                // Caso 1: Cliente não existe
+                if (!data.customer_exists) {
+                    showCreateSubscriptionForm(true, data.available_product);
+                    showMessage('Cliente não encontrado. Preencha os dados para criar uma assinatura.', 'error');
+                    return;
+                }
+                
                 currentCustomer = data.customer;
                 
+                // Caso 2: Cliente existe mas não tem assinatura ativa
+                if (!data.has_subscriptions && data.available_product) {
+                    showCreateSubscriptionForm(false, data.available_product);
+                    showMessage('Cliente encontrado, mas sem assinatura ativa. Deseja criar uma?', 'error');
+                    return;
+                }
+                
+                // Caso 3: Cliente com assinaturas - mostra faturas
                 if (!data.subscriptions || data.subscriptions.length === 0) {
                     showMessage('Nenhuma fatura encontrada para este cliente.', 'error');
-                    document.getElementById('resultsSection').classList.remove('active');
                     return;
                 }
                 
@@ -613,9 +683,107 @@
                 
             } catch (error) {
                 showMessage(error.message);
-                document.getElementById('resultsSection').classList.remove('active');
             } finally {
                 setButtonLoading(btn, false, 'Buscar');
+            }
+        }
+        
+        // ============================================
+        // MOSTRAR FORM CRIAR ASSINATURA
+        // ============================================
+        
+        function showCreateSubscriptionForm(needsName, product) {
+            const section = document.getElementById('createSubscriptionSection');
+            const nameField = document.getElementById('nameFieldContainer');
+            const productName = document.getElementById('productName');
+            const description = document.getElementById('createSubDescription');
+            const title = document.getElementById('createSubTitle');
+            
+            if (product) {
+                productName.textContent = product.name;
+            }
+            
+            if (needsName) {
+                title.textContent = 'Criar Novo Cliente e Assinatura';
+                description.textContent = `O e-mail "${currentEmail}" não foi encontrado. Preencha os dados abaixo para criar o cliente e sua assinatura.`;
+                nameField.style.display = 'block';
+            } else {
+                title.textContent = 'Criar Nova Assinatura';
+                description.textContent = `O cliente existe mas não possui assinatura ativa. Deseja criar uma assinatura do produto abaixo?`;
+                nameField.style.display = 'none';
+            }
+            
+            // Limpa campos
+            document.getElementById('customerNameInput').value = '';
+            document.getElementById('quantityInput').value = '1';
+            
+            section.style.display = 'block';
+            section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        
+        // ============================================
+        // CRIAR ASSINATURA
+        // ============================================
+        
+        async function createSubscription() {
+            const btn = document.getElementById('createSubBtn');
+            const nameField = document.getElementById('nameFieldContainer');
+            const needsName = nameField.style.display !== 'none';
+            
+            const name = document.getElementById('customerNameInput').value.trim();
+            const quantity = parseInt(document.getElementById('quantityInput').value) || 1;
+            
+            // Validações
+            if (needsName && !name) {
+                showMessage('Por favor, informe o nome do cliente.');
+                document.getElementById('customerNameInput').focus();
+                return;
+            }
+            
+            if (quantity < 1) {
+                showMessage('A quantidade deve ser pelo menos 1.');
+                return;
+            }
+            
+            setButtonLoading(btn, true, 'Criar Assinatura');
+            
+            try {
+                const payload = {
+                    email: currentEmail,
+                    quantity: quantity
+                };
+                
+                if (needsName) {
+                    payload.name = name;
+                } else {
+                    payload.customer_id = currentCustomer?.id;
+                }
+                
+                const response = await fetch('/api/subscription', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Erro ao criar assinatura');
+                }
+                
+                // Sucesso! Esconde o form e busca novamente
+                document.getElementById('createSubscriptionSection').style.display = 'none';
+                showMessage('Assinatura criada com sucesso! Buscando faturas...', 'success');
+                
+                // Busca novamente para mostrar as faturas
+                setTimeout(() => {
+                    searchInvoices();
+                }, 1000);
+                
+            } catch (error) {
+                showMessage(error.message);
+            } finally {
+                setButtonLoading(btn, false, 'Criar Assinatura');
             }
         }
 
