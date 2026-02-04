@@ -120,34 +120,40 @@ export default async function handler(req, res) {
     // 6. USA A API INVOICES/UPCOMING PARA SIMULAR PRO-RATA EXATO
     let proRataAmount = 0;
     let upcomingInvoiceLines = [];
+    let upcomingDebug = null;
     
     if (isUpgrade) {
-      // Simula a fatura pro-rata usando a API da Stripe
-      const upcomingParams = {
-        customer: customerId,
-        subscription: subscription_id,
-        [`subscription_items[0][id]`]: subscriptionItemId,
-        [`subscription_items[0][quantity]`]: newQty.toString(),
-        subscription_proration_behavior: 'always_invoice'
-      };
+      // Constrói a query string manualmente para evitar problemas de encoding
+      const queryParts = [
+        `customer=${encodeURIComponent(customerId)}`,
+        `subscription=${encodeURIComponent(subscription_id)}`,
+        `subscription_items[0][id]=${encodeURIComponent(subscriptionItemId)}`,
+        `subscription_items[0][quantity]=${newQty}`,
+        `subscription_proration_behavior=always_invoice`
+      ];
+      const upcomingQuery = queryParts.join('&');
       
-      const upcomingResponse = await stripeRequest('invoices/upcoming', 'GET', upcomingParams);
+      // Faz a requisição diretamente sem usar stripeRequest
+      const upcomingUrl = `https://api.stripe.com/v1/invoices/upcoming?${upcomingQuery}`;
+      const upcomingFetch = await fetch(upcomingUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${stripeSecret}`
+        }
+      });
+      const upcomingData = await upcomingFetch.json();
+      upcomingDebug = { code: upcomingFetch.status, data: upcomingData };
       
-      if (upcomingResponse.code === 200) {
-        const upcomingInvoice = upcomingResponse.data;
+      if (upcomingFetch.status === 200) {
+        const upcomingInvoice = upcomingData;
         
-        // Filtra apenas os itens de proration (créditos e débitos)
+        // Pega o amount_due diretamente - é o valor que será cobrado
+        proRataAmount = upcomingInvoice.amount_due || 0;
+        
+        // Filtra itens de proration para mostrar detalhes
         upcomingInvoiceLines = (upcomingInvoice.lines?.data || []).filter(line => 
           line.proration === true
         );
-        
-        // Soma os valores de proration
-        proRataAmount = upcomingInvoiceLines.reduce((sum, line) => sum + line.amount, 0);
-        
-        // Se não encontrou linhas de proration, usa o total da invoice menos o valor mensal
-        if (proRataAmount === 0 && upcomingInvoice.amount_due > 0) {
-          proRataAmount = upcomingInvoice.amount_due;
-        }
       }
     }
 
@@ -184,6 +190,25 @@ export default async function handler(req, res) {
           amount_due: inv.amount_due,
           status: inv.status
         }))
+      },
+      // DEBUG - remover depois
+      debug: {
+        subscription_response: {
+          current_period_start: currentPeriodStart,
+          current_period_end: currentPeriodEnd,
+          customer: customerId
+        },
+        item_response: {
+          id: subscriptionItemId,
+          quantity: currentQuantity,
+          price_id: priceId
+        },
+        price_response: {
+          unit_amount: unitAmount,
+          currency: currency,
+          product: priceResponse.data?.product
+        },
+        upcoming_response: upcomingDebug
       }
     });
 
