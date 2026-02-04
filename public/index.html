@@ -814,16 +814,49 @@
                 
                 const openCount = subscription.invoices.filter(i => i.status === 'open').length;
                 
+                const isRealSubscription = subscription.id !== 'no_subscription' && subscription.subscription_item_id;
+                const isActiveSubscription = ['active', 'trialing', 'past_due'].includes(subscription.status);
+                
                 subGroup.innerHTML = `
                     <div class="subscription-header" onclick="toggleSubscription(${subIndex})">
                         <div class="subscription-name">
                             📦 ${subscription.product_name}
+                            ${isRealSubscription ? `<span style="color: var(--text-secondary); font-size: 0.85rem; font-weight: 400;">(${subscription.current_quantity || 1} unidade${(subscription.current_quantity || 1) > 1 ? 's' : ''})</span>` : ''}
                             <span class="subscription-badge" style="background: ${openCount > 0 ? 'var(--warning)' : 'var(--success)'}; color: #000;">
                                 ${subscription.invoices.length} fatura(s)${openCount > 0 ? ` • ${openCount} em aberto` : ''}
                             </span>
                         </div>
-                        <span class="subscription-toggle">▼</span>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            ${isRealSubscription && isActiveSubscription ? `
+                                <button class="btn-secondary btn-small" onclick="event.stopPropagation(); showUpdateQuantityForm('${subscription.id}', '${subscription.subscription_item_id}', ${subscription.current_quantity || 1}, '${subscription.product_name}')" style="padding: 6px 12px; font-size: 0.75rem;">
+                                    Alterar Qtd
+                                </button>
+                            ` : ''}
+                            <span class="subscription-toggle">▼</span>
+                        </div>
                     </div>
+                    ${isRealSubscription && isActiveSubscription ? `
+                        <div id="updateQtyForm-${subscription.id}" style="display: none; padding: 16px; background: var(--bg-secondary); border-bottom: 1px solid var(--border);">
+                            <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+                                <div>
+                                    <label style="color: var(--text-secondary); font-size: 0.8rem;">Nova quantidade:</label>
+                                    <input type="number" id="newQty-${subscription.id}" value="${subscription.current_quantity || 1}" min="1" 
+                                        style="width: 80px; padding: 8px 12px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 1rem; margin-left: 8px;">
+                                </div>
+                                <div style="display: flex; gap: 8px;">
+                                    <button class="btn-primary btn-small" onclick="updateSubscriptionQuantity('${subscription.id}', '${subscription.subscription_item_id}', ${subscription.current_quantity || 1})">
+                                        Confirmar
+                                    </button>
+                                    <button class="btn-secondary btn-small" onclick="hideUpdateQuantityForm('${subscription.id}')">
+                                        Cancelar
+                                    </button>
+                                </div>
+                                <div style="color: var(--text-secondary); font-size: 0.75rem;">
+                                    <strong>Upgrade:</strong> gera fatura pro-rata | <strong>Downgrade:</strong> apenas reduz
+                                </div>
+                            </div>
+                        </div>
+                    ` : ''}
                     <div class="invoices-container" id="invoices-${subIndex}">
                         ${subscription.invoices.map(invoice => renderInvoiceCard(invoice)).join('')}
                     </div>
@@ -983,6 +1016,89 @@
         function toggleSubscription(index) {
             const group = document.getElementById(`sub-${index}`);
             group.classList.toggle('collapsed');
+        }
+
+        // ============================================
+        // ALTERAR QUANTIDADE DA ASSINATURA
+        // ============================================
+        
+        function showUpdateQuantityForm(subscriptionId, itemId, currentQty, productName) {
+            const form = document.getElementById(`updateQtyForm-${subscriptionId}`);
+            if (form) {
+                form.style.display = 'block';
+                document.getElementById(`newQty-${subscriptionId}`).value = currentQty;
+                document.getElementById(`newQty-${subscriptionId}`).focus();
+            }
+        }
+        
+        function hideUpdateQuantityForm(subscriptionId) {
+            const form = document.getElementById(`updateQtyForm-${subscriptionId}`);
+            if (form) {
+                form.style.display = 'none';
+            }
+        }
+        
+        async function updateSubscriptionQuantity(subscriptionId, itemId, currentQty) {
+            const input = document.getElementById(`newQty-${subscriptionId}`);
+            const newQty = parseInt(input.value);
+            
+            if (!newQty || newQty < 1) {
+                showMessage('A quantidade deve ser pelo menos 1.');
+                return;
+            }
+            
+            if (newQty === currentQty) {
+                showMessage('A quantidade é a mesma. Nenhuma alteração necessária.');
+                hideUpdateQuantityForm(subscriptionId);
+                return;
+            }
+            
+            const isUpgrade = newQty > currentQty;
+            const confirmMsg = isUpgrade 
+                ? `Confirma upgrade de ${currentQty} para ${newQty} unidade(s)? Será gerada uma fatura pro-rata.`
+                : `Confirma downgrade de ${currentQty} para ${newQty} unidade(s)?`;
+            
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+            
+            // Desabilita o form
+            input.disabled = true;
+            
+            try {
+                const response = await fetch('/api/update-subscription', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        subscription_id: subscriptionId,
+                        subscription_item_id: itemId,
+                        new_quantity: newQty
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Erro ao atualizar assinatura');
+                }
+                
+                if (data.is_upgrade && data.invoice) {
+                    showMessage(`Upgrade realizado! Fatura pro-rata de ${formatCurrency(data.invoice.amount_due)} gerada e enviada.`, 'success');
+                } else if (data.is_upgrade) {
+                    showMessage('Upgrade realizado! Fatura pro-rata será enviada por email.', 'success');
+                } else {
+                    showMessage('Downgrade realizado com sucesso!', 'success');
+                }
+                
+                // Recarrega para mostrar a nova situação
+                setTimeout(() => {
+                    searchInvoices();
+                }, 1500);
+                
+            } catch (error) {
+                showMessage(error.message);
+                input.disabled = false;
+            }
         }
 
         // ============================================
