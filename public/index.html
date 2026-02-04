@@ -806,6 +806,9 @@
             list.innerHTML = '';
             
             data.subscriptions.forEach((subscription, subIndex) => {
+                // Debug: log subscription data
+                console.log('Subscription data:', subscription.id, 'unit_amount:', subscription.unit_amount, 'period_start:', subscription.current_period_start, 'period_end:', subscription.current_period_end);
+                
                 // Mostra assinaturas ativas mesmo sem faturas (para upgrade/downgrade)
                 const isActiveSubscription = ['active', 'trialing', 'past_due'].includes(subscription.status);
                 if (subscription.invoices.length === 0 && !isActiveSubscription) return;

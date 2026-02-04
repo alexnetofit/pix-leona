@@ -168,8 +168,10 @@ export default async function handler(req, res) {
         // Busca o preço diretamente da API para garantir o unit_amount
         if (priceId) {
           const priceResponse = await stripeRequest(`prices/${priceId}`);
+          console.log('Price response for', priceId, ':', JSON.stringify(priceResponse.data));
           if (priceResponse.code === 200) {
             unitAmount = priceResponse.data.unit_amount || 0;
+            console.log('Unit amount found:', unitAmount);
           }
         }
       }
