@@ -817,7 +817,7 @@
                 const openCount = subscription.invoices.filter(i => i.status === 'open').length;
                 
                 const isRealSubscription = subscription.id !== 'no_subscription' && subscription.subscription_item_id;
-                const isActiveSubscription = ['active', 'trialing', 'past_due'].includes(subscription.status);
+                // isActiveSubscription já foi definido acima
                 
                 subGroup.innerHTML = `
                     <div class="subscription-header" onclick="toggleSubscription(${subIndex})">
