@@ -34,7 +34,7 @@ export default async function handler(req, res) {
     }
 
     // Função para fazer requisições à Stripe
-    async function stripeRequest(endpoint, method = 'GET', body = null) {
+    async function stripeRequest(endpoint, method = 'GET', params = null) {
       const options = {
         method,
         headers: {
@@ -43,11 +43,20 @@ export default async function handler(req, res) {
         }
       };
 
-      if (body) {
-        options.body = new URLSearchParams(body).toString();
+      let url = `https://api.stripe.com/v1/${endpoint}`;
+      
+      if (params) {
+        const queryString = new URLSearchParams(params).toString();
+        if (method === 'GET') {
+          // GET: parâmetros vão na query string
+          url += (endpoint.includes('?') ? '&' : '?') + queryString;
+        } else {
+          // POST/PUT/DELETE: parâmetros vão no body
+          options.body = queryString;
+        }
       }
 
-      const response = await fetch(`https://api.stripe.com/v1/${endpoint}`, options);
+      const response = await fetch(url, options);
       const data = await response.json();
       return { code: response.status, data };
     }
