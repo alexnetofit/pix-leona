@@ -838,23 +838,45 @@
                         </div>
                     </div>
                     ${isRealSubscription && isActiveSubscription ? `
-                        <div id="updateQtyForm-${subscription.id}" style="display: none; padding: 16px; background: var(--bg-secondary); border-bottom: 1px solid var(--border);">
-                            <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
-                                <div>
-                                    <label style="color: var(--text-secondary); font-size: 0.8rem;">Nova quantidade:</label>
-                                    <input type="number" id="newQty-${subscription.id}" value="${subscription.current_quantity || 1}" min="1" 
-                                        style="width: 80px; padding: 8px 12px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 1rem; margin-left: 8px;">
+                        <div id="updateQtyForm-${subscription.id}" style="display: none; padding: 20px; background: var(--bg-secondary); border-bottom: 1px solid var(--border);">
+                            <div style="display: grid; gap: 16px;">
+                                <!-- Resumo Atual -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                                    <div style="background: var(--bg-primary); padding: 12px; border-radius: 8px;">
+                                        <div style="color: var(--text-secondary); font-size: 0.75rem;">Valor unitário</div>
+                                        <div style="color: var(--text-primary); font-weight: 600;">${formatCurrency(subscription.unit_amount || 0)}</div>
+                                    </div>
+                                    <div style="background: var(--bg-primary); padding: 12px; border-radius: 8px;">
+                                        <div style="color: var(--text-secondary); font-size: 0.75rem;">Quantidade atual</div>
+                                        <div style="color: var(--text-primary); font-weight: 600;">${subscription.current_quantity || 1} unidade(s)</div>
+                                    </div>
                                 </div>
-                                <div style="display: flex; gap: 8px;">
-                                    <button class="btn-primary btn-small" onclick="updateSubscriptionQuantity('${subscription.id}', '${subscription.subscription_item_id}', ${subscription.current_quantity || 1})">
-                                        Confirmar
-                                    </button>
-                                    <button class="btn-secondary btn-small" onclick="hideUpdateQuantityForm('${subscription.id}')">
+                                
+                                <!-- Input Nova Quantidade -->
+                                <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+                                    <div>
+                                        <label style="color: var(--text-secondary); font-size: 0.85rem;">Nova quantidade:</label>
+                                        <input type="number" id="newQty-${subscription.id}" value="${subscription.current_quantity || 1}" min="1" 
+                                            oninput="calculatePriceChange('${subscription.id}', ${subscription.current_quantity || 1}, ${subscription.unit_amount || 0}, ${subscription.current_period_start || 0}, ${subscription.current_period_end || 0})"
+                                            style="width: 100px; padding: 10px 14px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 1.1rem; margin-left: 8px; font-weight: 600;">
+                                    </div>
+                                </div>
+                                
+                                <!-- Cálculos -->
+                                <div id="priceCalc-${subscription.id}" style="background: var(--bg-primary); padding: 16px; border-radius: 10px; border: 1px solid var(--border);">
+                                    <div style="color: var(--text-secondary); font-size: 0.85rem; text-align: center;">
+                                        Altere a quantidade para ver os valores
+                                    </div>
+                                </div>
+                                
+                                <!-- Botões -->
+                                <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                                    <button class="btn-secondary" onclick="hideUpdateQuantityForm('${subscription.id}')" style="padding: 10px 20px;">
                                         Cancelar
                                     </button>
-                                </div>
-                                <div style="color: var(--text-secondary); font-size: 0.75rem;">
-                                    <strong>Upgrade:</strong> gera fatura pro-rata | <strong>Downgrade:</strong> apenas reduz
+                                    <button class="btn-primary" id="confirmBtn-${subscription.id}" onclick="updateSubscriptionQuantity('${subscription.id}', '${subscription.subscription_item_id}', ${subscription.current_quantity || 1})" style="padding: 10px 24px;">
+                                        Confirmar Alteração
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -1035,6 +1057,16 @@
                 form.style.display = 'block';
                 document.getElementById(`newQty-${subscriptionId}`).value = currentQty;
                 document.getElementById(`newQty-${subscriptionId}`).focus();
+                
+                // Reseta o cálculo
+                const calcDiv = document.getElementById(`priceCalc-${subscriptionId}`);
+                if (calcDiv) {
+                    calcDiv.innerHTML = `
+                        <div style="color: var(--text-secondary); font-size: 0.85rem; text-align: center;">
+                            Altere a quantidade para ver os valores
+                        </div>
+                    `;
+                }
             }
         }
         
@@ -1042,6 +1074,105 @@
             const form = document.getElementById(`updateQtyForm-${subscriptionId}`);
             if (form) {
                 form.style.display = 'none';
+            }
+        }
+        
+        function calculatePriceChange(subscriptionId, currentQty, unitAmount, periodStart, periodEnd) {
+            const input = document.getElementById(`newQty-${subscriptionId}`);
+            const calcDiv = document.getElementById(`priceCalc-${subscriptionId}`);
+            const confirmBtn = document.getElementById(`confirmBtn-${subscriptionId}`);
+            const newQty = parseInt(input.value) || 0;
+            
+            if (newQty < 1) {
+                calcDiv.innerHTML = `
+                    <div style="color: var(--error); font-size: 0.85rem; text-align: center;">
+                        A quantidade deve ser pelo menos 1
+                    </div>
+                `;
+                confirmBtn.disabled = true;
+                return;
+            }
+            
+            if (newQty === currentQty) {
+                calcDiv.innerHTML = `
+                    <div style="color: var(--text-secondary); font-size: 0.85rem; text-align: center;">
+                        Quantidade igual à atual. Nenhuma alteração.
+                    </div>
+                `;
+                confirmBtn.disabled = true;
+                return;
+            }
+            
+            confirmBtn.disabled = false;
+            
+            const isUpgrade = newQty > currentQty;
+            const diff = Math.abs(newQty - currentQty);
+            
+            // Valor mensal atual e novo
+            const currentMonthly = currentQty * unitAmount;
+            const newMonthly = newQty * unitAmount;
+            const monthlyDiff = newMonthly - currentMonthly;
+            
+            // Cálculo pro-rata (dias restantes no ciclo)
+            const now = Math.floor(Date.now() / 1000);
+            const totalDays = Math.max(1, Math.ceil((periodEnd - periodStart) / 86400));
+            const remainingDays = Math.max(0, Math.ceil((periodEnd - now) / 86400));
+            const proRataFactor = remainingDays / totalDays;
+            
+            // Valor pro-rata (apenas para upgrade)
+            const proRataAmount = isUpgrade ? Math.round(diff * unitAmount * proRataFactor) : 0;
+            
+            if (isUpgrade) {
+                calcDiv.innerHTML = `
+                    <div style="display: grid; gap: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid var(--border);">
+                            <span style="color: var(--text-secondary);">Tipo de alteração:</span>
+                            <span style="color: var(--success); font-weight: 600;">⬆️ UPGRADE (+${diff} unidade${diff > 1 ? 's' : ''})</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">Novo valor mensal:</span>
+                            <span style="color: var(--text-primary); font-weight: 600;">${formatCurrency(newMonthly)}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">Diferença mensal:</span>
+                            <span style="color: var(--success);">+${formatCurrency(monthlyDiff)}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding-top: 12px; border-top: 1px solid var(--border);">
+                            <span style="color: var(--text-secondary);">Dias restantes no ciclo:</span>
+                            <span style="color: var(--text-primary);">${remainingDays} dias</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; background: rgba(0, 212, 170, 0.1); padding: 12px; border-radius: 8px; margin-top: 4px;">
+                            <span style="color: var(--accent); font-weight: 600;">Cobrança agora (pro-rata):</span>
+                            <span style="color: var(--accent); font-weight: 700; font-size: 1.1rem;">${formatCurrency(proRataAmount)}</span>
+                        </div>
+                        <div style="color: var(--text-secondary); font-size: 0.75rem; text-align: center; margin-top: 4px;">
+                            * Faturas em aberto serão anuladas e uma nova fatura será gerada
+                        </div>
+                    </div>
+                `;
+            } else {
+                calcDiv.innerHTML = `
+                    <div style="display: grid; gap: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid var(--border);">
+                            <span style="color: var(--text-secondary);">Tipo de alteração:</span>
+                            <span style="color: var(--warning); font-weight: 600;">⬇️ DOWNGRADE (-${diff} unidade${diff > 1 ? 's' : ''})</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">Novo valor mensal:</span>
+                            <span style="color: var(--text-primary); font-weight: 600;">${formatCurrency(newMonthly)}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-secondary);">Economia mensal:</span>
+                            <span style="color: var(--success);">-${formatCurrency(Math.abs(monthlyDiff))}</span>
+                        </div>
+                        <div style="background: rgba(255, 193, 7, 0.1); padding: 12px; border-radius: 8px; margin-top: 4px;">
+                            <div style="color: var(--warning); font-weight: 600; text-align: center;">Sem cobrança adicional</div>
+                            <div style="color: var(--text-secondary); font-size: 0.75rem; text-align: center; margin-top: 4px;">
+                                A redução entra em vigor imediatamente
+                            </div>
+                        </div>
+                    </div>
+                `;
             }
         }
         

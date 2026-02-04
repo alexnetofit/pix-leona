@@ -163,13 +163,19 @@ export default async function handler(req, res) {
         }
       }
 
+      // Pega o preço unitário
+      const priceData = sub.items?.data?.[0]?.price;
+      const unitAmount = priceData?.unit_amount || 0;
+      
       subscriptionsMap[sub.id] = {
         id: sub.id,
         status: sub.status,
         product_name: productName,
+        current_period_start: sub.current_period_start,
         current_period_end: sub.current_period_end,
         subscription_item_id: sub.items?.data?.[0]?.id || null,
         current_quantity: sub.items?.data?.[0]?.quantity || 1,
+        unit_amount: unitAmount,
         invoices: []
       };
     }
