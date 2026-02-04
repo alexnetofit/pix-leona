@@ -133,35 +133,53 @@ export default async function handler(req, res) {
     let proRataAmount = 0;
     let upcomingInvoiceLines = [];
     let upcomingDebug = null;
+    let previewTotal = 0;
+    let hasDiscount = false;
+    let discountPercent = 0;
     
-    if (isUpgrade) {
-      // Usa POST /v1/invoices/create_preview (nova API da Stripe)
-      const previewBody = new URLSearchParams();
-      previewBody.append('customer', customerId);
-      previewBody.append('subscription', subscription_id);
-      previewBody.append('subscription_details[items][0][id]', subscriptionItemId);
-      previewBody.append('subscription_details[items][0][quantity]', newQty.toString());
-      previewBody.append('subscription_details[proration_behavior]', 'always_invoice');
+    // Usa POST /v1/invoices/create_preview (nova API da Stripe)
+    const previewBody = new URLSearchParams();
+    previewBody.append('customer', customerId);
+    previewBody.append('subscription', subscription_id);
+    previewBody.append('subscription_details[items][0][id]', subscriptionItemId);
+    previewBody.append('subscription_details[items][0][quantity]', newQty.toString());
+    previewBody.append('subscription_details[proration_behavior]', 'always_invoice');
+    
+    const previewFetch = await fetch('https://api.stripe.com/v1/invoices/create_preview', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${stripeSecret}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: previewBody.toString()
+    });
+    const previewData = await previewFetch.json();
+    upcomingDebug = { code: previewFetch.status, data: previewData };
+    
+    if (previewFetch.status === 200) {
+      // Total da fatura (pode ser negativo = crédito)
+      previewTotal = previewData.total || 0;
       
-      const previewFetch = await fetch('https://api.stripe.com/v1/invoices/create_preview', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${stripeSecret}`,
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: previewBody.toString()
-      });
-      const previewData = await previewFetch.json();
-      upcomingDebug = { code: previewFetch.status, data: previewData };
+      // amount_due é o que será cobrado (nunca negativo)
+      proRataAmount = previewData.amount_due || 0;
       
-      if (previewFetch.status === 200) {
-        // Pega o amount_due diretamente - é o valor que será cobrado
-        proRataAmount = previewData.amount_due || 0;
-        
-        // Filtra itens de proration para mostrar detalhes
-        upcomingInvoiceLines = (previewData.lines?.data || []).filter(line => 
-          line.proration === true
-        );
+      // Pega todas as linhas para mostrar detalhes
+      upcomingInvoiceLines = (previewData.lines?.data || []).map(line => ({
+        description: line.description,
+        amount: line.amount,
+        quantity: line.quantity,
+        is_proration: line.parent?.subscription_item_details?.proration || false
+      }));
+      
+      // Verifica se tem desconto
+      if (previewData.discounts?.length > 0) {
+        hasDiscount = true;
+        // Extrai porcentagem do desconto da descrição se possível
+        const descWithDiscount = upcomingInvoiceLines.find(l => l.description?.includes('% off'));
+        if (descWithDiscount) {
+          const match = descWithDiscount.description.match(/(\d+\.?\d*)% off/);
+          if (match) discountPercent = parseFloat(match[1]);
+        }
       }
     }
 
@@ -182,16 +200,16 @@ export default async function handler(req, res) {
         new_quantity: newQty,
         is_upgrade: isUpgrade,
         difference: diff,
-        unit_amount: unitAmount,
-        current_monthly: currentMonthly,
-        new_monthly: newMonthly,
-        monthly_difference: monthlyDiff,
-        remaining_days: remainingDays,
+        // Valores do preview da Stripe (fonte da verdade)
+        preview_total: previewTotal,
         pro_rata_amount: proRataAmount,
-        proration_lines: upcomingInvoiceLines.map(line => ({
-          description: line.description,
-          amount: line.amount
-        })),
+        has_credit: previewTotal < 0,
+        credit_amount: previewTotal < 0 ? Math.abs(previewTotal) : 0,
+        has_discount: hasDiscount,
+        discount_percent: discountPercent,
+        // Detalhes das linhas
+        proration_lines: upcomingInvoiceLines,
+        // Faturas em aberto
         open_invoices_count: openInvoices.length,
         open_invoices: openInvoices.map(inv => ({
           id: inv.id,
