@@ -109,19 +109,42 @@ export default async function handler(req, res) {
 
     // 2. Determina se é upgrade ou downgrade
     const isUpgrade = qty > currentQuantity;
+    
+    let voidedInvoices = [];
 
-    // 3. Atualiza o item da assinatura
+    // 3. Se é upgrade, anula faturas em aberto antes de fazer a alteração
+    if (isUpgrade) {
+      // Busca faturas em aberto da assinatura
+      const openInvoicesResponse = await stripeRequest(
+        `invoices?subscription=${encodeURIComponent(subscription_id)}&status=open&limit=10`
+      );
+      
+      if (openInvoicesResponse.code === 200 && openInvoicesResponse.data?.data?.length > 0) {
+        // Anula cada fatura em aberto
+        for (const inv of openInvoicesResponse.data.data) {
+          const voidResponse = await stripeRequest(
+            `invoices/${encodeURIComponent(inv.id)}/void`,
+            'POST'
+          );
+          
+          if (voidResponse.code === 200) {
+            voidedInvoices.push({
+              id: inv.id,
+              amount_due: inv.amount_due
+            });
+          }
+        }
+      }
+    }
+
+    // 4. Atualiza o item da assinatura
     const updateData = {
       quantity: qty.toString()
     };
 
-    // Upgrade: gera fatura pro-rata automaticamente
+    // Upgrade: não gera proration automatica (vamos criar fatura manualmente)
     // Downgrade: não gera fatura
-    if (isUpgrade) {
-      updateData.proration_behavior = 'always_invoice';
-    } else {
-      updateData.proration_behavior = 'none';
-    }
+    updateData.proration_behavior = 'none';
 
     const updateResponse = await stripeRequest(
       `subscription_items/${encodeURIComponent(subscription_item_id)}`,
@@ -133,35 +156,55 @@ export default async function handler(req, res) {
       throw new Error(updateResponse.data?.error?.message || 'Erro ao atualizar assinatura');
     }
 
-    // 4. Se foi upgrade, busca a fatura gerada
+    // 5. Se foi upgrade, cria nova fatura com a quantidade correta
     let invoice = null;
     if (isUpgrade) {
-      // Aguarda um pouco para a fatura ser criada
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Cria uma nova fatura para a assinatura
+      const createInvoiceResponse = await stripeRequest('invoices', 'POST', {
+        customer: subscription.customer,
+        subscription: subscription_id,
+        auto_advance: 'true'
+      });
       
-      // Busca faturas recentes do cliente
-      const invoicesResponse = await stripeRequest(
-        `invoices?subscription=${encodeURIComponent(subscription_id)}&limit=1`
-      );
-      
-      if (invoicesResponse.code === 200 && invoicesResponse.data?.data?.length > 0) {
-        const latestInvoice = invoicesResponse.data.data[0];
-        invoice = {
-          id: latestInvoice.id,
-          status: latestInvoice.status,
-          amount_due: latestInvoice.amount_due,
-          hosted_invoice_url: latestInvoice.hosted_invoice_url
-        };
+      if (createInvoiceResponse.code === 200) {
+        const newInvoice = createInvoiceResponse.data;
+        
+        // Finaliza a fatura se estiver em draft
+        if (newInvoice.status === 'draft') {
+          const finalizeResponse = await stripeRequest(
+            `invoices/${encodeURIComponent(newInvoice.id)}/finalize`,
+            'POST'
+          );
+          
+          if (finalizeResponse.code === 200) {
+            invoice = {
+              id: finalizeResponse.data.id,
+              status: finalizeResponse.data.status,
+              amount_due: finalizeResponse.data.amount_due,
+              hosted_invoice_url: finalizeResponse.data.hosted_invoice_url
+            };
+          }
+        } else {
+          invoice = {
+            id: newInvoice.id,
+            status: newInvoice.status,
+            amount_due: newInvoice.amount_due,
+            hosted_invoice_url: newInvoice.hosted_invoice_url
+          };
+        }
       }
     }
 
     return res.status(200).json({
       success: true,
-      message: isUpgrade ? 'Upgrade realizado! Fatura pro-rata gerada.' : 'Downgrade realizado!',
+      message: isUpgrade 
+        ? `Upgrade realizado! ${voidedInvoices.length > 0 ? `${voidedInvoices.length} fatura(s) antiga(s) anulada(s). ` : ''}Nova fatura gerada.`
+        : 'Downgrade realizado!',
       is_upgrade: isUpgrade,
       previous_quantity: currentQuantity,
       new_quantity: qty,
       changed: true,
+      voided_invoices: voidedInvoices,
       invoice: invoice
     });
 
