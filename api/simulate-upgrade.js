@@ -15,9 +15,9 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Método não permitido' });
   }
 
-  const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+  const stripeSecret = process.env.STRIPE_SECRET;
 
-  if (!STRIPE_SECRET_KEY) {
+  if (!stripeSecret) {
     return res.status(500).json({ error: 'Stripe não configurado' });
   }
 
@@ -38,7 +38,7 @@ export default async function handler(req, res) {
       const options = {
         method,
         headers: {
-          'Authorization': `Bearer ${STRIPE_SECRET_KEY}`,
+          'Authorization': `Bearer ${stripeSecret}`,
           'Content-Type': 'application/x-www-form-urlencoded'
         }
       };
