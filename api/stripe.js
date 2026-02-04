@@ -152,9 +152,12 @@ export default async function handler(req, res) {
       let unitAmount = 0;
       let priceId = null;
 
+      console.log('Processing subscription:', sub.id, 'items:', JSON.stringify(sub.items?.data?.[0]));
+
       if (sub.items?.data?.length > 0) {
         const item = sub.items.data[0];
         priceId = item.price?.id || item.plan?.id;
+        console.log('Found priceId:', priceId);
         productName = item.price?.nickname || item.plan?.nickname || 'Assinatura';
 
         // Tenta pegar o nome do produto
@@ -168,13 +171,16 @@ export default async function handler(req, res) {
         // Busca o preço diretamente da API para garantir o unit_amount
         if (priceId) {
           const priceResponse = await stripeRequest(`prices/${priceId}`);
-          console.log('Price response for', priceId, ':', JSON.stringify(priceResponse.data));
+          console.log('Price API response code:', priceResponse.code, 'unit_amount:', priceResponse.data?.unit_amount);
           if (priceResponse.code === 200) {
             unitAmount = priceResponse.data.unit_amount || 0;
-            console.log('Unit amount found:', unitAmount);
           }
         }
+      } else {
+        console.log('No items found for subscription:', sub.id);
       }
+      
+      console.log('Final unitAmount for', sub.id, ':', unitAmount);
       
       subscriptionsMap[sub.id] = {
         id: sub.id,
