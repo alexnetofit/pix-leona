@@ -207,7 +207,19 @@ export default async function handler(req, res) {
     }
 
     // 5. Monta resposta final
+    // Inclui TODAS as assinaturas (mesmo sem faturas) para permitir upgrade/downgrade
     let subscriptions = Object.values(subscriptionsMap);
+    
+    // Filtra assinaturas ativas (para mostrar primeiro) e outras
+    const activeSubscriptions = subscriptions.filter(s => 
+      ['active', 'trialing', 'past_due'].includes(s.status)
+    );
+    const otherSubscriptions = subscriptions.filter(s => 
+      !['active', 'trialing', 'past_due'].includes(s.status) && s.invoices.length > 0
+    );
+    
+    // Reorganiza: ativas primeiro, depois outras com faturas
+    subscriptions = [...activeSubscriptions, ...otherSubscriptions];
 
     // Adiciona grupo de faturas avulsas
     if (invoicesWithoutSubscription.length > 0) {

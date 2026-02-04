@@ -806,7 +806,9 @@
             list.innerHTML = '';
             
             data.subscriptions.forEach((subscription, subIndex) => {
-                if (subscription.invoices.length === 0) return;
+                // Mostra assinaturas ativas mesmo sem faturas (para upgrade/downgrade)
+                const isActiveSubscription = ['active', 'trialing', 'past_due'].includes(subscription.status);
+                if (subscription.invoices.length === 0 && !isActiveSubscription) return;
                 
                 const subGroup = document.createElement('div');
                 subGroup.className = 'subscription-group';
@@ -858,7 +860,12 @@
                         </div>
                     ` : ''}
                     <div class="invoices-container" id="invoices-${subIndex}">
-                        ${subscription.invoices.map(invoice => renderInvoiceCard(invoice)).join('')}
+                        ${subscription.invoices.length > 0 
+                            ? subscription.invoices.map(invoice => renderInvoiceCard(invoice)).join('')
+                            : `<div style="padding: 20px; text-align: center; color: var(--text-secondary);">
+                                Nenhuma fatura nesta assinatura. Use "Alterar Qtd" acima para fazer upgrade/downgrade.
+                               </div>`
+                        }
                     </div>
                 `;
                 
