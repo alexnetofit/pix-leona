@@ -827,6 +827,7 @@
                             <span class="subscription-badge" style="background: ${openCount > 0 ? 'var(--warning)' : 'var(--success)'}; color: #000;">
                                 ${subscription.invoices.length} fatura(s)${openCount > 0 ? ` • ${openCount} em aberto` : ''}
                             </span>
+                            ${isRealSubscription ? `<div style="font-size: 0.7rem; color: var(--text-secondary); font-family: monospace; margin-top: 2px;">${subscription.id}</div>` : ''}
                         </div>
                         <div style="display: flex; align-items: center; gap: 12px;">
                             ${isRealSubscription && isActiveSubscription ? `

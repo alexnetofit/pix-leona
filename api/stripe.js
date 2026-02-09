@@ -197,6 +197,11 @@ export default async function handler(req, res) {
     const invoicesWithoutSubscription = [];
 
     for (const invoice of invoicesData) {
+      // Pega subscription_id de onde estiver disponível
+      const subId = invoice.subscription 
+        || invoice.parent?.subscription_details?.subscription 
+        || null;
+      
       const invoiceFormatted = {
         invoice_id: invoice.id,
         amount_due: invoice.amount_due,
@@ -205,7 +210,7 @@ export default async function handler(req, res) {
         status_label: translateStatus(invoice.status),
         status_color: getStatusColor(invoice.status),
         customer_id: invoice.customer,
-        subscription_id: invoice.subscription || null,
+        subscription_id: subId,
         description: invoice.description || 'Fatura Stripe',
         created: invoice.created,
         due_date: invoice.due_date || null,
@@ -216,7 +221,7 @@ export default async function handler(req, res) {
         abacate_pix_created: invoice.metadata?.abacate_pix_created || null
       };
 
-      const subscriptionId = invoice.subscription;
+      const subscriptionId = subId;
 
       if (subscriptionId && subscriptionsMap[subscriptionId]) {
         subscriptionsMap[subscriptionId].invoices.push(invoiceFormatted);
