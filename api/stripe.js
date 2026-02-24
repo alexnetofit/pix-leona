@@ -234,12 +234,13 @@ export default async function handler(req, res) {
     // Inclui TODAS as assinaturas (mesmo sem faturas) para permitir upgrade/downgrade
     let subscriptions = Object.values(subscriptionsMap);
     
-    // Filtra assinaturas ativas (para mostrar primeiro) e outras
+    // Filtra assinaturas ativas/incompletas (para mostrar primeiro) e outras
+    const actionableStatuses = ['active', 'trialing', 'past_due', 'incomplete'];
     const activeSubscriptions = subscriptions.filter(s => 
-      ['active', 'trialing', 'past_due'].includes(s.status)
+      actionableStatuses.includes(s.status)
     );
     const otherSubscriptions = subscriptions.filter(s => 
-      !['active', 'trialing', 'past_due'].includes(s.status) && s.invoices.length > 0
+      !actionableStatuses.includes(s.status) && s.invoices.length > 0
     );
     
     // Reorganiza: ativas primeiro, depois outras com faturas
@@ -265,15 +266,17 @@ export default async function handler(req, res) {
     const totalInvoices = invoicesData.length;
     const openInvoices = invoicesData.filter(i => i.status === 'open').length;
     
-    // Verifica se tem assinaturas ativas
-    const hasActiveSubscriptions = subscriptionsData.some(s => 
-      ['active', 'trialing', 'past_due'].includes(s.status)
+    // Verifica se tem assinaturas (qualquer status) e se tem assinaturas acionáveis
+    const hasAnySubscriptions = subscriptions.length > 0;
+    const hasActionableSubscription = subscriptionsData.some(s => 
+      actionableStatuses.includes(s.status)
     );
 
     return res.status(200).json({
       customer_exists: true,
-      has_subscriptions: hasActiveSubscriptions,
-      available_product: hasActiveSubscriptions ? null : availableProduct,
+      has_subscriptions: hasAnySubscriptions,
+      has_actionable_subscription: hasActionableSubscription,
+      available_product: hasActionableSubscription ? null : availableProduct,
       customer: {
         id: customer.id,
         email: customer.email,

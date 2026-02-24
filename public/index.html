@@ -665,10 +665,10 @@
                 
                 currentCustomer = data.customer;
                 
-                // Caso 2: Cliente existe mas não tem assinatura ativa
+                // Caso 2: Cliente existe mas sem nenhuma assinatura
                 if (!data.has_subscriptions && data.available_product) {
                     showCreateSubscriptionForm(false, data.available_product);
-                    showMessage('Cliente encontrado, mas sem assinatura ativa. Deseja criar uma?', 'error');
+                    showMessage('Cliente encontrado, mas sem assinatura. Deseja criar uma?', 'error');
                     return;
                 }
                 
@@ -679,7 +679,14 @@
                 }
                 
                 renderResults(data);
-                showMessage(`${data.totals.total_invoices} fatura(s) encontrada(s)!`, 'success');
+                
+                // Caso 3b: tem assinaturas mas todas canceladas - mostra lista + formulário de criar nova
+                if (!data.has_actionable_subscription && data.available_product) {
+                    showCreateSubscriptionForm(false, data.available_product);
+                    showMessage('Cliente encontrado. Assinaturas anteriores exibidas abaixo. Deseja criar uma nova?', 'error');
+                } else {
+                    showMessage(`${data.totals.total_invoices} fatura(s) encontrada(s)!`, 'success');
+                }
                 
             } catch (error) {
                 showMessage(error.message);
@@ -807,7 +814,7 @@
             
             data.subscriptions.forEach((subscription, subIndex) => {
                 // Mostra assinaturas ativas mesmo sem faturas (para upgrade/downgrade)
-                const isActiveSubscription = ['active', 'trialing', 'past_due'].includes(subscription.status);
+                const isActiveSubscription = ['active', 'trialing', 'past_due', 'incomplete'].includes(subscription.status);
                 if (subscription.invoices.length === 0 && !isActiveSubscription) return;
                 
                 const subGroup = document.createElement('div');
