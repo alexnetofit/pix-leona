@@ -143,7 +143,7 @@ export default async function handler(req, res) {
     previewBody.append('subscription', subscription_id);
     previewBody.append('subscription_details[items][0][id]', subscriptionItemId);
     previewBody.append('subscription_details[items][0][quantity]', newQty.toString());
-    previewBody.append('subscription_details[proration_behavior]', 'always_invoice');
+    previewBody.append('subscription_details[proration_behavior]', isUpgrade ? 'always_invoice' : 'none');
     
     const previewFetch = await fetch('https://api.stripe.com/v1/invoices/create_preview', {
       method: 'POST',
