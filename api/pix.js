@@ -104,11 +104,68 @@ export default async function handler(req, res) {
       throw new Error('Fatura não encontrada na Stripe');
     }
 
-    const invoice = invoiceResponse.data;
+    let invoice = invoiceResponse.data;
+    let activeInvoiceId = invoice_id;
 
     // Verifica se a fatura está aberta
     if (invoice.status !== 'open') {
       throw new Error(`Esta fatura não está em aberto (status: ${invoice.status})`);
+    }
+
+    // Se a fatura foi criada pelo Checkout (charge_automatically), converte para send_invoice
+    if (invoice.collection_method === 'charge_automatically') {
+      console.log(`PIX: Fatura ${invoice_id} é de Checkout, convertendo...`);
+
+      const lineItems = invoice.lines?.data || [];
+      const firstItem = lineItems[0];
+      const priceId = firstItem?.price?.id || 'price_1Sia7qC7W0AK1mCaLqcjn0b9';
+      const qty = firstItem?.quantity || 1;
+      const invoiceCustomerId = invoice.customer;
+
+      // Busca e expira a sessão de Checkout
+      const sessionsResponse = await stripeRequest('checkout/sessions?limit=100');
+      if (sessionsResponse.code === 200) {
+        const session = sessionsResponse.data.data.find(s => s.invoice === invoice_id);
+        if (session) {
+          await stripeRequest(`checkout/sessions/${encodeURIComponent(session.id)}/expire`, 'POST');
+          console.log(`PIX: Sessão ${session.id} expirada`);
+        }
+      }
+
+      // Cria nova assinatura com send_invoice
+      const newSubResponse = await stripeRequest('subscriptions', 'POST', {
+        customer: invoiceCustomerId,
+        'items[0][price]': priceId,
+        'items[0][quantity]': qty.toString(),
+        'collection_method': 'send_invoice',
+        'days_until_due': '7'
+      });
+
+      if (newSubResponse.code !== 200) {
+        throw new Error('Erro ao recriar assinatura: ' + (newSubResponse.data?.error?.message || ''));
+      }
+
+      // Busca e finaliza a nova fatura
+      const newInvoiceId = typeof newSubResponse.data.latest_invoice === 'string'
+        ? newSubResponse.data.latest_invoice
+        : newSubResponse.data.latest_invoice?.id;
+
+      const newInvResponse = await stripeRequest(`invoices/${encodeURIComponent(newInvoiceId)}`);
+      if (newInvResponse.code === 200) {
+        invoice = newInvResponse.data;
+        activeInvoiceId = newInvoiceId;
+
+        if (invoice.status === 'draft') {
+          const finalizeResponse = await stripeRequest(
+            `invoices/${encodeURIComponent(newInvoiceId)}/finalize`, 'POST'
+          );
+          if (finalizeResponse.code === 200) {
+            invoice = finalizeResponse.data;
+          }
+        }
+      }
+
+      console.log(`PIX: Nova fatura ${activeInvoiceId} criada (sub: ${newSubResponse.data.id})`);
     }
 
     const amountCents = invoice.amount_due;
@@ -144,7 +201,7 @@ export default async function handler(req, res) {
     const pixData = {
       amount: amountCents, // Em centavos
       expiresIn: 3600, // 1 hora para expirar
-      description: `Fatura Leona Stripe ${invoice_id}`,
+      description: `Fatura Leona Stripe ${activeInvoiceId}`,
       customer: {
         name: customerName,
         cellphone: phoneFormatted,
@@ -152,7 +209,7 @@ export default async function handler(req, res) {
         taxId: cpfFormatted
       },
       metadata: {
-        externalId: invoice_id
+        externalId: activeInvoiceId
       }
     };
 
@@ -176,7 +233,7 @@ export default async function handler(req, res) {
 
     // 5. Salva o pix_id nos metadados da fatura na Stripe
     if (pixId) {
-      await stripeRequest(`invoices/${encodeURIComponent(invoice_id)}`, 'POST', {
+      await stripeRequest(`invoices/${encodeURIComponent(activeInvoiceId)}`, 'POST', {
         'metadata[abacate_pix_id]': pixId,
         'metadata[abacate_pix_created]': new Date().toISOString()
       });
@@ -201,7 +258,7 @@ export default async function handler(req, res) {
         email: customerEmail,
         cpf: `${cpfClean.slice(0, 3)}.***.***-${cpfClean.slice(9, 11)}`
       },
-      invoice_id: invoice_id,
+      invoice_id: activeInvoiceId,
       expires_in: 3600,
       raw_response: pixResult
     });

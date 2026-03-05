@@ -146,15 +146,6 @@ export default async function handler(req, res) {
         const invoice = invoiceResponse.data;
 
         if (invoice.status === 'open') {
-          // Se a fatura usa charge_automatically, converte para send_invoice
-          if (invoice.collection_method === 'charge_automatically') {
-            await stripeRequest(
-              `invoices/${encodeURIComponent(invoice_id)}`,
-              'POST',
-              { collection_method: 'send_invoice', days_until_due: '0' }
-            );
-          }
-
           // Marca como paga
           const payResponse = await stripeRequest(
             `invoices/${encodeURIComponent(invoice_id)}/pay`,
@@ -166,7 +157,74 @@ export default async function handler(req, res) {
             responseData.invoice_updated = true;
             responseData.stripe_status = 'paid';
           } else {
-            responseData.stripe_error = payResponse.data?.error?.message || 'Erro ao atualizar fatura';
+            // Fallback: fatura de Checkout bloqueia paid_out_of_band
+            const payError = payResponse.data?.error?.message || '';
+            if (payError.includes('Checkout')) {
+              console.log(`Check: Fatura ${invoice_id} é de Checkout, convertendo...`);
+
+              const lineItems = invoice.lines?.data || [];
+              const firstItem = lineItems[0];
+              const priceId = firstItem?.price?.id || 'price_1Sia7qC7W0AK1mCaLqcjn0b9';
+              const qty = firstItem?.quantity || 1;
+              const invCustomerId = invoice.customer;
+
+              // Expira a sessão de Checkout
+              const sessionsResp = await stripeRequest('checkout/sessions?limit=100');
+              if (sessionsResp.code === 200) {
+                const session = sessionsResp.data.data.find(s => s.invoice === invoice_id);
+                if (session) {
+                  await stripeRequest(`checkout/sessions/${encodeURIComponent(session.id)}/expire`, 'POST');
+                }
+              }
+
+              // Cria nova assinatura com send_invoice
+              const newSubResp = await stripeRequest('subscriptions', 'POST', {
+                customer: invCustomerId,
+                'items[0][price]': priceId,
+                'items[0][quantity]': qty.toString(),
+                'collection_method': 'send_invoice',
+                'days_until_due': '7'
+              });
+
+              if (newSubResp.code === 200) {
+                const newInvId = typeof newSubResp.data.latest_invoice === 'string'
+                  ? newSubResp.data.latest_invoice
+                  : newSubResp.data.latest_invoice?.id;
+
+                // Finaliza se necessário
+                const newInvResp = await stripeRequest(`invoices/${encodeURIComponent(newInvId)}`);
+                if (newInvResp.code === 200 && newInvResp.data.status === 'draft') {
+                  await stripeRequest(`invoices/${encodeURIComponent(newInvId)}/finalize`, 'POST');
+                }
+
+                // Salva o pix_id no metadata da nova fatura
+                if (pix_id) {
+                  await stripeRequest(`invoices/${encodeURIComponent(newInvId)}`, 'POST', {
+                    'metadata[abacate_pix_id]': pix_id,
+                    'metadata[abacate_pix_created]': new Date().toISOString()
+                  });
+                }
+
+                // Marca como paga
+                const newPayResp = await stripeRequest(
+                  `invoices/${encodeURIComponent(newInvId)}/pay`, 'POST',
+                  { paid_out_of_band: 'true' }
+                );
+
+                if (newPayResp.code === 200) {
+                  responseData.invoice_updated = true;
+                  responseData.stripe_status = 'paid';
+                  responseData.converted_from_checkout = true;
+                  responseData.new_invoice_id = newInvId;
+                } else {
+                  responseData.stripe_error = newPayResp.data?.error?.message || 'Erro ao pagar nova fatura';
+                }
+              } else {
+                responseData.stripe_error = 'Erro ao recriar assinatura';
+              }
+            } else {
+              responseData.stripe_error = payError || 'Erro ao atualizar fatura';
+            }
           }
         } else if (invoice.status === 'paid') {
           // Já estava paga
