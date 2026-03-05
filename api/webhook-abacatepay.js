@@ -96,15 +96,6 @@ export default async function handler(req, res) {
 
     // 5. Se a fatura está aberta, marca como paga
     if (invoice.status === 'open') {
-      // Se a fatura usa charge_automatically, converte para send_invoice
-      if (invoice.collection_method === 'charge_automatically') {
-        await stripeRequest(
-          `invoices/${encodeURIComponent(invoice.id)}`,
-          'POST',
-          { collection_method: 'send_invoice', days_until_due: '0' }
-        );
-      }
-
       const payResponse = await stripeRequest(
         `invoices/${encodeURIComponent(invoice.id)}/pay`,
         'POST',
