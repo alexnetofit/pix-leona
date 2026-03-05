@@ -75,7 +75,21 @@ export default async function handler(req, res) {
       throw new Error(`Esta fatura não está em aberto (status: ${invoice.status})`);
     }
 
-    // 2. Marca a fatura como paga (paid_out_of_band)
+    // 2. Se a fatura usa charge_automatically (ex: criada por Checkout),
+    //    converte para send_invoice para permitir paid_out_of_band
+    if (invoice.collection_method === 'charge_automatically') {
+      const updateResponse = await stripeRequest(
+        `invoices/${encodeURIComponent(invoice_id)}`,
+        'POST',
+        { collection_method: 'send_invoice', days_until_due: '0' }
+      );
+
+      if (updateResponse.code !== 200) {
+        throw new Error(updateResponse.data?.error?.message || 'Erro ao converter fatura para send_invoice');
+      }
+    }
+
+    // 3. Marca a fatura como paga (paid_out_of_band)
     const payResponse = await stripeRequest(
       `invoices/${encodeURIComponent(invoice_id)}/pay`,
       'POST',
