@@ -112,60 +112,60 @@ export default async function handler(req, res) {
       throw new Error(`Esta fatura não está em aberto (status: ${invoice.status})`);
     }
 
-    // Se a fatura foi criada pelo Checkout (charge_automatically), converte para send_invoice
+    // Verifica se a fatura foi criada pelo Checkout (não confundir com pro-rata que também é charge_automatically)
     if (invoice.collection_method === 'charge_automatically') {
-      console.log(`PIX: Fatura ${invoice_id} é de Checkout, convertendo...`);
-
-      const lineItems = invoice.lines?.data || [];
-      const firstItem = lineItems[0];
-      const priceId = firstItem?.price?.id || 'price_1Sia7qC7W0AK1mCaLqcjn0b9';
-      const qty = firstItem?.quantity || 1;
-      const invoiceCustomerId = invoice.customer;
-
-      // Busca e expira a sessão de Checkout
       const sessionsResponse = await stripeRequest('checkout/sessions?limit=100');
-      if (sessionsResponse.code === 200) {
-        const session = sessionsResponse.data.data.find(s => s.invoice === invoice_id);
-        if (session) {
-          await stripeRequest(`checkout/sessions/${encodeURIComponent(session.id)}/expire`, 'POST');
-          console.log(`PIX: Sessão ${session.id} expirada`);
+      const checkoutSession = sessionsResponse.code === 200
+        ? sessionsResponse.data.data.find(s => s.invoice === invoice_id)
+        : null;
+
+      if (checkoutSession) {
+        console.log(`PIX: Fatura ${invoice_id} é de Checkout (sessão ${checkoutSession.id}), convertendo...`);
+
+        const lineItems = invoice.lines?.data || [];
+        const firstItem = lineItems[0];
+        const priceId = firstItem?.price?.id || 'price_1Sia7qC7W0AK1mCaLqcjn0b9';
+        const qty = firstItem?.quantity || 1;
+        const invoiceCustomerId = invoice.customer;
+
+        // Expira a sessão de Checkout
+        await stripeRequest(`checkout/sessions/${encodeURIComponent(checkoutSession.id)}/expire`, 'POST');
+
+        // Cria nova assinatura com send_invoice
+        const newSubResponse = await stripeRequest('subscriptions', 'POST', {
+          customer: invoiceCustomerId,
+          'items[0][price]': priceId,
+          'items[0][quantity]': qty.toString(),
+          'collection_method': 'send_invoice',
+          'days_until_due': '7'
+        });
+
+        if (newSubResponse.code !== 200) {
+          throw new Error('Erro ao recriar assinatura: ' + (newSubResponse.data?.error?.message || ''));
         }
-      }
 
-      // Cria nova assinatura com send_invoice
-      const newSubResponse = await stripeRequest('subscriptions', 'POST', {
-        customer: invoiceCustomerId,
-        'items[0][price]': priceId,
-        'items[0][quantity]': qty.toString(),
-        'collection_method': 'send_invoice',
-        'days_until_due': '7'
-      });
+        // Busca e finaliza a nova fatura
+        const newInvoiceId = typeof newSubResponse.data.latest_invoice === 'string'
+          ? newSubResponse.data.latest_invoice
+          : newSubResponse.data.latest_invoice?.id;
 
-      if (newSubResponse.code !== 200) {
-        throw new Error('Erro ao recriar assinatura: ' + (newSubResponse.data?.error?.message || ''));
-      }
+        const newInvResponse = await stripeRequest(`invoices/${encodeURIComponent(newInvoiceId)}`);
+        if (newInvResponse.code === 200) {
+          invoice = newInvResponse.data;
+          activeInvoiceId = newInvoiceId;
 
-      // Busca e finaliza a nova fatura
-      const newInvoiceId = typeof newSubResponse.data.latest_invoice === 'string'
-        ? newSubResponse.data.latest_invoice
-        : newSubResponse.data.latest_invoice?.id;
-
-      const newInvResponse = await stripeRequest(`invoices/${encodeURIComponent(newInvoiceId)}`);
-      if (newInvResponse.code === 200) {
-        invoice = newInvResponse.data;
-        activeInvoiceId = newInvoiceId;
-
-        if (invoice.status === 'draft') {
-          const finalizeResponse = await stripeRequest(
-            `invoices/${encodeURIComponent(newInvoiceId)}/finalize`, 'POST'
-          );
-          if (finalizeResponse.code === 200) {
-            invoice = finalizeResponse.data;
+          if (invoice.status === 'draft') {
+            const finalizeResponse = await stripeRequest(
+              `invoices/${encodeURIComponent(newInvoiceId)}/finalize`, 'POST'
+            );
+            if (finalizeResponse.code === 200) {
+              invoice = finalizeResponse.data;
+            }
           }
         }
-      }
 
-      console.log(`PIX: Nova fatura ${activeInvoiceId} criada (sub: ${newSubResponse.data.id})`);
+        console.log(`PIX: Nova fatura ${activeInvoiceId} criada (sub: ${newSubResponse.data.id})`);
+      }
     }
 
     const amountCents = invoice.amount_due;
