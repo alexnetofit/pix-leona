@@ -1901,14 +1901,15 @@
 
                 abacatePayments = data.payments || [];
 
+                console.log('AbacatePay response:', JSON.stringify(data, null, 2));
+
                 if (abacatePayments.length === 0) {
+                    const dbg = data.debug || {};
                     if (data.customer_found) {
-                        showMessage(`Cliente encontrado (${data.customer?.name || 'N/A'}), mas sem pagamentos PIX ou cobranças associados.`, 'error');
+                        showMessage(`Cliente encontrado (${data.customer?.name || 'N/A'}), mas sem pagamentos associados. PIX total: ${dbg.pix_total}, Billing total: ${dbg.billing_total}. Veja o console (F12) para debug.`, 'error');
                     } else {
                         showMessage('Nenhum cliente encontrado na AbacatePay com esse e-mail/CPF.', 'error');
                     }
-                    const dbg = data.debug || {};
-                    console.log('AbacatePay debug:', JSON.stringify(dbg));
                     return;
                 }
 

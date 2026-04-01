@@ -197,6 +197,12 @@ export default async function handler(req, res) {
       refunded: payments.filter(p => p.status === 'REFUNDED').length
     };
 
+    // Debug: pega amostra dos dados brutos para entender a estrutura
+    const pixRaw = pixResponse.data?.data || [];
+    const billingRaw = billingResponse.data?.data || [];
+    const pixSample = pixRaw.length > 0 ? pixRaw[0] : null;
+    const billSample = billingRaw.length > 0 ? billingRaw[0] : null;
+
     return res.status(200).json({
       success: true,
       search_term: search.trim(),
@@ -207,9 +213,13 @@ export default async function handler(req, res) {
       payments,
       debug: {
         customers_total: customerResponse.data?.data?.length || 0,
-        pix_total: pixResponse.data?.data?.length || 0,
-        billing_total: billingResponse.data?.data?.length || 0,
-        matching_customer_ids: Array.from(matchingCustomerIds)
+        pix_total: pixRaw.length,
+        billing_total: billingRaw.length,
+        matching_customer_ids: Array.from(matchingCustomerIds),
+        pix_sample_keys: pixSample ? Object.keys(pixSample) : [],
+        pix_sample_customer: pixSample ? (pixSample.customer || pixSample.customerId || 'NO_CUSTOMER_FIELD') : null,
+        billing_sample_keys: billSample ? Object.keys(billSample) : [],
+        billing_sample_customer: billSample ? (billSample.customer || billSample.customerId || 'NO_CUSTOMER_FIELD') : null
       }
     });
 
