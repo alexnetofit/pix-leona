@@ -1901,8 +1901,11 @@
 
                 abacatePayments = data.payments || [];
 
+                console.log('AbacatePay debug:', JSON.stringify(data.debug, null, 2));
+
                 if (abacatePayments.length === 0) {
-                    showMessage('Nenhum pagamento encontrado na AbacatePay para esse e-mail/CPF.', 'error');
+                    const d = data.debug || {};
+                    showMessage(`Nenhum pagamento encontrado. v2filtrado: ${d.v2_filtered?.count ?? '?'}, v2total: ${d.v2_all?.count ?? '?'}, v1billing: ${d.v1_billing?.count ?? '?'}, v1pix: ${d.v1_pix?.count ?? '?'}. Veja console (F12).`, 'error');
                     return;
                 }
 
