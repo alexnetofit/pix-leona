@@ -1,7 +1,7 @@
 /**
  * abacatepay-search.js - Busca pagamentos na AbacatePay por email ou CPF
  *
- * Chama pixQrCode/list e billing/list em paralelo, filtra pelo email ou CPF informado.
+ * Usa customer/list para encontrar o cliente, depois cruza com pixQrCode/list e billing/list.
  *
  * Recebe: { "search": "email@example.com" } ou { "search": "123.456.789-01" }
  * Retorna: Lista de pagamentos filtrados, ordenados por data (mais recentes primeiro)
@@ -51,31 +51,81 @@ export default async function handler(req, res) {
     };
   }
 
-  function matchesCustomer(customer) {
-    if (!customer) return false;
-    const meta = customer.metadata || customer;
+  function normalizeCustomer(customer) {
+    if (!customer) return null;
+    const meta = customer.metadata || {};
+    return {
+      id: customer.id || null,
+      name: meta.name || customer.name || null,
+      email: (meta.email || customer.email || '').toLowerCase(),
+      taxId: (meta.taxId || customer.taxId || '').replace(/\D/g, ''),
+      cellphone: meta.cellphone || customer.cellphone || null
+    };
+  }
+
+  function customerMatches(customer) {
+    const norm = normalizeCustomer(customer);
+    if (!norm) return false;
 
     if (isCpfSearch) {
-      const taxId = (meta.taxId || '').replace(/\D/g, '');
-      return taxId === searchClean;
+      return norm.taxId === searchClean;
     }
-
-    const email = (meta.email || '').toLowerCase();
-    return email === searchTerm;
+    return norm.email === searchTerm;
   }
 
   try {
-    const [pixResponse, billingResponse] = await Promise.all([
+    const [customerResponse, pixResponse, billingResponse] = await Promise.all([
+      abacateGet('customer/list'),
       abacateGet('pixQrCode/list'),
       abacateGet('billing/list')
     ]);
 
+    // 1. Encontra IDs dos clientes que batem com a busca
+    const matchingCustomerIds = new Set();
+    let matchedCustomerData = null;
+
+    if (customerResponse.code === 200 && customerResponse.data?.data) {
+      const customers = Array.isArray(customerResponse.data.data) ? customerResponse.data.data : [];
+      for (const cust of customers) {
+        if (customerMatches(cust)) {
+          matchingCustomerIds.add(cust.id);
+          if (!matchedCustomerData) {
+            matchedCustomerData = normalizeCustomer(cust);
+          }
+        }
+      }
+    }
+
+    console.log(`AbacatePay search: term="${searchTerm}", type=${isCpfSearch ? 'cpf' : 'email'}, matching_customers=${matchingCustomerIds.size}`);
+
     const payments = [];
 
+    // 2. Filtra PIX QR Codes
     if (pixResponse.code === 200 && pixResponse.data?.data) {
       const pixList = Array.isArray(pixResponse.data.data) ? pixResponse.data.data : [];
+      if (pixList.length > 0) {
+        console.log('PIX sample keys:', Object.keys(pixList[0]).join(', '));
+      }
       for (const pix of pixList) {
-        if (matchesCustomer(pix.customer)) {
+        let matched = false;
+
+        // Match por customer direto no PIX (se a API retornar)
+        if (pix.customer && customerMatches(pix.customer)) {
+          matched = true;
+        }
+
+        // Match por customerId
+        if (!matched && pix.customerId && matchingCustomerIds.has(pix.customerId)) {
+          matched = true;
+        }
+
+        // Match por customer.id
+        if (!matched && pix.customer?.id && matchingCustomerIds.has(pix.customer.id)) {
+          matched = true;
+        }
+
+        if (matched) {
+          const custData = normalizeCustomer(pix.customer) || matchedCustomerData;
           payments.push({
             id: pix.id,
             type: 'pix',
@@ -83,7 +133,7 @@ export default async function handler(req, res) {
             status: pix.status || 'PENDING',
             amount: pix.amount || 0,
             description: pix.description || null,
-            customer: pix.customer?.metadata || pix.customer || null,
+            customer: custData,
             created_at: pix.createdAt || null,
             expires_at: pix.expiresAt || null,
             metadata: pix.metadata || null
@@ -92,20 +142,38 @@ export default async function handler(req, res) {
       }
     }
 
+    // 3. Filtra Billings/Cobranças
     if (billingResponse.code === 200 && billingResponse.data?.data) {
       const billingList = Array.isArray(billingResponse.data.data) ? billingResponse.data.data : [];
+      if (billingList.length > 0) {
+        console.log('Billing sample keys:', Object.keys(billingList[0]).join(', '));
+      }
       for (const bill of billingList) {
-        if (matchesCustomer(bill.customer)) {
-          const totalAmount = bill.amount || 0;
+        let matched = false;
+
+        if (bill.customer && customerMatches(bill.customer)) {
+          matched = true;
+        }
+
+        if (!matched && bill.customerId && matchingCustomerIds.has(bill.customerId)) {
+          matched = true;
+        }
+
+        if (!matched && bill.customer?.id && matchingCustomerIds.has(bill.customer.id)) {
+          matched = true;
+        }
+
+        if (matched) {
+          const custData = normalizeCustomer(bill.customer) || matchedCustomerData;
           payments.push({
             id: bill.id,
             type: 'billing',
             type_label: 'Cobrança',
             status: bill.status || 'PENDING',
-            amount: totalAmount,
+            amount: bill.amount || bill.paidAmount || 0,
             url: bill.url || null,
             products: bill.products || [],
-            customer: bill.customer?.metadata || bill.customer || null,
+            customer: custData,
             created_at: bill.createdAt || null,
             frequency: bill.frequency || null,
             metadata: bill.metadata || null
@@ -133,8 +201,16 @@ export default async function handler(req, res) {
       success: true,
       search_term: search.trim(),
       search_type: isCpfSearch ? 'cpf' : 'email',
+      customer_found: matchingCustomerIds.size > 0,
+      customer: matchedCustomerData,
       summary,
-      payments
+      payments,
+      debug: {
+        customers_total: customerResponse.data?.data?.length || 0,
+        pix_total: pixResponse.data?.data?.length || 0,
+        billing_total: billingResponse.data?.data?.length || 0,
+        matching_customer_ids: Array.from(matchingCustomerIds)
+      }
     });
 
   } catch (error) {

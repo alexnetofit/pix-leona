@@ -1902,7 +1902,13 @@
                 abacatePayments = data.payments || [];
 
                 if (abacatePayments.length === 0) {
-                    showMessage('Nenhum pagamento encontrado para este cliente.', 'error');
+                    if (data.customer_found) {
+                        showMessage(`Cliente encontrado (${data.customer?.name || 'N/A'}), mas sem pagamentos PIX ou cobranças associados.`, 'error');
+                    } else {
+                        showMessage('Nenhum cliente encontrado na AbacatePay com esse e-mail/CPF.', 'error');
+                    }
+                    const dbg = data.debug || {};
+                    console.log('AbacatePay debug:', JSON.stringify(dbg));
                     return;
                 }
 
