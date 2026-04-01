@@ -458,6 +458,146 @@
             to { transform: rotate(360deg); }
         }
 
+        /* Tabs */
+        .tabs-container {
+            display: flex;
+            gap: 4px;
+            background: var(--bg-secondary);
+            padding: 4px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            background: transparent;
+            color: var(--text-secondary);
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn.active {
+            background: var(--accent);
+            color: var(--bg-primary);
+        }
+
+        .tab-btn:not(.active):hover {
+            color: var(--text-primary);
+            background: var(--bg-card);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* AbacatePay payment cards */
+        .abacate-payment-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .abacate-payment-card:hover {
+            border-color: var(--accent);
+        }
+
+        .abacate-badge {
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .abacate-badge.paid { background: rgba(0, 212, 170, 0.2); color: var(--success); }
+        .abacate-badge.pending { background: rgba(255, 193, 7, 0.2); color: var(--warning); }
+        .abacate-badge.expired { background: rgba(160, 160, 160, 0.2); color: var(--text-secondary); }
+        .abacate-badge.cancelled { background: rgba(255, 107, 107, 0.2); color: var(--error); }
+        .abacate-badge.refunded { background: rgba(156, 39, 176, 0.2); color: #ce93d8; }
+
+        .abacate-type-badge {
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+            background: rgba(0, 212, 170, 0.1);
+            color: var(--accent);
+        }
+
+        .refund-form {
+            display: none;
+            background: var(--bg-secondary);
+            border: 2px solid var(--warning);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 16px;
+            animation: slideDown 0.3s ease;
+        }
+
+        .refund-form.active {
+            display: block;
+        }
+
+        .refund-form label {
+            display: block;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            margin-bottom: 6px;
+            margin-top: 12px;
+        }
+
+        .refund-form label:first-child {
+            margin-top: 0;
+        }
+
+        .refund-form input,
+        .refund-form select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 0.95rem;
+        }
+
+        .refund-form select {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23a0a0a0' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 32px;
+        }
+
+        .abacate-summary {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .abacate-summary-item {
+            background: var(--bg-card);
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+
         /* Responsive */
         @media (max-width: 600px) {
             .input-group {
@@ -480,6 +620,14 @@
                 flex-direction: column;
                 align-items: flex-start;
             }
+
+            .tabs-container {
+                flex-direction: column;
+            }
+
+            .abacate-summary {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
@@ -487,85 +635,122 @@
     <div class="container">
         <header>
             <h1 class="logo">Leona PIX</h1>
-            <p class="subtitle">Gerador de PIX para Faturas Stripe</p>
+            <p class="subtitle">Gerenciador de Pagamentos</p>
         </header>
 
         <!-- Mensagem de feedback -->
         <div id="message" class="message"></div>
 
-        <!-- Seção de busca -->
-        <section class="search-section">
-            <h2>Buscar cliente por e-mail</h2>
-            <div class="input-group">
-                <input 
-                    type="email" 
-                    id="emailInput" 
-                    placeholder="cliente@exemplo.com"
-                    autocomplete="email"
-                >
-                <button class="btn-primary" id="searchBtn" onclick="searchInvoices()">
-                    Buscar
-                </button>
-            </div>
-        </section>
+        <!-- Abas de navegação -->
+        <div class="tabs-container">
+            <button class="tab-btn active" onclick="switchTab('stripe')">Stripe</button>
+            <button class="tab-btn" onclick="switchTab('abacatepay')">AbacatePay</button>
+        </div>
 
-        <!-- Seção de resultados -->
-        <section class="results-section" id="resultsSection">
-            <div class="section-header">
-                <div>
-                    <h2>Faturas</h2>
-                    <span class="customer-info" id="customerInfo"></span>
+        <!-- ========== ABA STRIPE ========== -->
+        <div class="tab-content active" id="tab-stripe">
+            <!-- Seção de busca -->
+            <section class="search-section">
+                <h2>Buscar cliente por e-mail</h2>
+                <div class="input-group">
+                    <input 
+                        type="email" 
+                        id="emailInput" 
+                        placeholder="cliente@exemplo.com"
+                        autocomplete="email"
+                    >
+                    <button class="btn-primary" id="searchBtn" onclick="searchInvoices()">
+                        Buscar
+                    </button>
                 </div>
-                <div class="totals-info" id="totalsInfo"></div>
-            </div>
-            <div id="subscriptionsList"></div>
-        </section>
+            </section>
 
-        <!-- Seção para criar assinatura -->
-        <section class="search-section" id="createSubscriptionSection" style="display: none;">
-            <h2 id="createSubTitle">Criar Nova Assinatura</h2>
-            <p style="color: var(--text-secondary); margin-bottom: 20px;" id="createSubDescription"></p>
-            
-            <div id="productInfo" style="background: var(--bg-secondary); padding: 16px; border-radius: 10px; margin-bottom: 20px;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
+            <!-- Seção de resultados -->
+            <section class="results-section" id="resultsSection">
+                <div class="section-header">
                     <div>
-                        <div style="color: var(--text-secondary); font-size: 0.8rem;">Produto</div>
-                        <div style="color: var(--accent); font-weight: 600; font-size: 1.1rem;" id="productName"></div>
+                        <h2>Faturas</h2>
+                        <span class="customer-info" id="customerInfo"></span>
+                    </div>
+                    <div class="totals-info" id="totalsInfo"></div>
+                </div>
+                <div id="subscriptionsList"></div>
+            </section>
+
+            <!-- Seção para criar assinatura -->
+            <section class="search-section" id="createSubscriptionSection" style="display: none;">
+                <h2 id="createSubTitle">Criar Nova Assinatura</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 20px;" id="createSubDescription"></p>
+                
+                <div id="productInfo" style="background: var(--bg-secondary); padding: 16px; border-radius: 10px; margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="color: var(--text-secondary); font-size: 0.8rem;">Produto</div>
+                            <div style="color: var(--accent); font-weight: 600; font-size: 1.1rem;" id="productName"></div>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Campo Nome (só aparece se não tem customer) -->
-            <div id="nameFieldContainer" style="margin-bottom: 16px; display: none;">
-                <label style="display: block; color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 6px;">
-                    Nome do Cliente <span style="color: var(--error);">*</span>
-                </label>
-                <input 
-                    type="text" 
-                    id="customerNameInput" 
-                    placeholder="Nome completo"
-                    style="width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); font-size: 1rem;"
-                >
-            </div>
+                <!-- Campo Nome (só aparece se não tem customer) -->
+                <div id="nameFieldContainer" style="margin-bottom: 16px; display: none;">
+                    <label style="display: block; color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 6px;">
+                        Nome do Cliente <span style="color: var(--error);">*</span>
+                    </label>
+                    <input 
+                        type="text" 
+                        id="customerNameInput" 
+                        placeholder="Nome completo"
+                        style="width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); font-size: 1rem;"
+                    >
+                </div>
 
-            <!-- Campo Quantidade -->
-            <div style="margin-bottom: 20px;">
-                <label style="display: block; color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 6px;">
-                    Quantidade
-                </label>
-                <input 
-                    type="number" 
-                    id="quantityInput" 
-                    value="1"
-                    min="1"
-                    style="width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); font-size: 1rem;"
-                >
-            </div>
+                <!-- Campo Quantidade -->
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 6px;">
+                        Quantidade
+                    </label>
+                    <input 
+                        type="number" 
+                        id="quantityInput" 
+                        value="1"
+                        min="1"
+                        style="width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); font-size: 1rem;"
+                    >
+                </div>
 
-            <button class="btn-primary" id="createSubBtn" onclick="createSubscription()" style="width: 100%;">
-                Criar Assinatura
-            </button>
-        </section>
+                <button class="btn-primary" id="createSubBtn" onclick="createSubscription()" style="width: 100%;">
+                    Criar Assinatura
+                </button>
+            </section>
+        </div>
+
+        <!-- ========== ABA ABACATEPAY ========== -->
+        <div class="tab-content" id="tab-abacatepay">
+            <section class="search-section">
+                <h2>Buscar pagamentos por e-mail ou CPF</h2>
+                <div class="input-group">
+                    <input 
+                        type="text" 
+                        id="abacateSearchInput" 
+                        placeholder="cliente@exemplo.com ou 000.000.000-00"
+                    >
+                    <button class="btn-primary" id="abacateSearchBtn" onclick="searchAbacatePayments()">
+                        Buscar
+                    </button>
+                </div>
+            </section>
+
+            <section class="results-section" id="abacateResultsSection">
+                <div class="section-header">
+                    <div>
+                        <h2>Pagamentos AbacatePay</h2>
+                        <span class="customer-info" id="abacateCustomerInfo"></span>
+                    </div>
+                </div>
+                <div class="abacate-summary" id="abacateSummary"></div>
+                <div id="abacatePaymentsList"></div>
+            </section>
+        </div>
     </div>
 
     <script>
@@ -1670,11 +1855,306 @@
         }
 
         // ============================================
+        // TROCA DE ABAS
+        // ============================================
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            const buttons = document.querySelectorAll('.tab-btn');
+            if (tabName === 'stripe') buttons[0].classList.add('active');
+            else buttons[1].classList.add('active');
+        }
+
+        // ============================================
+        // ABACATEPAY - BUSCA DE PAGAMENTOS
+        // ============================================
+
+        let abacatePayments = [];
+
+        async function searchAbacatePayments() {
+            const search = document.getElementById('abacateSearchInput').value.trim();
+            const btn = document.getElementById('abacateSearchBtn');
+
+            if (!search) {
+                showMessage('Por favor, informe um e-mail ou CPF.');
+                return;
+            }
+
+            setButtonLoading(btn, true, 'Buscar');
+            document.getElementById('abacateResultsSection').classList.remove('active');
+
+            try {
+                const response = await fetch('/api/abacatepay-search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ search })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Erro ao buscar pagamentos');
+                }
+
+                abacatePayments = data.payments || [];
+
+                if (abacatePayments.length === 0) {
+                    showMessage('Nenhum pagamento encontrado para este cliente.', 'error');
+                    return;
+                }
+
+                renderAbacateResults(data);
+                showMessage(`${data.summary.total} pagamento(s) encontrado(s)!`, 'success');
+
+            } catch (error) {
+                showMessage(error.message);
+            } finally {
+                setButtonLoading(btn, false, 'Buscar');
+            }
+        }
+
+        function getStatusBadgeClass(status) {
+            const map = {
+                'PAID': 'paid',
+                'PENDING': 'pending',
+                'EXPIRED': 'expired',
+                'CANCELLED': 'cancelled',
+                'REFUNDED': 'refunded'
+            };
+            return map[status] || 'pending';
+        }
+
+        function getStatusLabel(status) {
+            const map = {
+                'PAID': 'Pago',
+                'PENDING': 'Pendente',
+                'EXPIRED': 'Expirado',
+                'CANCELLED': 'Cancelado',
+                'REFUNDED': 'Reembolsado'
+            };
+            return map[status] || status;
+        }
+
+        function formatAbacateDate(dateStr) {
+            if (!dateStr) return '';
+            return new Date(dateStr).toLocaleString('pt-BR');
+        }
+
+        function renderAbacateResults(data) {
+            const section = document.getElementById('abacateResultsSection');
+            const info = document.getElementById('abacateCustomerInfo');
+            const summary = document.getElementById('abacateSummary');
+            const list = document.getElementById('abacatePaymentsList');
+
+            info.textContent = `Busca: ${data.search_term} (${data.search_type === 'cpf' ? 'CPF' : 'E-mail'})`;
+
+            const s = data.summary;
+            summary.innerHTML = `
+                <span class="abacate-summary-item">Total: ${s.total}</span>
+                ${s.paid > 0 ? `<span class="abacate-summary-item" style="color: var(--success);">Pagos: ${s.paid}</span>` : ''}
+                ${s.pending > 0 ? `<span class="abacate-summary-item" style="color: var(--warning);">Pendentes: ${s.pending}</span>` : ''}
+                ${s.expired > 0 ? `<span class="abacate-summary-item">Expirados: ${s.expired}</span>` : ''}
+                ${s.refunded > 0 ? `<span class="abacate-summary-item" style="color: #ce93d8;">Reembolsados: ${s.refunded}</span>` : ''}
+                ${s.cancelled > 0 ? `<span class="abacate-summary-item" style="color: var(--error);">Cancelados: ${s.cancelled}</span>` : ''}
+            `;
+
+            list.innerHTML = data.payments.map((p, idx) => renderAbacateCard(p, idx)).join('');
+            section.classList.add('active');
+        }
+
+        function renderAbacateCard(payment, index) {
+            const customer = payment.customer || {};
+            const customerName = customer.name || 'N/A';
+            const customerEmail = customer.email || 'N/A';
+            const customerCpf = customer.taxId || 'N/A';
+            const isPaid = payment.status === 'PAID';
+
+            return `
+                <div class="abacate-payment-card" id="abacate-card-${index}">
+                    <div class="invoice-header">
+                        <div>
+                            <span class="invoice-id">${payment.id}</span>
+                            <span class="abacate-badge ${getStatusBadgeClass(payment.status)}" style="margin-left: 8px;">
+                                ${getStatusLabel(payment.status)}
+                            </span>
+                            <span class="abacate-type-badge" style="margin-left: 8px;">
+                                ${payment.type_label}
+                            </span>
+                        </div>
+                        <div style="text-align: right;">
+                            <div class="invoice-amount">${formatCurrency(payment.amount)}</div>
+                            <div class="invoice-date">${formatAbacateDate(payment.created_at)}</div>
+                        </div>
+                    </div>
+
+                    <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px; margin-top: 12px;">
+                        <div style="display: grid; gap: 6px; font-size: 0.85rem;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: var(--text-secondary);">Nome:</span>
+                                <span>${customerName}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: var(--text-secondary);">Email:</span>
+                                <span>${customerEmail}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: var(--text-secondary);">CPF/CNPJ:</span>
+                                <span>${customerCpf}</span>
+                            </div>
+                            ${payment.description ? `
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: var(--text-secondary);">Descrição:</span>
+                                    <span>${payment.description}</span>
+                                </div>
+                            ` : ''}
+                            ${payment.expires_at ? `
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: var(--text-secondary);">Expira em:</span>
+                                    <span>${formatAbacateDate(payment.expires_at)}</span>
+                                </div>
+                            ` : ''}
+                            ${payment.metadata?.externalId ? `
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: var(--text-secondary);">ID externo:</span>
+                                    <span style="font-family: monospace; font-size: 0.8rem;">${payment.metadata.externalId}</span>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+
+                    ${isPaid ? `
+                        <div class="invoice-actions">
+                            <button class="btn-secondary btn-small" onclick="toggleRefundForm(${index})" style="color: var(--warning); border-color: var(--warning);">
+                                Reembolsar
+                            </button>
+                        </div>
+                        <div class="refund-form" id="refund-form-${index}">
+                            <h4 style="color: var(--warning); margin-bottom: 4px; font-size: 0.95rem;">Reembolso via Saque PIX</h4>
+                            <p style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 8px;">
+                                O valor será enviado para a chave PIX informada.
+                            </p>
+
+                            <label>Valor (centavos)</label>
+                            <input type="number" id="refund-amount-${index}" value="${payment.amount}" min="350">
+
+                            <label>Tipo de Chave PIX</label>
+                            <select id="refund-keytype-${index}">
+                                <option value="CPF" ${customerCpf && customerCpf !== 'N/A' ? 'selected' : ''}>CPF</option>
+                                <option value="CNPJ">CNPJ</option>
+                                <option value="EMAIL">E-mail</option>
+                                <option value="PHONE">Telefone</option>
+                                <option value="RANDOM">Chave Aleatória</option>
+                                <option value="BR_CODE">BR Code</option>
+                            </select>
+
+                            <label>Chave PIX</label>
+                            <input type="text" id="refund-key-${index}" value="${customerCpf && customerCpf !== 'N/A' ? customerCpf : ''}" placeholder="Informe a chave PIX do cliente">
+
+                            <div style="display: flex; gap: 12px; margin-top: 16px;">
+                                <button class="btn-primary" onclick="executeRefund(${index}, '${payment.id}')" style="background: var(--warning); flex: 1;">
+                                    Confirmar Reembolso
+                                </button>
+                                <button class="btn-secondary btn-small" onclick="toggleRefundForm(${index})">
+                                    Cancelar
+                                </button>
+                            </div>
+                            <div id="refund-status-${index}" style="margin-top: 12px;"></div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        // ============================================
+        // ABACATEPAY - REEMBOLSO
+        // ============================================
+
+        function toggleRefundForm(index) {
+            const form = document.getElementById(`refund-form-${index}`);
+            form.classList.toggle('active');
+        }
+
+        async function executeRefund(index, paymentId) {
+            const amount = parseInt(document.getElementById(`refund-amount-${index}`).value);
+            const keyType = document.getElementById(`refund-keytype-${index}`).value;
+            const key = document.getElementById(`refund-key-${index}`).value.trim();
+            const statusDiv = document.getElementById(`refund-status-${index}`);
+
+            if (!amount || amount < 350) {
+                showMessage('Valor mínimo para reembolso é R$ 3,50 (350 centavos).');
+                return;
+            }
+
+            if (!key) {
+                showMessage('Informe a chave PIX do cliente.');
+                return;
+            }
+
+            statusDiv.innerHTML = `
+                <div style="text-align: center; padding: 10px; color: var(--text-secondary);">
+                    <span class="loading"></span> Processando reembolso...
+                </div>
+            `;
+
+            try {
+                const response = await fetch('/api/abacatepay-refund', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        amount,
+                        pix_key: key,
+                        pix_key_type: keyType,
+                        description: `Reembolso ${paymentId}`,
+                        external_id: `refund-${paymentId}-${Date.now()}`
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Erro ao processar reembolso');
+                }
+
+                statusDiv.innerHTML = `
+                    <div style="background: rgba(0, 212, 170, 0.1); border: 1px solid var(--success); padding: 14px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 1.3rem; margin-bottom: 6px;">&#10003;</div>
+                        <div style="color: var(--success); font-weight: 600;">Reembolso Criado!</div>
+                        <div style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 4px;">
+                            ID: ${data.transaction?.id || 'N/A'} | Status: ${data.transaction?.status || 'PENDING'}
+                        </div>
+                        ${data.transaction?.receipt_url ? `
+                            <a href="${data.transaction.receipt_url}" target="_blank" style="color: var(--accent); font-size: 0.8rem; margin-top: 6px; display: inline-block;">
+                                Ver comprovante
+                            </a>
+                        ` : ''}
+                    </div>
+                `;
+
+                showMessage(`Reembolso de ${formatCurrency(amount)} criado com sucesso!`, 'success');
+
+            } catch (error) {
+                statusDiv.innerHTML = `
+                    <div style="background: rgba(255, 107, 107, 0.1); border: 1px solid var(--error); padding: 12px; border-radius: 8px; text-align: center;">
+                        <div style="color: var(--error);">${error.message}</div>
+                    </div>
+                `;
+                showMessage(error.message);
+            }
+        }
+
+        // ============================================
         // EVENT LISTENERS
         // ============================================
         
         document.getElementById('emailInput').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') searchInvoices();
+        });
+
+        document.getElementById('abacateSearchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') searchAbacatePayments();
         });
     </script>
 </body>
