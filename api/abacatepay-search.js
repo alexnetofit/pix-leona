@@ -1,7 +1,7 @@
 /**
  * abacatepay-search.js - Busca pagamentos na AbacatePay por email ou CPF
  *
- * Tenta múltiplas APIs (v2 checkouts, v1 billing, v1 pixQrCode) para encontrar pagamentos.
+ * Testa múltiplos endpoints para encontrar os checkouts (pix_char_...).
  */
 
 export default async function handler(req, res) {
@@ -42,39 +42,42 @@ export default async function handler(req, res) {
           'Authorization': `Bearer ${abacateKey}`
         }
       });
-      const data = await response.json();
+      const text = await response.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { raw: text.substring(0, 300) }; }
       return { code: response.status, data };
     } catch (err) {
-      return { code: 0, error: err.message };
+      return { code: 0, data: null, error: err.message };
     }
-  }
-
-  function matchesSearch(obj) {
-    if (!obj) return false;
-    const str = JSON.stringify(obj).toLowerCase();
-
-    if (isCpfSearch) {
-      const cpfFormatted = `${searchClean.slice(0,3)}.${searchClean.slice(3,6)}.${searchClean.slice(6,9)}-${searchClean.slice(9)}`;
-      return str.includes(searchClean) || str.includes(cpfFormatted);
-    }
-    return str.includes(searchTerm);
   }
 
   try {
-    // Chama todas as APIs em paralelo
     const filterParam = isCpfSearch
       ? `taxId=${encodeURIComponent(search.trim())}`
       : `email=${encodeURIComponent(searchTerm)}`;
 
-    const [v2Filtered, v2All, v1Billing, v1Pix] = await Promise.all([
-      apiFetch(`https://api.abacatepay.com/v2/checkouts/list?limit=100&${filterParam}`),
-      apiFetch(`https://api.abacatepay.com/v2/checkouts/list?limit=100`),
-      apiFetch(`https://api.abacatepay.com/v1/billing/list`),
-      apiFetch(`https://api.abacatepay.com/v1/pixQrCode/list`)
-    ]);
+    // Testa todas as URLs possíveis em paralelo
+    const urls = {
+      v2_checkouts_filtered: `https://api.abacatepay.com/v2/checkouts/list?limit=100&${filterParam}`,
+      v2_checkouts_all: `https://api.abacatepay.com/v2/checkouts/list?limit=100`,
+      v1_checkouts_filtered: `https://api.abacatepay.com/v1/checkouts/list?limit=100&${filterParam}`,
+      v1_checkouts_all: `https://api.abacatepay.com/v1/checkouts/list?limit=100`,
+      v1_billing: `https://api.abacatepay.com/v1/billing/list`,
+      v1_pix: `https://api.abacatepay.com/v1/pixQrCode/list`,
+    };
 
-    console.log(`Search: "${searchTerm}" | v2Filtered: ${v2Filtered.code} (${v2Filtered.data?.data?.length ?? 'null'}) | v2All: ${v2All.code} (${v2All.data?.data?.length ?? 'null'}) | v1Billing: ${v1Billing.code} (${v1Billing.data?.data?.length ?? 'null'}) | v1Pix: ${v1Pix.code} (${v1Pix.data?.data?.length ?? 'null'})`);
+    const results = {};
+    const entries = Object.entries(urls);
+    const responses = await Promise.all(entries.map(([, url]) => apiFetch(url)));
+    entries.forEach(([key], i) => { results[key] = responses[i]; });
 
+    // Log para Vercel
+    for (const [key, r] of Object.entries(results)) {
+      const count = Array.isArray(r.data?.data) ? r.data.data.length : 'N/A';
+      console.log(`${key}: code=${r.code}, count=${count}, error=${r.data?.error || r.error || 'none'}`);
+    }
+
+    // Encontra a melhor fonte de dados (primeiro endpoint que retorna array de itens)
     const payments = [];
     const seenIds = new Set();
 
@@ -100,54 +103,36 @@ export default async function handler(req, res) {
       });
     }
 
-    // 1. v2 com filtro
-    if (v2Filtered.code === 200 && Array.isArray(v2Filtered.data?.data)) {
-      for (const item of v2Filtered.data.data) {
-        addPayment(item, 'checkout');
-      }
-    }
+    // Prioridade: endpoints filtrados primeiro, depois sem filtro
+    const priority = [
+      'v2_checkouts_filtered', 'v1_checkouts_filtered',
+      'v2_checkouts_all', 'v1_checkouts_all',
+      'v1_billing', 'v1_pix'
+    ];
 
-    // 2. v2 sem filtro + busca por texto
-    if (v2All.code === 200 && Array.isArray(v2All.data?.data)) {
-      for (const item of v2All.data.data) {
-        if (matchesSearch(item)) {
-          addPayment(item, 'checkout');
-        }
-      }
-    }
-
-    // 3. v1 billing + busca por texto
-    if (v1Billing.code === 200 && Array.isArray(v1Billing.data?.data)) {
-      for (const item of v1Billing.data.data) {
-        if (matchesSearch(item)) {
-          addPayment(item, 'billing');
-        }
-      }
-    }
-
-    // 4. v1 pixQrCode + busca por texto
-    if (v1Pix.code === 200 && Array.isArray(v1Pix.data?.data)) {
-      for (const item of v1Pix.data.data) {
-        if (matchesSearch(item)) {
-          addPayment(item, 'pix');
-        }
-      }
-    }
-
-    // Se não encontrou nada com filtro, retorna TODOS os billings para o usuário navegar
+    let usedSource = null;
     let showAll = false;
+
+    // Tenta endpoints filtrados primeiro
+    for (const key of ['v2_checkouts_filtered', 'v1_checkouts_filtered']) {
+      const r = results[key];
+      if (r.code === 200 && Array.isArray(r.data?.data) && r.data.data.length > 0) {
+        for (const item of r.data.data) addPayment(item, 'checkout');
+        usedSource = key;
+        break;
+      }
+    }
+
+    // Se não encontrou com filtro, tenta sem filtro e retorna tudo
     if (payments.length === 0) {
       showAll = true;
-      const allSources = [];
-
-      if (v2All.code === 200 && Array.isArray(v2All.data?.data)) {
-        for (const item of v2All.data.data) addPayment(item, 'checkout');
-      }
-      if (v1Billing.code === 200 && Array.isArray(v1Billing.data?.data)) {
-        for (const item of v1Billing.data.data) addPayment(item, 'billing');
-      }
-      if (v1Pix.code === 200 && Array.isArray(v1Pix.data?.data)) {
-        for (const item of v1Pix.data.data) addPayment(item, 'pix');
+      for (const key of ['v2_checkouts_all', 'v1_checkouts_all', 'v1_billing', 'v1_pix']) {
+        const r = results[key];
+        if (r.code === 200 && Array.isArray(r.data?.data) && r.data.data.length > 0) {
+          const type = key.includes('pix') ? 'pix' : (key.includes('billing') ? 'billing' : 'checkout');
+          for (const item of r.data.data) addPayment(item, type);
+          if (!usedSource) usedSource = key;
+        }
       }
     }
 
@@ -166,19 +151,25 @@ export default async function handler(req, res) {
       refunded: payments.filter(p => p.status === 'REFUNDED').length
     };
 
+    // Monta debug com code e erro de cada endpoint
+    const debug = {};
+    for (const [key, r] of Object.entries(results)) {
+      debug[key] = {
+        code: r.code,
+        count: Array.isArray(r.data?.data) ? r.data.data.length : null,
+        error: r.data?.error || r.error || null
+      };
+    }
+
     return res.status(200).json({
       success: true,
       search_term: search.trim(),
       search_type: isCpfSearch ? 'cpf' : 'email',
       show_all: showAll,
+      source: usedSource,
       summary,
       payments,
-      debug: {
-        v2_filtered: { code: v2Filtered.code, count: v2Filtered.data?.data?.length ?? null, error: v2Filtered.data?.error || v2Filtered.error || null },
-        v2_all: { code: v2All.code, count: v2All.data?.data?.length ?? null, error: v2All.data?.error || v2All.error || null },
-        v1_billing: { code: v1Billing.code, count: v1Billing.data?.data?.length ?? null, error: v1Billing.data?.error || v1Billing.error || null },
-        v1_pix: { code: v1Pix.code, count: v1Pix.data?.data?.length ?? null, error: v1Pix.data?.error || v1Pix.error || null }
-      }
+      debug
     });
 
   } catch (error) {
