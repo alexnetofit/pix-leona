@@ -1901,16 +1901,17 @@
 
                 abacatePayments = data.payments || [];
 
-                console.log('AbacatePay debug:', JSON.stringify(data.debug, null, 2));
-
                 if (abacatePayments.length === 0) {
-                    const d = data.debug || {};
-                    showMessage(`Nenhum pagamento encontrado. v2filtrado: ${d.v2_filtered?.count ?? '?'}, v2total: ${d.v2_all?.count ?? '?'}, v1billing: ${d.v1_billing?.count ?? '?'}, v1pix: ${d.v1_pix?.count ?? '?'}. Veja console (F12).`, 'error');
+                    showMessage('Nenhum pagamento encontrado na AbacatePay.', 'error');
                     return;
                 }
 
                 renderAbacateResults(data);
-                showMessage(`${data.summary.total} pagamento(s) encontrado(s)!`, 'success');
+                if (data.show_all) {
+                    showMessage(`Não foi possível filtrar por cliente. Mostrando todos os ${data.summary.total} pagamento(s).`, 'error');
+                } else {
+                    showMessage(`${data.summary.total} pagamento(s) encontrado(s)!`, 'success');
+                }
 
             } catch (error) {
                 showMessage(error.message);

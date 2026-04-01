@@ -134,6 +134,23 @@ export default async function handler(req, res) {
       }
     }
 
+    // Se não encontrou nada com filtro, retorna TODOS os billings para o usuário navegar
+    let showAll = false;
+    if (payments.length === 0) {
+      showAll = true;
+      const allSources = [];
+
+      if (v2All.code === 200 && Array.isArray(v2All.data?.data)) {
+        for (const item of v2All.data.data) addPayment(item, 'checkout');
+      }
+      if (v1Billing.code === 200 && Array.isArray(v1Billing.data?.data)) {
+        for (const item of v1Billing.data.data) addPayment(item, 'billing');
+      }
+      if (v1Pix.code === 200 && Array.isArray(v1Pix.data?.data)) {
+        for (const item of v1Pix.data.data) addPayment(item, 'pix');
+      }
+    }
+
     payments.sort((a, b) => {
       const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
       const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
@@ -153,14 +170,14 @@ export default async function handler(req, res) {
       success: true,
       search_term: search.trim(),
       search_type: isCpfSearch ? 'cpf' : 'email',
+      show_all: showAll,
       summary,
       payments,
       debug: {
         v2_filtered: { code: v2Filtered.code, count: v2Filtered.data?.data?.length ?? null, error: v2Filtered.data?.error || v2Filtered.error || null },
         v2_all: { code: v2All.code, count: v2All.data?.data?.length ?? null, error: v2All.data?.error || v2All.error || null },
         v1_billing: { code: v1Billing.code, count: v1Billing.data?.data?.length ?? null, error: v1Billing.data?.error || v1Billing.error || null },
-        v1_pix: { code: v1Pix.code, count: v1Pix.data?.data?.length ?? null, error: v1Pix.data?.error || v1Pix.error || null },
-        v1_billing_sample: v1Billing.data?.data?.[0] ? JSON.stringify(v1Billing.data.data[0]).substring(0, 500) : null
+        v1_pix: { code: v1Pix.code, count: v1Pix.data?.data?.length ?? null, error: v1Pix.data?.error || v1Pix.error || null }
       }
     });
 
