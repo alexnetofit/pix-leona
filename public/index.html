@@ -1901,8 +1901,11 @@
 
                 abacatePayments = data.payments || [];
 
+                const dbg = data.debug || {};
+                console.log(`AbacatePay: ${dbg.total_checkouts} checkouts total, prefixos:`, dbg.id_prefixes);
+
                 if (abacatePayments.length === 0) {
-                    showMessage('Nenhum pagamento encontrado na AbacatePay para esse e-mail/CPF.', 'error');
+                    showMessage(`Nenhum pagamento encontrado para esse e-mail/CPF. (${dbg.total_checkouts || 0} checkouts no total)`, 'error');
                     return;
                 }
 
