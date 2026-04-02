@@ -1,8 +1,11 @@
 /**
  * abacatepay-search.js - Busca pagamentos na AbacatePay por email ou CPF
  *
- * Busca todos os checkouts (v2) sem filtro e filtra por email/CPF no servidor,
- * para capturar tanto checkouts normais (bill_) quanto transparentes (pix_char_).
+ * Usa:
+ * - GET /v2/transparents/list  (PIX QR Codes / checkouts transparentes - pix_char_)
+ * - GET /v2/checkouts/list     (checkouts normais - bill_)
+ *
+ * Filtra por email ou CPF buscando no JSON de cada item.
  */
 
 export default async function handler(req, res) {
@@ -34,14 +37,15 @@ export default async function handler(req, res) {
   const searchClean = searchTerm.replace(/\D/g, '');
   const isCpfSearch = /^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/.test(search.trim()) || (searchClean.length === 11 && /^\d+$/.test(searchClean));
 
-  async function fetchAllCheckouts() {
+  async function fetchPaginated(basePath) {
     const all = [];
     let hasMore = true;
     let cursor = null;
 
     while (hasMore) {
-      const cursorParam = cursor ? `&after=${encodeURIComponent(cursor)}` : '';
-      const url = `https://api.abacatepay.com/v2/checkouts/list?limit=100${cursorParam}`;
+      const sep = basePath.includes('?') ? '&' : '?';
+      const cursorParam = cursor ? `${sep}after=${encodeURIComponent(cursor)}` : '';
+      const url = `https://api.abacatepay.com/v2${basePath}${cursorParam}`;
 
       const response = await fetch(url, {
         method: 'GET',
@@ -51,13 +55,13 @@ export default async function handler(req, res) {
         }
       });
 
-      const data = await response.json();
-
       if (response.status !== 200) {
-        const errorMsg = data?.error || `Erro ${response.status}`;
-        throw new Error(typeof errorMsg === 'object' ? JSON.stringify(errorMsg) : errorMsg);
+        const errData = await response.json().catch(() => ({}));
+        console.error(`AbacatePay ${basePath}: ${response.status}`, errData.error || '');
+        break;
       }
 
+      const data = await response.json();
       const items = Array.isArray(data.data) ? data.data : [];
       all.push(...items);
 
@@ -69,38 +73,69 @@ export default async function handler(req, res) {
   }
 
   try {
-    const allCheckouts = await fetchAllCheckouts();
+    // Busca checkouts transparentes (pix_char_) e normais (bill_) em paralelo
+    const emailFilter = isCpfSearch ? '' : `?email=${encodeURIComponent(searchTerm)}`;
+    const taxIdFilter = isCpfSearch ? `?taxId=${encodeURIComponent(search.trim())}` : '';
+    const checkoutFilter = isCpfSearch ? taxIdFilter : emailFilter;
 
-    // Filtra por email ou CPF buscando em todo o JSON de cada item
+    const [transparents, checkouts] = await Promise.all([
+      fetchPaginated('/transparents/list?limit=100'),
+      fetchPaginated(`/checkouts/list${checkoutFilter}&limit=100`)
+    ]);
+
+    console.log(`AbacatePay search: ${transparents.length} transparents, ${checkouts.length} checkouts`);
+
+    // Filtra transparents por email/CPF no JSON (esse endpoint não tem filtro por email)
     const cpfFormatted = isCpfSearch
       ? `${searchClean.slice(0,3)}.${searchClean.slice(3,6)}.${searchClean.slice(6,9)}-${searchClean.slice(9)}`
       : null;
 
-    const filtered = allCheckouts.filter(item => {
+    function matchesSearch(item) {
       const json = JSON.stringify(item).toLowerCase();
       if (isCpfSearch) {
         return json.includes(searchClean) || json.includes(cpfFormatted);
       }
       return json.includes(searchTerm);
-    });
+    }
 
-    const payments = filtered.map(c => ({
-      id: c.id,
-      type: c.id?.startsWith('pix_char_') ? 'pix' : 'checkout',
-      type_label: c.id?.startsWith('pix_char_') ? 'PIX Transparente' : 'Checkout',
-      status: c.status || 'PENDING',
-      amount: c.amount || 0,
-      paid_amount: c.paidAmount || null,
-      url: c.url || null,
-      receipt_url: c.receiptUrl || null,
-      items: c.items || [],
-      customer_id: c.customerId || null,
-      external_id: c.externalId || null,
-      created_at: c.createdAt || null,
-      updated_at: c.updatedAt || null,
-      metadata: c.metadata || null,
-      transaction_id: c.transactionId || null
-    }));
+    const payments = [];
+    const seenIds = new Set();
+
+    function addPayment(item, type, typeLabel) {
+      if (seenIds.has(item.id)) return;
+      seenIds.add(item.id);
+      payments.push({
+        id: item.id,
+        type,
+        type_label: typeLabel,
+        status: item.status || 'PENDING',
+        amount: item.amount || 0,
+        paid_amount: item.paidAmount || null,
+        url: item.url || null,
+        receipt_url: item.receiptUrl || null,
+        items: item.items || [],
+        customer_id: item.customerId || null,
+        customer: item.customer?.metadata || item.customer || null,
+        external_id: item.externalId || null,
+        created_at: item.createdAt || null,
+        updated_at: item.updatedAt || null,
+        metadata: item.metadata || null,
+        transaction_id: item.transactionId || null,
+        expires_at: item.expiresAt || null
+      });
+    }
+
+    // Transparentes: filtrar no servidor
+    for (const item of transparents) {
+      if (matchesSearch(item)) {
+        addPayment(item, 'pix', 'PIX Transparente');
+      }
+    }
+
+    // Checkouts: já vem filtrado pela API (email/taxId)
+    for (const item of checkouts) {
+      addPayment(item, 'checkout', 'Checkout');
+    }
 
     payments.sort((a, b) => {
       const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
@@ -117,13 +152,6 @@ export default async function handler(req, res) {
       refunded: payments.filter(p => p.status === 'REFUNDED').length
     };
 
-    // Debug: conta tipos de IDs no total
-    const idPrefixes = {};
-    for (const c of allCheckouts) {
-      const prefix = (c.id || '').split('_').slice(0, -1).join('_') || 'unknown';
-      idPrefixes[prefix] = (idPrefixes[prefix] || 0) + 1;
-    }
-
     return res.status(200).json({
       success: true,
       search_term: search.trim(),
@@ -131,8 +159,8 @@ export default async function handler(req, res) {
       summary,
       payments,
       debug: {
-        total_checkouts: allCheckouts.length,
-        id_prefixes: idPrefixes
+        transparents_total: transparents.length,
+        checkouts_total: checkouts.length
       }
     });
 

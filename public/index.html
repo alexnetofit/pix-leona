@@ -1902,10 +1902,10 @@
                 abacatePayments = data.payments || [];
 
                 const dbg = data.debug || {};
-                console.log(`AbacatePay: ${dbg.total_checkouts} checkouts total, prefixos:`, dbg.id_prefixes);
+                console.log(`AbacatePay: ${dbg.transparents_total} transparentes, ${dbg.checkouts_total} checkouts`);
 
                 if (abacatePayments.length === 0) {
-                    showMessage(`Nenhum pagamento encontrado para esse e-mail/CPF. (${dbg.total_checkouts || 0} checkouts no total)`, 'error');
+                    showMessage('Nenhum pagamento encontrado na AbacatePay para esse e-mail/CPF.', 'error');
                     return;
                 }
 
@@ -1994,22 +1994,40 @@
 
                     <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px; margin-top: 12px;">
                         <div style="display: grid; gap: 6px; font-size: 0.85rem;">
+                            ${payment.customer?.name ? `
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: var(--text-secondary);">Cliente:</span>
+                                    <span>${payment.customer.name}</span>
+                                </div>
+                            ` : ''}
+                            ${payment.customer?.email ? `
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: var(--text-secondary);">Email:</span>
+                                    <span>${payment.customer.email}</span>
+                                </div>
+                            ` : ''}
+                            ${payment.customer?.taxId ? `
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: var(--text-secondary);">CPF/CNPJ:</span>
+                                    <span>${payment.customer.taxId}</span>
+                                </div>
+                            ` : ''}
                             ${payment.external_id ? `
                                 <div style="display: flex; justify-content: space-between;">
                                     <span style="color: var(--text-secondary);">ID externo:</span>
                                     <span style="font-family: monospace; font-size: 0.8rem;">${payment.external_id}</span>
                                 </div>
                             ` : ''}
-                            ${payment.transaction_id ? `
+                            ${payment.metadata?.externalId ? `
                                 <div style="display: flex; justify-content: space-between;">
-                                    <span style="color: var(--text-secondary);">Transação:</span>
-                                    <span style="font-family: monospace; font-size: 0.8rem;">${payment.transaction_id}</span>
+                                    <span style="color: var(--text-secondary);">Fatura Stripe:</span>
+                                    <span style="font-family: monospace; font-size: 0.8rem;">${payment.metadata.externalId}</span>
                                 </div>
                             ` : ''}
-                            ${payment.customer_id ? `
+                            ${payment.expires_at ? `
                                 <div style="display: flex; justify-content: space-between;">
-                                    <span style="color: var(--text-secondary);">Cliente ID:</span>
-                                    <span style="font-family: monospace; font-size: 0.8rem;">${payment.customer_id}</span>
+                                    <span style="color: var(--text-secondary);">Expira em:</span>
+                                    <span>${formatAbacateDate(payment.expires_at)}</span>
                                 </div>
                             ` : ''}
                             ${payment.receipt_url ? `
