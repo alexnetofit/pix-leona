@@ -92,7 +92,17 @@ export default async function handler(req, res) {
 
       const updatedEmails = [...existingEmails, emailLower];
 
-      const patchBody = {
+      const putBody = {
+        coupon_code: couponData.coupon_code,
+        incidence_type: couponData.incidence_type,
+        incidence_field: couponData.incidence_field,
+        incidence_value: couponData.incidence_value,
+        date_ini: couponData.date_ini,
+        date_end: couponData.date_end,
+        usage_total: couponData.usage_total || 0,
+        usage_contact: couponData.usage_contact || 0,
+        maximum_subscription_cycles: couponData.maximum_subscription_cycles || 1,
+        is_active: couponData.is_active || 1,
         validate_by: 'email',
         emails: updatedEmails
       };
@@ -100,7 +110,7 @@ export default async function handler(req, res) {
       const patchRes = await fetch(`${GURU_BASE}/coupons/${found.id}`, {
         method: 'PUT',
         headers,
-        body: JSON.stringify(patchBody)
+        body: JSON.stringify(putBody)
       });
       const patchData = await patchRes.json();
 
