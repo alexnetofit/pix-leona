@@ -98,7 +98,7 @@ export default async function handler(req, res) {
       };
 
       const patchRes = await fetch(`${GURU_BASE}/coupons/${found.id}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers,
         body: JSON.stringify(patchBody)
       });
