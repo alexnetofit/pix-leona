@@ -2658,8 +2658,6 @@
                     ? baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'coupon=' + couponCode + '&email=' + email
                     : '';
 
-                const pixMsg = `Como não estamos conseguindo realizar pela plataforma no momento, peço que envie um PIX para o CNPJ 50.523.175/0001-51.\n\nValor: ${formatGuruCurrency(proRata)}`;
-
                 resultDiv.innerHTML = `
                     <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--success);">
                         <div style="display: grid; gap: 14px;">
@@ -2709,14 +2707,6 @@
                                     </div>
                                 </div>
                             ` : ''}
-                            <div style="background: rgba(255,193,7,0.1); padding: 14px; border-radius: 10px;">
-                                <div style="color: var(--warning); font-weight: 600; margin-bottom: 8px;">⚠️ Cliente não está na Guru</div>
-                                <div style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 12px;">Caso prefira, envie a mensagem de PIX abaixo:</div>
-                                <div style="background: var(--bg-secondary); padding: 14px; border-radius: 8px; font-size: 0.9rem; color: var(--text-primary); white-space: pre-wrap; line-height: 1.5; margin-bottom: 10px;" id="pix-msg-${bpIdx}">${pixMsg}</div>
-                                <button class="btn-copy" id="copy-pix-msg-${bpIdx}" onclick="copyPixMsg(${bpIdx})" style="width: auto;">
-                                    Copiar Mensagem
-                                </button>
-                            </div>
                         </div>
                     </div>
                 `;
