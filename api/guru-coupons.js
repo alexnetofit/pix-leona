@@ -43,12 +43,16 @@ export default async function handler(req, res) {
       const results = [];
       for (let pct = 5; pct <= 95; pct += 5) {
         const code = `up-leona-${pct}`;
+        const now = Math.floor(Date.now() / 1000);
         const body = {
           coupon_code: code,
           incidence_type: 'percent',
           incidence_field: 'total',
           incidence_value: pct,
+          date_ini: now,
           date_end: 1924905600,
+          usage_total: 0,
+          usage_contact: 0,
           maximum_subscription_cycles: 1,
           validate_by: 'email',
           emails: [],
