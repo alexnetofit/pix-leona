@@ -2532,7 +2532,7 @@
 
             const { proRata, diasRestantes, diasNoCiclo } = calcProRata(currentValue, newValue, periodEnd);
 
-            const discountPct = newValue > 0 ? (proRata / newValue) * 100 : 0;
+            const discountPct = newValue > 0 ? (1 - proRata / newValue) * 100 : 0;
             let couponPct = Math.round(discountPct / 5) * 5;
             couponPct = Math.max(5, Math.min(95, couponPct));
             const couponCode = `up-leona-${couponPct}`;
