@@ -83,19 +83,31 @@ export default async function handler(req, res) {
       });
     }
 
-    const match = profiles.find(p =>
+    let match = profiles.find(p =>
       p.guru_account_id &&
       (p.guru_account_id === guruSubId || p.guru_account_id === guruSubCode)
     );
 
+    let firstLink = false;
+
     if (!match) {
-      console.log(`webhook-guru: nenhuma conta Leona com guru_account_id correspondente à subscription ${guruSubId}. Contas encontradas: ${profiles.map(p => `${p.account_id}(guru=${p.guru_account_id})`).join(', ')}`);
-      return res.status(200).json({
-        received: true,
-        processed: false,
-        error: `nenhuma conta Leona vinculada à subscription ${guruSubId}`,
-        accounts_found: profiles.map(p => ({ account_id: p.account_id, guru_account_id: p.guru_account_id }))
-      });
+      const unlinked = profiles.filter(p => !p.guru_account_id);
+
+      if (unlinked.length === 1) {
+        match = unlinked[0];
+        firstLink = true;
+        console.log(`webhook-guru: conta ${match.account_id} sem guru_account_id, vinculando à subscription ${guruSubId}`);
+      } else {
+        console.log(`webhook-guru: nenhuma conta Leona com guru_account_id correspondente à subscription ${guruSubId}. Contas encontradas: ${profiles.map(p => `${p.account_id}(guru=${p.guru_account_id})`).join(', ')}`);
+        return res.status(200).json({
+          received: true,
+          processed: false,
+          error: unlinked.length > 1
+            ? `múltiplas contas sem vínculo, não é possível determinar qual atualizar`
+            : `nenhuma conta Leona vinculada à subscription ${guruSubId}`,
+          accounts_found: profiles.map(p => ({ account_id: p.account_id, guru_account_id: p.guru_account_id }))
+        });
+      }
     }
 
     const accountId = match.account_id;
@@ -104,6 +116,10 @@ export default async function handler(req, res) {
       starter_instances: instances,
       status: 'active'
     };
+
+    if (firstLink) {
+      updateData.guru_account_id = guruSubId;
+    }
 
     if (!isUpgradeOrDowngrade) {
       const dueDate = calculateDueDate(payload);
