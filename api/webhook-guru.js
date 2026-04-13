@@ -6,7 +6,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Método não permitido' });
   }
 
-  const guruToken = process.env.GURU_TOKEN;
+  const guruApiKey = process.env.GURU_API_KEY;
   const leonaToken = process.env.LEONA_BILLING_TOKEN;
 
   if (!leonaToken) {
@@ -18,7 +18,7 @@ export default async function handler(req, res) {
     const payload = req.body;
     console.log('webhook-guru recebido:', JSON.stringify(payload));
 
-    if (guruToken && payload.api_token !== guruToken) {
+    if (guruApiKey && payload.api_token !== guruApiKey) {
       console.error('webhook-guru: api_token inválido');
       return res.status(401).json({ error: 'Token inválido' });
     }
@@ -46,7 +46,11 @@ export default async function handler(req, res) {
       return res.status(200).json({ received: true, error: 'email não encontrado' });
     }
 
-    const planName = payload.subscription?.name || payload.product?.name || '';
+    const planName = payload.product?.offer?.name
+      || payload.items?.[0]?.offer?.name
+      || payload.subscription?.name
+      || payload.product?.name
+      || '';
     const instances = extractInstances(planName);
 
     if (instances === null) {
