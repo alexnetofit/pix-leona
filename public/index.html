@@ -2545,7 +2545,7 @@
 
                     const baseUrl = newOffer.checkout_url || '';
                     const checkoutUrl = baseUrl
-                        ? baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'email=' + email + '&coupon=' + couponCode
+                        ? baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'coupon=' + couponCode + '&email=' + email
                         : '';
 
                     resultDiv.innerHTML = `
@@ -2655,7 +2655,7 @@
 
                 const baseUrl = newOffer.checkout_url || '';
                 const checkoutUrl = baseUrl
-                    ? baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'email=' + email + '&coupon=' + couponCode
+                    ? baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'coupon=' + couponCode + '&email=' + email
                     : '';
 
                 const pixMsg = `Como não estamos conseguindo realizar pela plataforma no momento, peço que envie um PIX para o CNPJ 50.523.175/0001-51.\n\nValor: ${formatGuruCurrency(proRata)}`;
