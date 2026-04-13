@@ -22,14 +22,14 @@ export default async function handler(req, res) {
 
   try {
     if (action === 'list') {
-      const r = await fetch(`${GURU_BASE}/coupons?limit=50`, { headers });
+      const r = await fetch(`${GURU_BASE}/coupons?limit=50&is_active=1&has_transactions=0`, { headers });
       const data = await r.json();
       return res.status(200).json({ coupons: data });
     }
 
     if (action === 'get') {
       if (!coupon_code) return res.status(400).json({ error: 'coupon_code obrigatório' });
-      const listRes = await fetch(`${GURU_BASE}/coupons?limit=100`, { headers });
+      const listRes = await fetch(`${GURU_BASE}/coupons?limit=100&is_active=1&has_transactions=0`, { headers });
       const listData = await listRes.json();
       const coupons = Array.isArray(listData.data) ? listData.data : [];
       const found = coupons.find(c => c.code === coupon_code);
@@ -69,7 +69,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'coupon_code e email são obrigatórios' });
       }
 
-      const listRes = await fetch(`${GURU_BASE}/coupons?limit=100`, { headers });
+      const listRes = await fetch(`${GURU_BASE}/coupons?limit=100&is_active=1&has_transactions=0`, { headers });
       const listData = await listRes.json();
       const coupons = Array.isArray(listData.data) ? listData.data : [];
       const found = coupons.find(c => c.code === coupon_code);
