@@ -49,9 +49,9 @@ export default async function handler(req, res) {
           incidence_field: 'total',
           incidence_value: pct,
           date_end: 1924905600,
-          max_uses: 0,
-          max_uses_per_customer: 0,
-          max_subscription_cycles: 1,
+          maximum_subscription_cycles: 1,
+          validate_by: 'email',
+          emails: [],
           is_active: 1
         };
         const r = await fetch(`${GURU_BASE}/coupons`, {
@@ -80,7 +80,7 @@ export default async function handler(req, res) {
       const detail = await detailRes.json();
       const couponData = detail.data || detail;
 
-      const existingEmails = couponData.allowed_emails || couponData.emails || [];
+      const existingEmails = couponData.emails || [];
       const emailLower = email.trim().toLowerCase();
       if (existingEmails.includes(emailLower)) {
         return res.status(200).json({ success: true, message: 'Email já está na lista', coupon_id: found.id });
@@ -90,7 +90,6 @@ export default async function handler(req, res) {
 
       const patchBody = {
         validate_by: 'email',
-        allowed_emails: updatedEmails,
         emails: updatedEmails
       };
 
