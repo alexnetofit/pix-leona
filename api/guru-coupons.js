@@ -32,7 +32,7 @@ export default async function handler(req, res) {
       const listRes = await fetch(`${GURU_BASE}/coupons?limit=100&is_active=1&has_transactions=0`, { headers });
       const listData = await listRes.json();
       const coupons = Array.isArray(listData.data) ? listData.data : [];
-      const found = coupons.find(c => c.code === coupon_code);
+      const found = coupons.find(c => c.code === coupon_code || c.coupon_code === coupon_code);
       if (!found) return res.status(404).json({ error: 'Cupom não encontrado' });
       const detailRes = await fetch(`${GURU_BASE}/coupons/${found.id}`, { headers });
       const detail = await detailRes.json();
@@ -44,14 +44,15 @@ export default async function handler(req, res) {
       for (let pct = 5; pct <= 95; pct += 5) {
         const code = `up-leona-${pct}`;
         const body = {
-          code,
-          discount_type: 'Percentage',
-          discount_value: pct,
-          valid_until: '2030-12-31',
+          coupon_code: code,
+          incidence_type: 'percent',
+          incidence_field: 'total',
+          incidence_value: pct,
+          date_end: 1924905600,
           max_uses: 0,
           max_uses_per_customer: 0,
           max_subscription_cycles: 1,
-          is_active: true
+          is_active: 1
         };
         const r = await fetch(`${GURU_BASE}/coupons`, {
           method: 'POST',
@@ -72,7 +73,7 @@ export default async function handler(req, res) {
       const listRes = await fetch(`${GURU_BASE}/coupons?limit=100&is_active=1&has_transactions=0`, { headers });
       const listData = await listRes.json();
       const coupons = Array.isArray(listData.data) ? listData.data : [];
-      const found = coupons.find(c => c.code === coupon_code);
+      const found = coupons.find(c => c.code === coupon_code || c.coupon_code === coupon_code);
       if (!found) return res.status(404).json({ error: `Cupom ${coupon_code} não encontrado` });
 
       const detailRes = await fetch(`${GURU_BASE}/coupons/${found.id}`, { headers });
