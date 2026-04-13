@@ -2398,7 +2398,246 @@
             });
         }
 
+        let _lastGuruData = null;
+        let _lastGuruEmail = null;
+
+        function getOfferForQty(offers, qty) {
+            if (!offers) return null;
+            for (const o of offers) {
+                const m = o.name.match(/(\d+)\s*conex/i);
+                if (m && parseInt(m[1]) === qty) return o;
+            }
+            return null;
+        }
+
+        function calcProRata(currentValue, newValue, periodEndStr) {
+            const now = new Date();
+            const periodEnd = new Date(periodEndStr);
+            const diffMs = periodEnd.getTime() - now.getTime();
+            const diasRestantes = Math.max(0, Math.ceil(diffMs / 86400000));
+            const diasNoCiclo = 30;
+            const proRata = (newValue - currentValue) * diasRestantes / diasNoCiclo;
+            return { proRata: Math.round(proRata * 100) / 100, diasRestantes, diasNoCiclo };
+        }
+
+        function showSimulationPanel(bpIdx) {
+            const panel = document.getElementById(`leona-sim-panel-${bpIdx}`);
+            if (panel) panel.style.display = 'block';
+        }
+
+        function hideSimulationPanel(bpIdx) {
+            const panel = document.getElementById(`leona-sim-panel-${bpIdx}`);
+            const result = document.getElementById(`leona-sim-result-${bpIdx}`);
+            if (panel) panel.style.display = 'none';
+            if (result) { result.style.display = 'none'; result.innerHTML = ''; }
+        }
+
+        function simulateLeona(bpIdx) {
+            const data = _lastGuruData;
+            const email = _lastGuruEmail;
+            if (!data) return;
+
+            const profiles = data.leona.billing_profiles || (data.leona.billing_profile ? [data.leona.billing_profile] : []);
+            const bp = profiles[bpIdx];
+            if (!bp) return;
+
+            const input = document.getElementById(`leona-new-qty-${bpIdx}`);
+            const resultDiv = document.getElementById(`leona-sim-result-${bpIdx}`);
+            const newQty = parseInt(input.value);
+            const currentQty = bp.starter_instances || 0;
+
+            if (!newQty || newQty < 1) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); text-align: center; color: var(--error);">Quantidade deve ser pelo menos 1.</div>`;
+                return;
+            }
+            if (newQty === currentQty) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); text-align: center; color: var(--error);">A quantidade informada é igual à atual (${currentQty}).</div>`;
+                return;
+            }
+
+            const periodEnd = bp.current_period_end;
+            if (!periodEnd || new Date(periodEnd) <= new Date()) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<div style="background: rgba(255,193,7,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--warning); text-align: center; color: var(--warning);">Ciclo vencido. Não é possível calcular pro rata.</div>`;
+                return;
+            }
+
+            const offers = data.offers || [];
+            const currentOffer = getOfferForQty(offers, currentQty);
+            const newOffer = getOfferForQty(offers, newQty);
+
+            if (!newOffer) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<div style="background: rgba(255,193,7,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--warning); text-align: center; color: var(--warning);">Não existe oferta configurada para ${newQty} conexão(ões).</div>`;
+                return;
+            }
+
+            const currentValue = currentOffer ? currentOffer.value : 0;
+            const newValue = newOffer.value;
+            const isUpgrade = newQty > currentQty;
+            const diff = Math.abs(newQty - currentQty);
+            const hasGuru = data.guru.found && data.guru.subscriptions.length > 0;
+
+            resultDiv.style.display = 'block';
+
+            if (!isUpgrade) {
+                resultDiv.innerHTML = `
+                    <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--warning);">
+                        <div style="display: grid; gap: 14px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 14px; border-bottom: 1px solid var(--border);">
+                                <span style="color: var(--text-secondary);">Tipo de alteração:</span>
+                                <span style="color: var(--warning); font-weight: 700; font-size: 1.1rem;">⬇️ DOWNGRADE (-${diff} instância${diff > 1 ? 's' : ''})</span>
+                            </div>
+                            <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="color: var(--text-secondary);">Instâncias:</span>
+                                    <span style="color: var(--text-primary); font-weight: 600; font-size: 1.2rem;">${currentQty} → ${newQty}</span>
+                                </div>
+                            </div>
+                            <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="color: var(--text-secondary);">Valor mensal:</span>
+                                    <span style="color: var(--text-primary); font-weight: 600;">${formatGuruCurrency(currentValue)} → ${formatGuruCurrency(newValue)}</span>
+                                </div>
+                            </div>
+                            <div style="background: rgba(255,193,7,0.15); padding: 16px; border-radius: 10px; text-align: center;">
+                                <div style="color: var(--warning); font-weight: 600;">Sem cobrança ou reembolso</div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">
+                                    A redução será aplicada na renovação. A assinatura na Guru (se existir) será atualizada, e o número de instâncias no Leona será ajustado.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            const { proRata, diasRestantes, diasNoCiclo } = calcProRata(currentValue, newValue, periodEnd);
+
+            if (hasGuru) {
+                const checkoutUrl = newOffer.checkout_url
+                    ? newOffer.checkout_url + (newOffer.checkout_url.includes('?') ? '&' : '?') + 'email=' + encodeURIComponent(email)
+                    : '';
+
+                resultDiv.innerHTML = `
+                    <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--success);">
+                        <div style="display: grid; gap: 14px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 14px; border-bottom: 1px solid var(--border);">
+                                <span style="color: var(--text-secondary);">Tipo de alteração:</span>
+                                <span style="color: var(--success); font-weight: 700; font-size: 1.1rem;">⬆️ UPGRADE (+${diff} instância${diff > 1 ? 's' : ''})</span>
+                            </div>
+                            <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="color: var(--text-secondary);">Instâncias:</span>
+                                    <span style="color: var(--text-primary); font-weight: 600; font-size: 1.2rem;">${currentQty} → ${newQty}</span>
+                                </div>
+                            </div>
+                            <div style="background: var(--bg-secondary); padding: 14px; border-radius: 8px;">
+                                <div style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 10px; font-weight: 500;">Cálculo pro rata:</div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid var(--border);">
+                                    <span style="color: var(--text-secondary);">Crédito não utilizado (${currentQty}x Starter, ${diasRestantes} dias)</span>
+                                    <span style="color: var(--error); font-weight: 600;">-${formatGuruCurrency(currentValue * diasRestantes / diasNoCiclo)}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid var(--border);">
+                                    <span style="color: var(--text-secondary);">Cobrança proporcional (${newQty}x Starter, ${diasRestantes} dias)</span>
+                                    <span style="color: var(--success); font-weight: 600;">+${formatGuruCurrency(newValue * diasRestantes / diasNoCiclo)}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 1rem; padding-top: 10px; margin-top: 4px;">
+                                    <span style="color: var(--text-primary); font-weight: 600;">Pro rata:</span>
+                                    <span style="color: var(--accent); font-weight: 700; font-size: 1.2rem;">${formatGuruCurrency(proRata)}</span>
+                                </div>
+                            </div>
+                            <div style="background: rgba(0,212,170,0.1); padding: 14px; border-radius: 10px;">
+                                <div style="color: var(--accent); font-weight: 600; margin-bottom: 8px;">Cliente na Guru — Upgrade via checkout</div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 10px;">Envie o link abaixo para o cliente realizar o upgrade para <strong>${newOffer.name}</strong> (${formatGuruCurrency(newValue)}/mês):</div>
+                                ${checkoutUrl ? `
+                                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                        <button class="btn-copy" id="copy-upgrade-${bpIdx}" onclick="copyGuruLink('${checkoutUrl}', 'copy-upgrade-${bpIdx}')" style="width: auto; white-space: nowrap;">
+                                            Copiar Link
+                                        </button>
+                                        <span style="font-size: 0.75rem; color: var(--text-secondary); font-family: monospace; word-break: break-all;">${checkoutUrl}</span>
+                                    </div>
+                                ` : `
+                                    <div style="color: var(--warning); font-size: 0.85rem;">⚠️ Plano de upgrade não possui URL de checkout configurada.</div>
+                                `}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                const pixMsg = `Como não estamos conseguindo realizar pela plataforma no momento, peço que envie um PIX para o CNPJ 50.523.175/0001-51.\n\nValor: ${formatGuruCurrency(proRata)}`;
+
+                resultDiv.innerHTML = `
+                    <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--success);">
+                        <div style="display: grid; gap: 14px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 14px; border-bottom: 1px solid var(--border);">
+                                <span style="color: var(--text-secondary);">Tipo de alteração:</span>
+                                <span style="color: var(--success); font-weight: 700; font-size: 1.1rem;">⬆️ UPGRADE (+${diff} instância${diff > 1 ? 's' : ''})</span>
+                            </div>
+                            <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="color: var(--text-secondary);">Instâncias:</span>
+                                    <span style="color: var(--text-primary); font-weight: 600; font-size: 1.2rem;">${currentQty} → ${newQty}</span>
+                                </div>
+                            </div>
+                            <div style="background: var(--bg-secondary); padding: 14px; border-radius: 8px;">
+                                <div style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 10px; font-weight: 500;">Cálculo pro rata:</div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid var(--border);">
+                                    <span style="color: var(--text-secondary);">Crédito não utilizado (${currentQty}x Starter, ${diasRestantes} dias)</span>
+                                    <span style="color: var(--error); font-weight: 600;">-${formatGuruCurrency(currentValue * diasRestantes / diasNoCiclo)}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid var(--border);">
+                                    <span style="color: var(--text-secondary);">Cobrança proporcional (${newQty}x Starter, ${diasRestantes} dias)</span>
+                                    <span style="color: var(--success); font-weight: 600;">+${formatGuruCurrency(newValue * diasRestantes / diasNoCiclo)}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 1rem; padding-top: 10px; margin-top: 4px;">
+                                    <span style="color: var(--text-primary); font-weight: 600;">Pro rata:</span>
+                                    <span style="color: var(--accent); font-weight: 700; font-size: 1.2rem;">${formatGuruCurrency(proRata)}</span>
+                                </div>
+                            </div>
+                            <div style="background: rgba(255,193,7,0.1); padding: 14px; border-radius: 10px;">
+                                <div style="color: var(--warning); font-weight: 600; margin-bottom: 8px;">⚠️ Cliente não está na Guru</div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 12px;">Não é possível realizar o upgrade pela plataforma. Envie a mensagem abaixo para o cliente:</div>
+                                <div style="background: var(--bg-secondary); padding: 14px; border-radius: 8px; font-size: 0.9rem; color: var(--text-primary); white-space: pre-wrap; line-height: 1.5; margin-bottom: 10px;" id="pix-msg-${bpIdx}">${pixMsg}</div>
+                                <button class="btn-copy" id="copy-pix-msg-${bpIdx}" onclick="copyPixMsg(${bpIdx})" style="width: auto;">
+                                    Copiar Mensagem
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function copyPixMsg(bpIdx) {
+            const msgEl = document.getElementById(`pix-msg-${bpIdx}`);
+            const btn = document.getElementById(`copy-pix-msg-${bpIdx}`);
+            const text = msgEl.textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                btn.textContent = '✓ Copiado!';
+                btn.classList.add('copied');
+                showMessage('Mensagem copiada!', 'success');
+                setTimeout(() => { btn.textContent = 'Copiar Mensagem'; btn.classList.remove('copied'); }, 2000);
+            }).catch(() => {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                btn.textContent = '✓ Copiado!';
+                btn.classList.add('copied');
+                showMessage('Mensagem copiada!', 'success');
+                setTimeout(() => { btn.textContent = 'Copiar Mensagem'; btn.classList.remove('copied'); }, 2000);
+            });
+        }
+
         function renderGuruResults(data, email) {
+            _lastGuruData = data;
+            _lastGuruEmail = email;
+
             const section = document.getElementById('guruResultsSection');
             const leonaDiv = document.getElementById('guruLeonaProfile');
             const subsDiv = document.getElementById('guruSubscriptions');
@@ -2415,6 +2654,8 @@
             // Leona billing profiles
             const profiles = leona.billing_profiles || (leona.billing_profile ? [leona.billing_profile] : []);
             if (profiles.length > 0) {
+                const isActive = (bp) => bp.subscription_status === 'active' && bp.current_period_end && new Date(bp.current_period_end) > new Date();
+
                 leonaDiv.innerHTML = profiles.map((bp, bpIdx) => `
                     <div class="leona-profile">
                         <h3>Leona — Perfil de Cobrança${profiles.length > 1 ? ` #${bpIdx + 1}` : ''}${bp.account_id ? ` <span style="font-size: 0.75rem; font-weight: 400; color: var(--text-secondary);">(ID: ${bp.account_id})</span>` : ''}</h3>
@@ -2430,6 +2671,33 @@
                             ${bp.subscription_type ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Tipo:</span><span>${bp.subscription_type}</span></div>` : ''}
                             ${bp.guru_account_id ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Guru Account ID:</span><span style="font-family: monospace; font-size: 0.8rem;">${bp.guru_account_id}</span></div>` : ''}
                         </div>
+                        ${isActive(bp) && bp.starter_instances != null ? `
+                            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+                                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                    <button class="btn-primary" onclick="showSimulationPanel(${bpIdx})" style="padding: 10px 18px; font-size: 0.85rem;">
+                                        + Adicionar Instância
+                                    </button>
+                                    <button class="btn-secondary" onclick="showSimulationPanel(${bpIdx})" style="padding: 10px 18px; font-size: 0.85rem;">
+                                        - Reduzir Instância
+                                    </button>
+                                </div>
+                                <div id="leona-sim-panel-${bpIdx}" style="display: none; margin-top: 14px;">
+                                    <div style="background: var(--bg-secondary); padding: 16px; border-radius: 10px; border: 1px solid var(--border);">
+                                        <label style="color: var(--text-secondary); font-size: 0.85rem; display: block; margin-bottom: 8px;">Nova quantidade total de instâncias Starter:</label>
+                                        <div style="display: flex; gap: 10px; align-items: center;">
+                                            <input type="number" id="leona-new-qty-${bpIdx}" min="1" value="${bp.starter_instances + 1}" style="width: 80px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 1rem; text-align: center;">
+                                            <button class="btn-primary" onclick="simulateLeona(${bpIdx})" style="padding: 10px 24px;">
+                                                Simular
+                                            </button>
+                                            <button class="btn-secondary" onclick="hideSimulationPanel(${bpIdx})" style="padding: 10px 20px;">
+                                                Cancelar
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="leona-sim-result-${bpIdx}" style="display: none; margin-top: 14px;"></div>
+                            </div>
+                        ` : ''}
                     </div>
                 `).join('');
             } else if (leona.error) {
