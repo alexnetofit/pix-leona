@@ -91,7 +91,10 @@ export default async function handler(req, res) {
 
       if (subsRes.ok) {
         const subsData = await subsRes.json();
-        guru.subscriptions = (Array.isArray(subsData.data) ? subsData.data : []).map(s => ({
+        const allSubs = Array.isArray(subsData.data) ? subsData.data : [];
+        const leonaSubs = allSubs.filter(s => s.product?.id === LEONA_PRODUCT_ID);
+
+        guru.subscriptions = leonaSubs.map(s => ({
           id: s.id,
           subscription_code: s.subscription_code,
           product_name: s.product?.name || '',
@@ -111,13 +114,20 @@ export default async function handler(req, res) {
         }));
 
         if (guru.subscriptions.length > 0) {
+          const leonaSubIds = new Set(leonaSubs.map(s => s.id));
           const txRes = await fetch(
             `${GURU_BASE}/transactions?contact_id=${contact.id}&limit=100`,
             { headers }
           );
           if (txRes.ok) {
             const txData = await txRes.json();
-            guru.transactions = (Array.isArray(txData.data) ? txData.data : []).map(t => ({
+            const allTx = Array.isArray(txData.data) ? txData.data : [];
+            const leonaTx = allTx.filter(t =>
+              t.product?.internal_id === LEONA_PRODUCT_ID ||
+              leonaSubIds.has(t.subscription?.internal_id)
+            );
+
+            guru.transactions = leonaTx.map(t => ({
               id: t.id,
               status: t.status,
               product_name: t.product?.name || '',
