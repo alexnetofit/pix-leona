@@ -2518,7 +2518,7 @@
 
             if (hasGuru) {
                 const checkoutUrl = newOffer.checkout_url
-                    ? newOffer.checkout_url + (newOffer.checkout_url.includes('?') ? '&' : '?') + 'email=' + encodeURIComponent(email)
+                    ? newOffer.checkout_url + (newOffer.checkout_url.includes('?') ? '&' : '?') + 'email=' + email
                     : '';
 
                 resultDiv.innerHTML = `
@@ -2756,7 +2756,7 @@
                                 const pay = tx.payment;
                                 const isOpen = inv && inv.status !== 'paid' && inv.status !== 'refunded';
                                 const rawCheckoutUrl = tx.checkout_url || '';
-                                const checkoutUrl = rawCheckoutUrl ? rawCheckoutUrl + (rawCheckoutUrl.includes('?') ? '&' : '?') + 'email=' + encodeURIComponent(email) : '';
+                                const checkoutUrl = rawCheckoutUrl ? rawCheckoutUrl + (rawCheckoutUrl.includes('?') ? '&' : '?') + 'email=' + email : '';
                                 return `
                                     <div class="guru-tx-card" ${isOpen ? 'style="border-color: var(--warning);"' : ''}>
                                         <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
@@ -2825,7 +2825,7 @@
                                             ${(o.payment_types || []).map(t => t === 'credit_card' ? 'Cartão' : t === 'pix' ? 'PIX' : t).join(' • ')}
                                         </div>
                                     </div>
-                                    <button class="btn-copy" id="copy-offer-${idx}" onclick="copyGuruLink('${o.checkout_url + (o.checkout_url.includes("?") ? "&" : "?") + "email=" + encodeURIComponent(email)}', 'copy-offer-${idx}')">
+                                    <button class="btn-copy" id="copy-offer-${idx}" onclick="copyGuruLink('${o.checkout_url + (o.checkout_url.includes("?") ? "&" : "?") + "email=" + email}', 'copy-offer-${idx}')">
                                         Copiar Link
                                     </button>
                                 </div>
