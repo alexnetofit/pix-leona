@@ -598,6 +598,118 @@
             border: 1px solid var(--border);
         }
 
+        /* Pagamento 2.0 */
+        .guru-sub-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 12px;
+            transition: border-color 0.3s;
+        }
+
+        .guru-sub-card:hover {
+            border-color: var(--accent);
+        }
+
+        .guru-status {
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .guru-status.active { background: rgba(0, 212, 170, 0.2); color: var(--success); }
+        .guru-status.trial { background: rgba(33, 150, 243, 0.2); color: #64b5f6; }
+        .guru-status.canceled { background: rgba(255, 107, 107, 0.2); color: var(--error); }
+        .guru-status.pastdue { background: rgba(255, 193, 7, 0.2); color: var(--warning); }
+        .guru-status.inactive { background: rgba(160, 160, 160, 0.2); color: var(--text-secondary); }
+
+        .guru-tx-card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 10px;
+        }
+
+        .guru-invoice-status {
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .guru-invoice-status.paid { background: rgba(0, 212, 170, 0.2); color: var(--success); }
+        .guru-invoice-status.pending, .guru-invoice-status.waiting { background: rgba(255, 193, 7, 0.2); color: var(--warning); }
+        .guru-invoice-status.refunded { background: rgba(156, 39, 176, 0.2); color: #ce93d8; }
+
+        .offer-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 12px;
+        }
+
+        .offer-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            transition: border-color 0.3s;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .offer-card:hover {
+            border-color: var(--accent);
+        }
+
+        .offer-value {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .btn-copy {
+            background: transparent;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+            margin-top: 12px;
+        }
+
+        .btn-copy:hover {
+            background: var(--accent);
+            color: var(--bg-primary);
+        }
+
+        .btn-copy.copied {
+            background: var(--success);
+            border-color: var(--success);
+            color: var(--bg-primary);
+        }
+
+        .leona-profile {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .leona-profile h3 {
+            font-size: 1rem;
+            color: var(--accent);
+            margin-bottom: 12px;
+        }
+
         /* Responsive */
         @media (max-width: 600px) {
             .input-group {
@@ -645,6 +757,7 @@
         <div class="tabs-container">
             <button class="tab-btn active" onclick="switchTab('stripe')">Stripe</button>
             <button class="tab-btn" onclick="switchTab('abacatepay')">AbacatePay</button>
+            <button class="tab-btn" onclick="switchTab('pagamento20')">Pagamento 2.0</button>
         </div>
 
         <!-- ========== ABA STRIPE ========== -->
@@ -749,6 +862,31 @@
                 </div>
                 <div class="abacate-summary" id="abacateSummary"></div>
                 <div id="abacatePaymentsList"></div>
+            </section>
+        </div>
+
+        <!-- ========== ABA PAGAMENTO 2.0 ========== -->
+        <div class="tab-content" id="tab-pagamento20">
+            <section class="search-section">
+                <h2>Buscar cliente por e-mail</h2>
+                <div class="input-group">
+                    <input 
+                        type="email" 
+                        id="guruEmailInput" 
+                        placeholder="cliente@exemplo.com"
+                        autocomplete="email"
+                    >
+                    <button class="btn-primary" id="guruSearchBtn" onclick="searchGuru()">
+                        Buscar
+                    </button>
+                </div>
+            </section>
+
+            <section class="results-section" id="guruResultsSection">
+                <div id="guruLeonaProfile"></div>
+                <div id="guruSubscriptions"></div>
+                <div id="guruTransactions"></div>
+                <div id="guruOffersSection"></div>
             </section>
         </div>
     </div>
@@ -1864,8 +2002,9 @@
             
             document.getElementById(`tab-${tabName}`).classList.add('active');
             const buttons = document.querySelectorAll('.tab-btn');
-            if (tabName === 'stripe') buttons[0].classList.add('active');
-            else buttons[1].classList.add('active');
+            const tabMap = { stripe: 0, abacatepay: 1, pagamento20: 2 };
+            const idx = tabMap[tabName] ?? 0;
+            if (buttons[idx]) buttons[idx].classList.add('active');
         }
 
         // ============================================
@@ -2173,6 +2312,264 @@
         }
 
         // ============================================
+        // PAGAMENTO 2.0 - GURU + LEONA
+        // ============================================
+
+        async function searchGuru() {
+            const email = document.getElementById('guruEmailInput').value.trim();
+            const btn = document.getElementById('guruSearchBtn');
+
+            if (!email) {
+                showMessage('Por favor, digite um e-mail válido.');
+                return;
+            }
+
+            setButtonLoading(btn, true, 'Buscar');
+            document.getElementById('guruResultsSection').classList.remove('active');
+
+            try {
+                const response = await fetch('/api/guru-search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Erro ao buscar');
+
+                renderGuruResults(data, email);
+
+            } catch (error) {
+                showMessage(error.message);
+            } finally {
+                setButtonLoading(btn, false, 'Buscar');
+            }
+        }
+
+        function formatGuruCurrency(value) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+        }
+
+        function formatGuruDate(dateStr) {
+            if (!dateStr) return '—';
+            if (typeof dateStr === 'number') return new Date(dateStr * 1000).toLocaleDateString('pt-BR');
+            return new Date(dateStr).toLocaleDateString('pt-BR');
+        }
+
+        function getGuruStatusClass(status) {
+            const map = { active: 'active', trial: 'trial', canceled: 'canceled', pastdue: 'pastdue' };
+            return map[status] || 'inactive';
+        }
+
+        function getGuruStatusLabel(status) {
+            const map = { active: 'Ativa', trial: 'Trial', canceled: 'Cancelada', pastdue: 'Em atraso', inactive: 'Inativa' };
+            return map[status] || status;
+        }
+
+        function getInvoiceStatusClass(status) {
+            if (status === 'paid') return 'paid';
+            if (status === 'refunded') return 'refunded';
+            return 'pending';
+        }
+
+        function getInvoiceStatusLabel(status) {
+            const map = { paid: 'Pago', pending: 'Pendente', waiting: 'Aguardando', refunded: 'Reembolsado', overdue: 'Em atraso' };
+            return map[status] || status;
+        }
+
+        function copyGuruLink(text, btnId) {
+            const btn = document.getElementById(btnId);
+            navigator.clipboard.writeText(text).then(() => {
+                btn.textContent = '✓ Copiado!';
+                btn.classList.add('copied');
+                showMessage('Link copiado!', 'success');
+                setTimeout(() => { btn.textContent = 'Copiar Link'; btn.classList.remove('copied'); }, 2000);
+            }).catch(() => {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                btn.textContent = '✓ Copiado!';
+                btn.classList.add('copied');
+                showMessage('Link copiado!', 'success');
+                setTimeout(() => { btn.textContent = 'Copiar Link'; btn.classList.remove('copied'); }, 2000);
+            });
+        }
+
+        function renderGuruResults(data, email) {
+            const section = document.getElementById('guruResultsSection');
+            const leonaDiv = document.getElementById('guruLeonaProfile');
+            const subsDiv = document.getElementById('guruSubscriptions');
+            const txDiv = document.getElementById('guruTransactions');
+            const offersDiv = document.getElementById('guruOffersSection');
+
+            leonaDiv.innerHTML = '';
+            subsDiv.innerHTML = '';
+            txDiv.innerHTML = '';
+            offersDiv.innerHTML = '';
+
+            const { guru, leona, offers } = data;
+
+            // Leona billing profile
+            if (leona.found && leona.billing_profile) {
+                const bp = leona.billing_profile;
+                leonaDiv.innerHTML = `
+                    <div class="leona-profile">
+                        <h3>Leona — Perfil de Cobrança</h3>
+                        <div style="display: grid; gap: 8px; font-size: 0.9rem;">
+                            ${bp.user?.name ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Nome:</span><span>${bp.user.name}</span></div>` : ''}
+                            ${bp.user?.email ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Email:</span><span>${bp.user.email}</span></div>` : ''}
+                            ${bp.user?.phone ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Telefone:</span><span>${bp.user.phone}</span></div>` : ''}
+                            ${bp.plan_summary ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Plano:</span><span>${bp.plan_summary}</span></div>` : ''}
+                            ${bp.starter_instances != null ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Instâncias Starter:</span><span style="font-weight: 600;">${bp.starter_instances}</span></div>` : ''}
+                            ${bp.pro_instances != null ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Instâncias Pro:</span><span style="font-weight: 600;">${bp.pro_instances}</span></div>` : ''}
+                            ${bp.subscription_status ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Status:</span><span class="guru-status ${getGuruStatusClass(bp.subscription_status)}">${bp.subscription_status}</span></div>` : ''}
+                            ${bp.current_period_end ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Fim do período:</span><span>${formatGuruDate(bp.current_period_end)}</span></div>` : ''}
+                            ${bp.subscription_type ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Tipo:</span><span>${bp.subscription_type}</span></div>` : ''}
+                            ${bp.guru_account_id ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Guru Account ID:</span><span style="font-family: monospace; font-size: 0.8rem;">${bp.guru_account_id}</span></div>` : ''}
+                        </div>
+                    </div>
+                `;
+            } else if (leona.error) {
+                leonaDiv.innerHTML = `
+                    <div class="leona-profile" style="border-color: var(--warning);">
+                        <h3 style="color: var(--warning);">Leona — Aviso</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.9rem;">${leona.error}</p>
+                    </div>
+                `;
+            }
+
+            // Guru subscriptions
+            if (guru.found && guru.subscriptions.length > 0) {
+                const contactInfo = guru.contact;
+                subsDiv.innerHTML = `
+                    <div style="margin-bottom: 20px;">
+                        <div class="section-header">
+                            <div>
+                                <h2>Assinaturas Guru</h2>
+                                <span class="customer-info">${contactInfo?.name || ''} (${contactInfo?.email || email})</span>
+                            </div>
+                        </div>
+                        ${guru.subscriptions.map(sub => `
+                            <div class="guru-sub-card">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+                                    <div>
+                                        <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 4px;">${sub.product_name}</div>
+                                        ${sub.product_group ? `<span style="color: var(--text-secondary); font-size: 0.8rem;">Grupo: ${sub.product_group}</span>` : ''}
+                                        <div style="margin-top: 8px;">
+                                            <span class="guru-status ${getGuruStatusClass(sub.status)}">${getGuruStatusLabel(sub.status)}</span>
+                                        </div>
+                                    </div>
+                                    <div style="text-align: right; font-size: 0.85rem; color: var(--text-secondary);">
+                                        <div>Ciclo: ${formatGuruDate(sub.cycle_start)} — ${formatGuruDate(sub.cycle_end)}</div>
+                                        <div>Próx. cobrança: ${formatGuruDate(sub.next_cycle)}</div>
+                                        <div>Cobranças: ${sub.charged_times}x</div>
+                                        ${sub.payment_method ? `<div>Pagamento: ${sub.payment_method}</div>` : ''}
+                                        ${sub.trial_end ? `<div>Trial até: ${formatGuruDate(sub.trial_end)}</div>` : ''}
+                                    </div>
+                                </div>
+                                <div style="margin-top: 8px; font-size: 0.75rem; color: var(--text-secondary); font-family: monospace;">
+                                    ${sub.subscription_code || sub.id}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+
+                // Transactions / Invoices
+                if (guru.transactions.length > 0) {
+                    txDiv.innerHTML = `
+                        <div style="margin-bottom: 20px;">
+                            <h2 style="font-size: 1.2rem; margin-bottom: 16px;">Faturas / Transações</h2>
+                            ${guru.transactions.map((tx, idx) => {
+                                const inv = tx.invoice;
+                                const pay = tx.payment;
+                                const isOpen = inv && inv.status !== 'paid' && inv.status !== 'refunded';
+                                const checkoutUrl = tx.checkout_url || '';
+                                return `
+                                    <div class="guru-tx-card" ${isOpen ? 'style="border-color: var(--warning);"' : ''}>
+                                        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+                                            <div>
+                                                <span style="font-weight: 600;">${tx.offer_name || tx.product_name}</span>
+                                                ${inv ? `<span class="guru-invoice-status ${getInvoiceStatusClass(inv.status)}" style="margin-left: 8px;">${getInvoiceStatusLabel(inv.status)}</span>` : ''}
+                                                ${tx.status ? `<span class="guru-status ${getGuruStatusClass(tx.status)}" style="margin-left: 8px; font-size: 0.7rem;">${tx.status}</span>` : ''}
+                                                ${inv?.id ? `<div style="font-family: monospace; font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">${inv.id}</div>` : ''}
+                                            </div>
+                                            <div style="text-align: right;">
+                                                ${inv ? `<div style="font-size: 1.3rem; font-weight: 700; color: var(--accent);">${formatGuruCurrency(inv.value)}</div>` : ''}
+                                                ${inv ? `<div style="font-size: 0.8rem; color: var(--text-secondary);">Ciclo ${inv.cycle} | ${formatGuruDate(inv.period_start)} — ${formatGuruDate(inv.period_end)}</div>` : ''}
+                                                ${pay ? `<div style="font-size: 0.8rem; color: var(--text-secondary);">${pay.method || ''}${pay.card_brand ? ` (${pay.card_brand} *${pay.card_last4})` : ''}</div>` : ''}
+                                            </div>
+                                        </div>
+                                        ${isOpen && checkoutUrl ? `
+                                            <div style="margin-top: 12px; display: flex; gap: 8px; align-items: center;">
+                                                <button class="btn-copy" id="copy-tx-${idx}" onclick="copyGuruLink('${checkoutUrl}', 'copy-tx-${idx}')" style="width: auto;">
+                                                    Copiar Link
+                                                </button>
+                                                <span style="font-size: 0.75rem; color: var(--text-secondary); font-family: monospace; word-break: break-all;">${checkoutUrl}</span>
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `;
+                }
+
+                showMessage(`${guru.subscriptions.length} assinatura(s) encontrada(s)!`, 'success');
+
+            } else if (guru.found) {
+                subsDiv.innerHTML = `
+                    <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 20px; text-align: center;">
+                        <div style="font-size: 1.5rem; margin-bottom: 8px;">📋</div>
+                        <div style="color: var(--text-secondary);">Cliente <strong>${guru.contact?.name || email}</strong> encontrado na Guru, mas sem assinaturas.</div>
+                    </div>
+                `;
+                showMessage('Cliente encontrado, mas sem assinaturas. Veja os planos disponíveis abaixo.', 'success');
+            } else {
+                subsDiv.innerHTML = `
+                    <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 20px; text-align: center;">
+                        <div style="font-size: 1.5rem; margin-bottom: 8px;">🔍</div>
+                        <div style="color: var(--text-secondary);">Nenhum cliente encontrado na Guru para <strong>${email}</strong>.</div>
+                    </div>
+                `;
+            }
+
+            // Offers
+            if (offers && offers.length > 0) {
+                const hasSubscription = guru.found && guru.subscriptions.length > 0;
+                offersDiv.innerHTML = `
+                    <div style="margin-bottom: 20px;">
+                        <h2 style="font-size: 1.2rem; margin-bottom: 6px;">Planos Leona Flow</h2>
+                        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 16px;">
+                            ${hasSubscription ? 'Planos disponíveis para upgrade/downgrade:' : 'Envie um dos links abaixo para o cliente assinar:'}
+                        </p>
+                        <div class="offer-grid">
+                            ${offers.map((o, idx) => `
+                                <div class="offer-card">
+                                    <div>
+                                        <div style="font-weight: 600; margin-bottom: 6px;">${o.name}</div>
+                                        <div class="offer-value">${formatGuruCurrency(o.value)}<span style="font-size: 0.8rem; font-weight: 400; color: var(--text-secondary);">/mês</span></div>
+                                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">
+                                            ${(o.payment_types || []).map(t => t === 'credit_card' ? 'Cartão' : t === 'pix' ? 'PIX' : t).join(' • ')}
+                                        </div>
+                                    </div>
+                                    <button class="btn-copy" id="copy-offer-${idx}" onclick="copyGuruLink('${o.checkout_url}', 'copy-offer-${idx}')">
+                                        Copiar Link
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            section.classList.add('active');
+        }
+
+        // ============================================
         // EVENT LISTENERS
         // ============================================
         
@@ -2182,6 +2579,10 @@
 
         document.getElementById('abacateSearchInput').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') searchAbacatePayments();
+        });
+
+        document.getElementById('guruEmailInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') searchGuru();
         });
     </script>
 </body>
