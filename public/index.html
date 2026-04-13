@@ -2420,9 +2420,17 @@
             return { proRata: Math.round(proRata * 100) / 100, diasRestantes, diasNoCiclo };
         }
 
-        function showSimulationPanel(bpIdx) {
+        function showSimulationPanel(bpIdx, direction) {
             const panel = document.getElementById(`leona-sim-panel-${bpIdx}`);
+            const label = document.getElementById(`leona-sim-label-${bpIdx}`);
+            const dirInput = document.getElementById(`leona-direction-${bpIdx}`);
+            const qtyInput = document.getElementById(`leona-new-qty-${bpIdx}`);
             if (panel) panel.style.display = 'block';
+            if (dirInput) dirInput.value = direction || 'add';
+            if (qtyInput) qtyInput.value = '1';
+            if (label) label.textContent = direction === 'remove' ? 'Quantas instâncias reduzir?' : 'Quantas instâncias adicionar?';
+            const result = document.getElementById(`leona-sim-result-${bpIdx}`);
+            if (result) { result.style.display = 'none'; result.innerHTML = ''; }
         }
 
         function hideSimulationPanel(bpIdx) {
@@ -2442,18 +2450,26 @@
             if (!bp) return;
 
             const input = document.getElementById(`leona-new-qty-${bpIdx}`);
+            const dirInput = document.getElementById(`leona-direction-${bpIdx}`);
             const resultDiv = document.getElementById(`leona-sim-result-${bpIdx}`);
-            const newQty = parseInt(input.value);
+            const delta = parseInt(input.value);
+            const direction = dirInput ? dirInput.value : 'add';
             const currentQty = bp.starter_instances || 0;
+            const newQty = direction === 'remove' ? currentQty - delta : currentQty + delta;
 
-            if (!newQty || newQty < 1) {
+            if (!delta || delta < 1) {
                 resultDiv.style.display = 'block';
-                resultDiv.innerHTML = `<div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); text-align: center; color: var(--error);">Quantidade deve ser pelo menos 1.</div>`;
+                resultDiv.innerHTML = `<div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); text-align: center; color: var(--error);">Informe pelo menos 1.</div>`;
+                return;
+            }
+            if (newQty < 1) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); text-align: center; color: var(--error);">Não é possível reduzir para menos de 1 instância (atual: ${currentQty}).</div>`;
                 return;
             }
             if (newQty === currentQty) {
                 resultDiv.style.display = 'block';
-                resultDiv.innerHTML = `<div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); text-align: center; color: var(--error);">A quantidade informada é igual à atual (${currentQty}).</div>`;
+                resultDiv.innerHTML = `<div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); text-align: center; color: var(--error);">A quantidade resultante é igual à atual (${currentQty}).</div>`;
                 return;
             }
 
@@ -2776,18 +2792,19 @@
                         ${isActive(bp) && bp.starter_instances != null ? `
                             <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
                                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                                    <button class="btn-primary" onclick="showSimulationPanel(${bpIdx})" style="padding: 10px 18px; font-size: 0.85rem;">
+                                    <button class="btn-primary" onclick="showSimulationPanel(${bpIdx}, 'add')" style="padding: 10px 18px; font-size: 0.85rem;">
                                         + Adicionar Instância
                                     </button>
-                                    <button class="btn-secondary" onclick="showSimulationPanel(${bpIdx})" style="padding: 10px 18px; font-size: 0.85rem;">
+                                    <button class="btn-secondary" onclick="showSimulationPanel(${bpIdx}, 'remove')" style="padding: 10px 18px; font-size: 0.85rem;">
                                         - Reduzir Instância
                                     </button>
                                 </div>
                                 <div id="leona-sim-panel-${bpIdx}" style="display: none; margin-top: 14px;">
                                     <div style="background: var(--bg-secondary); padding: 16px; border-radius: 10px; border: 1px solid var(--border);">
-                                        <label style="color: var(--text-secondary); font-size: 0.85rem; display: block; margin-bottom: 8px;">Nova quantidade total de instâncias Starter:</label>
+                                        <label id="leona-sim-label-${bpIdx}" style="color: var(--text-secondary); font-size: 0.85rem; display: block; margin-bottom: 8px;">Quantas instâncias adicionar?</label>
                                         <div style="display: flex; gap: 10px; align-items: center;">
-                                            <input type="number" id="leona-new-qty-${bpIdx}" min="1" value="${bp.starter_instances + 1}" style="width: 80px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 1rem; text-align: center;">
+                                            <input type="number" id="leona-new-qty-${bpIdx}" min="1" value="1" style="width: 80px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 1rem; text-align: center;">
+                                            <input type="hidden" id="leona-direction-${bpIdx}" value="add">
                                             <button class="btn-primary" onclick="simulateLeona(${bpIdx})" style="padding: 10px 24px;">
                                                 Simular
                                             </button>
