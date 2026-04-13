@@ -57,19 +57,35 @@ export default async function handler(req, res) {
       }))
       .sort((a, b) => a.value - b.value);
 
-    let leona = { found: false, billing_profile: null, error: null };
+    let leona = { found: false, billing_profile: null, billing_profiles: null, error: null };
     if (leonaRes === null) {
       leona.error = 'LEONA_BILLING_TOKEN não configurado';
     } else if (leonaRes._error) {
       leona.error = leonaRes._error;
     } else if (leonaRes.ok) {
       const leonaBody = await leonaRes.json();
-      leona = { found: true, billing_profile: leonaBody, error: null };
+      leona = { found: true, billing_profile: leonaBody, billing_profiles: [leonaBody], error: null };
     } else if (leonaRes.status === 409) {
       const conflict = await leonaRes.json().catch(() => ({}));
-      leona = { found: false, billing_profile: null, error: 'Múltiplas contas encontradas', account_ids: conflict.account_ids };
+      const ids = conflict.account_ids || [];
+      if (ids.length > 0) {
+        const profiles = await Promise.all(ids.map(async (accId) => {
+          try {
+            const r = await fetch(
+              `https://apiaws.leonasolutions.io/api/v1/integration/accounts/${accId}/billing_profile`,
+              { headers: { 'Authorization': `Bearer ${leonaToken}`, 'Accept': 'application/json' } }
+            );
+            if (r.ok) return await r.json();
+          } catch (_) {}
+          return null;
+        }));
+        const valid = profiles.filter(Boolean);
+        leona = { found: valid.length > 0, billing_profile: valid[0] || null, billing_profiles: valid, error: null };
+      } else {
+        leona.error = 'Múltiplas contas encontradas mas sem IDs retornados';
+      }
     } else {
-      leona = { found: false, billing_profile: null, error: null };
+      leona = { found: false, billing_profile: null, billing_profiles: null, error: null };
     }
 
     let guru = { found: false, contact: null, subscriptions: [], transactions: [] };

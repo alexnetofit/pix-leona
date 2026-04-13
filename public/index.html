@@ -2412,12 +2412,12 @@
 
             const { guru, leona, offers } = data;
 
-            // Leona billing profile
-            if (leona.found && leona.billing_profile) {
-                const bp = leona.billing_profile;
-                leonaDiv.innerHTML = `
+            // Leona billing profiles
+            const profiles = leona.billing_profiles || (leona.billing_profile ? [leona.billing_profile] : []);
+            if (profiles.length > 0) {
+                leonaDiv.innerHTML = profiles.map((bp, bpIdx) => `
                     <div class="leona-profile">
-                        <h3>Leona — Perfil de Cobrança</h3>
+                        <h3>Leona — Perfil de Cobrança${profiles.length > 1 ? ` #${bpIdx + 1}` : ''}${bp.account_id ? ` <span style="font-size: 0.75rem; font-weight: 400; color: var(--text-secondary);">(ID: ${bp.account_id})</span>` : ''}</h3>
                         <div style="display: grid; gap: 8px; font-size: 0.9rem;">
                             ${bp.user?.name ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Nome:</span><span>${bp.user.name}</span></div>` : ''}
                             ${bp.user?.email ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Email:</span><span>${bp.user.email}</span></div>` : ''}
@@ -2431,7 +2431,7 @@
                             ${bp.guru_account_id ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Guru Account ID:</span><span style="font-family: monospace; font-size: 0.8rem;">${bp.guru_account_id}</span></div>` : ''}
                         </div>
                     </div>
-                `;
+                `).join('');
             } else if (leona.error) {
                 leonaDiv.innerHTML = `
                     <div class="leona-profile" style="border-color: var(--warning);">
