@@ -2316,7 +2316,7 @@
         // ============================================
 
         async function searchGuru() {
-            const email = document.getElementById('guruEmailInput').value.trim();
+            const email = document.getElementById('guruEmailInput').value.trim().toLowerCase();
             const btn = document.getElementById('guruSearchBtn');
 
             if (!email) {
