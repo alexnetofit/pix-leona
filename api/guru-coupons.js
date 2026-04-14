@@ -75,8 +75,14 @@ export default async function handler(req, res) {
       }
 
       let found = null;
-      for (const activeFilter of ['1', '0']) {
-        const listRes = await fetch(`${GURU_BASE}/coupons?limit=100&is_active=${activeFilter}`, { headers });
+      const filters = [
+        'is_active=1&has_transactions=0',
+        'is_active=1&has_transactions=1',
+        'is_active=0&has_transactions=0',
+        'is_active=0&has_transactions=1'
+      ];
+      for (const f of filters) {
+        const listRes = await fetch(`${GURU_BASE}/coupons?limit=100&${f}`, { headers });
         const listData = await listRes.json();
         const coupons = Array.isArray(listData.data) ? listData.data : [];
         found = coupons.find(c => c.code === coupon_code || c.coupon_code === coupon_code);
