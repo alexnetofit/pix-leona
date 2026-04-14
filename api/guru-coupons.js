@@ -122,7 +122,35 @@ export default async function handler(req, res) {
       });
     }
 
-    return res.status(400).json({ error: 'action inválida. Use: list, get, create_all, add_email' });
+    if (action === 'create_single') {
+      const { pct } = req.body || {};
+      if (!pct) return res.status(400).json({ error: 'pct obrigatório' });
+      const code = `up-leona-${pct}`;
+      const now = Math.floor(Date.now() / 1000);
+      const body = {
+        coupon_code: code,
+        incidence_type: 'percent',
+        incidence_field: 'total',
+        incidence_value: pct,
+        date_ini: now,
+        date_end: 1924905600,
+        usage_total: 0,
+        usage_contact: 0,
+        maximum_subscription_cycles: 1,
+        validate_by: 'email',
+        emails: ['kinhonetovai@gmail.com'],
+        is_active: 1
+      };
+      const r = await fetch(`${GURU_BASE}/coupons`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body)
+      });
+      const data = await r.json();
+      return res.status(200).json({ code, status: r.status, data });
+    }
+
+    return res.status(400).json({ error: 'action inválida. Use: list, get, create_all, create_single, add_email' });
 
   } catch (error) {
     console.error('guru-coupons error:', error);
