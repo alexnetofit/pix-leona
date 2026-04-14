@@ -884,6 +884,7 @@
 
             <section class="results-section" id="guruResultsSection">
                 <div id="guruLeonaProfile"></div>
+                <div id="guruStripeInfo"></div>
                 <div id="guruSubscriptions"></div>
                 <div id="guruTransactions"></div>
                 <div id="guruOffersSection"></div>
@@ -2328,16 +2329,28 @@
             document.getElementById('guruResultsSection').classList.remove('active');
 
             try {
-                const response = await fetch('/api/guru-search', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email })
-                });
+                const [guruRes, stripeRes] = await Promise.all([
+                    fetch('/api/guru-search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email })
+                    }),
+                    fetch('/api/stripe', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email })
+                    }).catch(() => null)
+                ]);
 
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error || 'Erro ao buscar');
+                const data = await guruRes.json();
+                if (!guruRes.ok) throw new Error(data.error || 'Erro ao buscar');
 
-                renderGuruResults(data, email);
+                let stripeData = null;
+                if (stripeRes && stripeRes.ok) {
+                    stripeData = await stripeRes.json();
+                }
+
+                renderGuruResults(data, email, stripeData);
 
             } catch (error) {
                 showMessage(error.message);
@@ -2752,17 +2765,19 @@
             });
         }
 
-        function renderGuruResults(data, email) {
+        function renderGuruResults(data, email, stripeData) {
             _lastGuruData = data;
             _lastGuruEmail = email;
 
             const section = document.getElementById('guruResultsSection');
             const leonaDiv = document.getElementById('guruLeonaProfile');
+            const stripeDiv = document.getElementById('guruStripeInfo');
             const subsDiv = document.getElementById('guruSubscriptions');
             const txDiv = document.getElementById('guruTransactions');
             const offersDiv = document.getElementById('guruOffersSection');
 
             leonaDiv.innerHTML = '';
+            stripeDiv.innerHTML = '';
             subsDiv.innerHTML = '';
             txDiv.innerHTML = '';
             offersDiv.innerHTML = '';
@@ -2824,6 +2839,62 @@
                     <div class="leona-profile" style="border-color: var(--warning);">
                         <h3 style="color: var(--warning);">Leona — Aviso</h3>
                         <p style="color: var(--text-secondary); font-size: 0.9rem;">${leona.error}</p>
+                    </div>
+                `;
+            }
+
+            // Stripe info
+            if (stripeData && stripeData.customer_exists && stripeData.subscriptions && stripeData.subscriptions.length > 0) {
+                const stripeSubs = stripeData.subscriptions.filter(s => s.id !== 'no_subscription');
+                if (stripeSubs.length > 0) {
+                    const statusMap = { active: 'Ativa', trialing: 'Trial', past_due: 'Atrasada', canceled: 'Cancelada', incomplete: 'Incompleta', incomplete_expired: 'Expirada', unpaid: 'Não paga', paused: 'Pausada' };
+                    const statusColorMap = { active: 'var(--success)', trialing: '#2196F3', past_due: 'var(--warning)', canceled: 'var(--error)', incomplete: 'var(--warning)', unpaid: 'var(--error)' };
+
+                    stripeDiv.innerHTML = `
+                        <div class="leona-profile" style="border-color: #635BFF;">
+                            <h3 style="color: #635BFF;">Stripe — Assinaturas</h3>
+                            ${stripeSubs.map(sub => {
+                                const statusLabel = statusMap[sub.status] || sub.status;
+                                const statusColor = statusColorMap[sub.status] || 'var(--text-secondary)';
+                                const lastInvoice = sub.invoices && sub.invoices.length > 0 ? sub.invoices[0] : null;
+                                const lastPaidInvoice = sub.invoices ? sub.invoices.find(i => i.status === 'paid') : null;
+                                const periodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
+                                const lastPayDate = lastPaidInvoice ? new Date(lastPaidInvoice.created * 1000) : null;
+
+                                return `<div style="background: var(--bg-secondary); padding: 14px; border-radius: 10px; border: 1px solid var(--border); margin-top: 12px;">
+                                    <div style="display: grid; gap: 8px; font-size: 0.9rem;">
+                                        <div style="display: flex; justify-content: space-between;">
+                                            <span style="color: var(--text-secondary);">Assinatura:</span>
+                                            <span style="font-weight: 600;">${sub.product_name || 'N/A'}</span>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between;">
+                                            <span style="color: var(--text-secondary);">Status:</span>
+                                            <span style="color: ${statusColor}; font-weight: 600;">${statusLabel}</span>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between;">
+                                            <span style="color: var(--text-secondary);">Instâncias:</span>
+                                            <span style="font-weight: 600;">${sub.current_quantity || 1}</span>
+                                        </div>
+                                        ${lastPayDate ? `<div style="display: flex; justify-content: space-between;">
+                                            <span style="color: var(--text-secondary);">Último pagamento:</span>
+                                            <span>${lastPayDate.toLocaleDateString('pt-BR')} — ${formatGuruCurrency((lastPaidInvoice.amount_paid || 0) / 100)}</span>
+                                        </div>` : ''}
+                                        ${periodEnd ? `<div style="display: flex; justify-content: space-between;">
+                                            <span style="color: var(--text-secondary);">Vencimento:</span>
+                                            <span>${periodEnd.toLocaleDateString('pt-BR')}</span>
+                                        </div>` : ''}
+                                    </div>
+                                    <div style="margin-top: 6px; font-size: 0.75rem; color: var(--text-secondary); font-family: monospace;">${sub.id}</div>
+                                </div>`;
+                            }).join('')}
+                        </div>
+                    `;
+                }
+            } else if (stripeData && !stripeData.customer_exists) {
+                stripeDiv.innerHTML = `
+                    <div class="leona-profile" style="border-color: var(--border); opacity: 0.7;">
+                        <h3 style="color: #635BFF;">Stripe</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.85rem;">Nenhum cliente encontrado na Stripe.</p>
                     </div>
                 `;
             }
