@@ -884,10 +884,10 @@
 
             <section class="results-section" id="guruResultsSection">
                 <div id="guruLeonaProfile"></div>
-                <div id="guruStripeInfo"></div>
                 <div id="guruSubscriptions"></div>
                 <div id="guruTransactions"></div>
                 <div id="guruOffersSection"></div>
+                <div id="guruStripeInfo"></div>
             </section>
         </div>
     </div>
@@ -2853,8 +2853,8 @@
                     const statusColorMap = { active: 'var(--success)', trialing: '#2196F3', past_due: 'var(--warning)', canceled: 'var(--error)', incomplete: 'var(--warning)', unpaid: 'var(--error)' };
 
                     stripeDiv.innerHTML = `
-                        <div class="leona-profile" style="border-color: #635BFF;">
-                            <h3 style="color: #635BFF;">Stripe — Assinaturas</h3>
+                        <div class="leona-profile" style="border-color: #635BFF; opacity: 0.6;">
+                            <h3 style="color: #635BFF;">Stripe — Assinaturas (Não utilizado mais)</h3>
                             ${stripeSubs.map(sub => {
                                 const statusLabel = statusMap[sub.status] || sub.status;
                                 const statusColor = statusColorMap[sub.status] || 'var(--text-secondary)';
@@ -2986,14 +2986,14 @@
                 `;
             }
 
-            // Offers
-            if (offers && offers.length > 0) {
-                const hasSubscription = guru.found && guru.subscriptions.length > 0;
+            // Offers (só mostra se NÃO tem assinatura na Guru)
+            const hasGuruSub = guru.found && guru.subscriptions.length > 0;
+            if (offers && offers.length > 0 && !hasGuruSub) {
                 offersDiv.innerHTML = `
                     <div style="margin-bottom: 20px;">
                         <h2 style="font-size: 1.2rem; margin-bottom: 6px;">Planos Leona Flow</h2>
                         <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 16px;">
-                            ${hasSubscription ? 'Planos disponíveis para upgrade/downgrade:' : 'Envie um dos links abaixo para o cliente assinar:'}
+                            Envie um dos links abaixo para o cliente assinar:
                         </p>
                         <div class="offer-grid">
                             ${offers.map((o, idx) => `
