@@ -344,7 +344,7 @@
     </div>
 
     <script>
-        function getStoredToken() { return sessionStorage.getItem('leona_token'); }
+        function getStoredToken() { return localStorage.getItem('leona_token'); }
 
         async function validateToken() {
             const input = document.getElementById('tokenInput');
@@ -358,7 +358,7 @@
                     body: JSON.stringify({ token })
                 });
                 if (res.ok) {
-                    sessionStorage.setItem('leona_token', token);
+                    localStorage.setItem('leona_token', token);
                     document.getElementById('lockScreen').style.display = 'none';
                     document.getElementById('appContent').style.display = 'block';
                 } else {
@@ -381,7 +381,7 @@
                         document.getElementById('lockScreen').style.display = 'none';
                         document.getElementById('appContent').style.display = 'block';
                     } else {
-                        sessionStorage.removeItem('leona_token');
+                        localStorage.removeItem('leona_token');
                     }
                 });
             }
