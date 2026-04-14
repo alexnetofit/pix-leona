@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paddle Testes - Leona</title>
+    <style>
+        :root {
+            --bg-primary: #0f0f0f;
+            --bg-secondary: #1a1a1a;
+            --bg-card: #242424;
+            --accent: #00d4aa;
+            --accent-hover: #00b894;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --error: #ff6b6b;
+            --success: #00d4aa;
+            --warning: #ffc107;
+            --border: #333333;
+            --paddle: #3B82F6;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        @font-face {
+            font-family: 'Geist';
+            src: local('Geist'), local('SF Pro Display');
+        }
+
+        body {
+            font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .logo {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--paddle) 0%, #818CF8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1rem;
+        }
+
+        .search-section {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 1px solid var(--border);
+        }
+
+        .search-section h2 {
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 12px;
+        }
+
+        input[type="email"], input[type="text"], input[type="number"] {
+            flex: 1;
+            padding: 16px 20px;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px rgba(0, 212, 170, 0.1);
+        }
+
+        input::placeholder { color: var(--text-secondary); }
+
+        button {
+            padding: 16px 32px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: var(--bg-primary);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 2px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .results-section { display: none; }
+        .results-section.active { display: block; }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .section-header h2 {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .customer-info {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .message {
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .message.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .message.error {
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid var(--error);
+            color: var(--error);
+        }
+
+        .message.success {
+            background: rgba(0, 212, 170, 0.1);
+            border: 1px solid var(--success);
+            color: var(--success);
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto;
+        }
+
+        .leona-profile {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .leona-profile h3 {
+            font-size: 1rem;
+            color: var(--accent);
+            margin-bottom: 12px;
+        }
+
+        .guru-status {
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-weight: 600;
+            display: inline-block;
+        }
+        .guru-status.active { background: rgba(0, 212, 170, 0.2); color: var(--success); }
+        .guru-status.trial { background: rgba(33, 150, 243, 0.2); color: #64b5f6; }
+        .guru-status.canceled { background: rgba(255, 107, 107, 0.2); color: var(--error); }
+        .guru-status.pastdue { background: rgba(255, 193, 7, 0.2); color: var(--warning); }
+        .guru-status.inactive { background: rgba(160, 160, 160, 0.2); color: var(--text-secondary); }
+
+        .paddle-sub-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 12px;
+            transition: border-color 0.3s;
+        }
+        .paddle-sub-card:hover { border-color: var(--paddle); }
+
+        .paddle-status {
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-weight: 600;
+            display: inline-block;
+        }
+        .paddle-status.active { background: rgba(59, 130, 246, 0.2); color: var(--paddle); }
+        .paddle-status.trialing { background: rgba(139, 92, 246, 0.2); color: #8B5CF6; }
+        .paddle-status.canceled { background: rgba(255, 107, 107, 0.2); color: var(--error); }
+        .paddle-status.past_due { background: rgba(255, 193, 7, 0.2); color: var(--warning); }
+        .paddle-status.paused { background: rgba(160, 160, 160, 0.2); color: var(--text-secondary); }
+
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 12px;
+        }
+
+        .product-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            transition: border-color 0.3s;
+        }
+        .product-card:hover { border-color: var(--paddle); }
+
+        .btn-copy {
+            background: transparent;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+            margin-top: 12px;
+        }
+        .btn-copy:hover {
+            background: var(--accent);
+            color: var(--bg-primary);
+        }
+        .btn-copy.copied {
+            background: var(--success);
+            border-color: var(--success);
+            color: var(--bg-primary);
+        }
+
+        @media (max-width: 600px) {
+            .input-group { flex-direction: column; }
+            .section-header { flex-direction: column; align-items: flex-start; }
+            .product-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1 class="logo">Leona Paddle</h1>
+            <p class="subtitle">Testes de Pagamento via Paddle</p>
+        </header>
+
+        <div id="message" class="message"></div>
+
+        <section class="search-section">
+            <h2>Buscar cliente por e-mail</h2>
+            <div class="input-group">
+                <input type="email" id="emailInput" placeholder="cliente@email.com" onkeypress="if(event.key==='Enter') searchPaddle()">
+                <button class="btn-primary" id="searchBtn" onclick="searchPaddle()">Buscar</button>
+            </div>
+        </section>
+
+        <section class="results-section" id="resultsSection">
+            <div id="leonaProfile"></div>
+            <div id="stripeInfo"></div>
+            <div id="paddleSubscriptions"></div>
+            <div id="paddleProducts"></div>
+        </section>
+    </div>
+
+    <script>
+        let _lastData = null;
+        let _lastEmail = '';
+
+        function showMessage(text, type = 'error') {
+            const msgEl = document.getElementById('message');
+            let message = text;
+            if (typeof text === 'object') {
+                try { message = JSON.stringify(text); } catch (_) { message = String(text); }
+            }
+            msgEl.className = `message ${type} active`;
+            msgEl.textContent = message;
+            setTimeout(() => msgEl.classList.remove('active'), 5000);
+        }
+
+        function setButtonLoading(btn, loading, originalText = 'Buscar') {
+            if (loading) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="loading"></span>Aguarde...`;
+            } else {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+
+        function formatCurrency(value, currencyCode = 'BRL') {
+            const num = typeof value === 'string' ? parseFloat(value) : value;
+            const currency = currencyCode === 'BRL_RAW' ? 'BRL' : currencyCode;
+            const divisor = currencyCode === 'BRL_RAW' ? 1 : 100;
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency }).format(num / divisor);
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '—';
+            if (typeof dateStr === 'number') return new Date(dateStr * 1000).toLocaleDateString('pt-BR');
+            return new Date(dateStr).toLocaleDateString('pt-BR');
+        }
+
+        function getStatusClass(status) {
+            const map = { active: 'active', trialing: 'trialing', canceled: 'canceled', past_due: 'past_due', paused: 'paused' };
+            return map[status] || 'inactive';
+        }
+
+        function getStatusLabel(status) {
+            const map = { active: 'Ativa', trialing: 'Trial', canceled: 'Cancelada', past_due: 'Em atraso', paused: 'Pausada' };
+            return map[status] || status;
+        }
+
+        function getLeonaStatusClass(status) {
+            const map = { active: 'active', trial: 'trial', canceled: 'canceled', pastdue: 'pastdue' };
+            return map[status] || 'inactive';
+        }
+
+        function copyText(text, btnId) {
+            const btn = document.getElementById(btnId);
+            navigator.clipboard.writeText(text).then(() => {
+                btn.textContent = '✓ Copiado!';
+                btn.classList.add('copied');
+                setTimeout(() => { btn.textContent = 'Copiar'; btn.classList.remove('copied'); }, 2000);
+            });
+        }
+
+        async function searchPaddle() {
+            const email = document.getElementById('emailInput').value.trim().toLowerCase();
+            const btn = document.getElementById('searchBtn');
+
+            if (!email) {
+                showMessage('Por favor, digite um e-mail válido.');
+                return;
+            }
+
+            setButtonLoading(btn, true, 'Buscar');
+            document.getElementById('resultsSection').classList.remove('active');
+
+            try {
+                const [paddleRes, stripeRes] = await Promise.all([
+                    fetch('/api/paddle-search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email })
+                    }),
+                    fetch('/api/stripe', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email })
+                    }).catch(() => null)
+                ]);
+
+                const data = await paddleRes.json();
+                if (!paddleRes.ok) throw new Error(data.error || 'Erro ao buscar');
+
+                let stripeData = null;
+                if (stripeRes && stripeRes.ok) {
+                    stripeData = await stripeRes.json();
+                }
+
+                _lastData = data;
+                _lastEmail = email;
+
+                renderResults(data, email, stripeData);
+
+            } catch (error) {
+                showMessage(error.message);
+            } finally {
+                setButtonLoading(btn, false, 'Buscar');
+            }
+        }
+
+        function renderResults(data, email, stripeData) {
+            const section = document.getElementById('resultsSection');
+            const leonaDiv = document.getElementById('leonaProfile');
+            const stripeDiv = document.getElementById('stripeInfo');
+            const subsDiv = document.getElementById('paddleSubscriptions');
+            const productsDiv = document.getElementById('paddleProducts');
+
+            leonaDiv.innerHTML = '';
+            stripeDiv.innerHTML = '';
+            subsDiv.innerHTML = '';
+            productsDiv.innerHTML = '';
+
+            const { paddle, leona, products } = data;
+
+            // --- Leona billing profiles ---
+            const profiles = leona.billing_profiles || (leona.billing_profile ? [leona.billing_profile] : []);
+            if (profiles.length > 0) {
+                leonaDiv.innerHTML = profiles.map((bp, bpIdx) => `
+                    <div class="leona-profile">
+                        <h3>Leona — Perfil de Cobrança${profiles.length > 1 ? ` #${bpIdx + 1}` : ''}${bp.account_id ? ` <span style="font-size: 0.75rem; font-weight: 400; color: var(--text-secondary);">(ID: ${bp.account_id})</span>` : ''}</h3>
+                        <div style="display: grid; gap: 8px; font-size: 0.9rem;">
+                            ${bp.user?.name ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Nome:</span><span>${bp.user.name}</span></div>` : ''}
+                            ${bp.user?.email ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Email:</span><span>${bp.user.email}</span></div>` : ''}
+                            ${bp.user?.phone ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Telefone:</span><span>${bp.user.phone}</span></div>` : ''}
+                            ${bp.plan_summary ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Plano:</span><span>${bp.plan_summary}</span></div>` : ''}
+                            ${bp.starter_instances != null ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Instâncias Starter:</span><span style="font-weight: 600;">${bp.starter_instances}</span></div>` : ''}
+                            ${bp.pro_instances != null ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Instâncias Pro:</span><span style="font-weight: 600;">${bp.pro_instances}</span></div>` : ''}
+                            ${bp.subscription_status ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Status:</span><span class="guru-status ${getLeonaStatusClass(bp.subscription_status)}">${bp.subscription_status}</span></div>` : ''}
+                            ${bp.current_period_end ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Fim do período:</span><span>${formatDate(bp.current_period_end)}</span></div>` : ''}
+                            ${bp.subscription_type ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Tipo:</span><span>${bp.subscription_type}</span></div>` : ''}
+                            ${bp.guru_account_id ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Guru Account ID:</span><span style="font-family: monospace; font-size: 0.8rem;">${bp.guru_account_id}</span></div>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+            } else if (leona.error) {
+                leonaDiv.innerHTML = `
+                    <div class="leona-profile" style="border-color: var(--warning);">
+                        <h3 style="color: var(--warning);">Leona — Aviso</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.9rem;">${leona.error}</p>
+                    </div>
+                `;
+            }
+
+            // --- Stripe info ---
+            if (stripeData && stripeData.customer_exists && stripeData.subscriptions && stripeData.subscriptions.length > 0) {
+                const stripeSubs = stripeData.subscriptions.filter(s => s.id !== 'no_subscription');
+                if (stripeSubs.length > 0) {
+                    const statusMap = { active: 'Ativa', trialing: 'Trial', past_due: 'Atrasada', canceled: 'Cancelada', incomplete: 'Incompleta', incomplete_expired: 'Expirada', unpaid: 'Não paga', paused: 'Pausada' };
+                    const statusColorMap = { active: 'var(--success)', trialing: '#2196F3', past_due: 'var(--warning)', canceled: 'var(--error)', incomplete: 'var(--warning)', unpaid: 'var(--error)' };
+
+                    stripeDiv.innerHTML = `
+                        <div class="leona-profile" style="border-color: #635BFF;">
+                            <h3 style="color: #635BFF;">Stripe — Assinaturas</h3>
+                            ${stripeSubs.map(sub => {
+                                const statusLabel = statusMap[sub.status] || sub.status;
+                                const statusColor = statusColorMap[sub.status] || 'var(--text-secondary)';
+                                const lastPaidInvoice = sub.invoices ? sub.invoices.find(i => i.status === 'paid') : null;
+                                const periodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
+                                const lastPayDate = lastPaidInvoice ? new Date(lastPaidInvoice.created * 1000) : null;
+
+                                return `<div style="background: var(--bg-secondary); padding: 14px; border-radius: 10px; border: 1px solid var(--border); margin-top: 12px;">
+                                    <div style="display: grid; gap: 8px; font-size: 0.9rem;">
+                                        <div style="display: flex; justify-content: space-between;">
+                                            <span style="color: var(--text-secondary);">Assinatura:</span>
+                                            <span style="font-weight: 600;">${sub.product_name || 'N/A'}</span>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between;">
+                                            <span style="color: var(--text-secondary);">Status:</span>
+                                            <span style="color: ${statusColor}; font-weight: 600;">${statusLabel}</span>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between;">
+                                            <span style="color: var(--text-secondary);">Instâncias:</span>
+                                            <span style="font-weight: 600;">${sub.current_quantity || 1}</span>
+                                        </div>
+                                        ${lastPayDate ? `<div style="display: flex; justify-content: space-between;">
+                                            <span style="color: var(--text-secondary);">Último pagamento:</span>
+                                            <span>${lastPayDate.toLocaleDateString('pt-BR')} — ${formatCurrency((lastPaidInvoice.amount_paid || 0))}</span>
+                                        </div>` : ''}
+                                        ${periodEnd ? `<div style="display: flex; justify-content: space-between;">
+                                            <span style="color: var(--text-secondary);">Vencimento:</span>
+                                            <span>${periodEnd.toLocaleDateString('pt-BR')}</span>
+                                        </div>` : ''}
+                                    </div>
+                                    <div style="margin-top: 6px; font-size: 0.75rem; color: var(--text-secondary); font-family: monospace;">${sub.id}</div>
+                                </div>`;
+                            }).join('')}
+                        </div>
+                    `;
+                }
+            } else if (stripeData && !stripeData.customer_exists) {
+                stripeDiv.innerHTML = `
+                    <div class="leona-profile" style="border-color: var(--border); opacity: 0.7;">
+                        <h3 style="color: #635BFF;">Stripe</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.85rem;">Nenhum cliente encontrado na Stripe.</p>
+                    </div>
+                `;
+            }
+
+            // --- Paddle subscriptions ---
+            if (paddle.found && paddle.subscriptions.length > 0) {
+                subsDiv.innerHTML = `
+                    <div style="margin-bottom: 20px;">
+                        <div class="section-header">
+                            <div>
+                                <h2 style="color: var(--paddle);">Paddle — Assinaturas</h2>
+                                <span class="customer-info">${paddle.customer?.name || ''} (${paddle.customer?.email || email})</span>
+                            </div>
+                        </div>
+                        ${paddle.subscriptions.map((sub, subIdx) => {
+                            const billingPeriod = sub.current_billing_period;
+                            const itemsSummary = sub.items.map(i =>
+                                `${i.product_name || i.price_id} × ${i.quantity}`
+                            ).join(', ');
+
+                            return `
+                            <div class="paddle-sub-card">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+                                    <div>
+                                        <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 4px;">${sub.items.map(i => i.product_name || 'Produto').join(', ')}</div>
+                                        <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 4px;">${itemsSummary}</div>
+                                        <div style="margin-top: 8px;">
+                                            <span class="paddle-status ${getStatusClass(sub.status)}">${getStatusLabel(sub.status)}</span>
+                                        </div>
+                                    </div>
+                                    <div style="text-align: right; font-size: 0.85rem; color: var(--text-secondary);">
+                                        ${sub.items.length > 0 && sub.items[0].unit_price ? `<div>Valor: ${formatCurrency(sub.items[0].unit_price.amount, sub.currency_code)} / ${sub.items[0].billing_cycle ? sub.items[0].billing_cycle.interval : 'ciclo'}</div>` : ''}
+                                        ${billingPeriod ? `<div>Período: ${formatDate(billingPeriod.starts_at)} — ${formatDate(billingPeriod.ends_at)}</div>` : ''}
+                                        ${sub.next_billed_at ? `<div>Próx. cobrança: ${formatDate(sub.next_billed_at)}</div>` : ''}
+                                        ${sub.started_at ? `<div>Início: ${formatDate(sub.started_at)}</div>` : ''}
+                                    </div>
+                                </div>
+                                ${sub.scheduled_change ? `
+                                    <div style="margin-top: 10px; background: rgba(255,193,7,0.1); padding: 10px; border-radius: 8px; font-size: 0.8rem; color: var(--warning);">
+                                        Mudança agendada: ${sub.scheduled_change.action || 'N/A'} em ${formatDate(sub.scheduled_change.effective_at)}
+                                    </div>
+                                ` : ''}
+                                <div style="margin-top: 8px; font-size: 0.75rem; color: var(--text-secondary); font-family: monospace;">${sub.id}</div>
+
+                                ${sub.status === 'active' || sub.status === 'trialing' ? `
+                                <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+                                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                        <button class="btn-primary" onclick="showPaddleSimPanel(${subIdx}, 'add')" style="padding: 10px 18px; font-size: 0.85rem;">
+                                            + Adicionar Instância
+                                        </button>
+                                        <button class="btn-secondary" onclick="showPaddleSimPanel(${subIdx}, 'remove')" style="padding: 10px 18px; font-size: 0.85rem;">
+                                            - Reduzir Instância
+                                        </button>
+                                    </div>
+                                    <div id="paddle-sim-panel-${subIdx}" style="display: none; margin-top: 14px;">
+                                        <div style="background: var(--bg-secondary); padding: 16px; border-radius: 10px; border: 1px solid var(--border);">
+                                            <label id="paddle-sim-label-${subIdx}" style="color: var(--text-secondary); font-size: 0.85rem; display: block; margin-bottom: 8px;">Quantas instâncias adicionar?</label>
+                                            <div style="display: flex; gap: 10px; align-items: center;">
+                                                <input type="number" id="paddle-qty-${subIdx}" min="1" value="1" style="width: 80px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 1rem; text-align: center;">
+                                                <input type="hidden" id="paddle-direction-${subIdx}" value="add">
+                                                <button class="btn-primary" onclick="previewPaddleUpdate(${subIdx})" style="padding: 10px 24px;">
+                                                    Simular
+                                                </button>
+                                                <button class="btn-secondary" onclick="hidePaddleSimPanel(${subIdx})" style="padding: 10px 20px;">
+                                                    Cancelar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div id="paddle-sim-result-${subIdx}" style="display: none; margin-top: 14px;"></div>
+                                </div>
+                                ` : ''}
+                            </div>`;
+                        }).join('')}
+                    </div>
+                `;
+            } else if (paddle.found) {
+                subsDiv.innerHTML = `
+                    <div class="leona-profile" style="border-color: var(--paddle);">
+                        <h3 style="color: var(--paddle);">Paddle — Cliente Encontrado</h3>
+                        <div style="display: grid; gap: 8px; font-size: 0.9rem;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: var(--text-secondary);">Email:</span>
+                                <span>${paddle.customer?.email || email}</span>
+                            </div>
+                            ${paddle.customer?.name ? `<div style="display: flex; justify-content: space-between;">
+                                <span style="color: var(--text-secondary);">Nome:</span>
+                                <span>${paddle.customer.name}</span>
+                            </div>` : ''}
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: var(--text-secondary);">Status:</span>
+                                <span>${paddle.customer?.status || 'N/A'}</span>
+                            </div>
+                        </div>
+                        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 12px;">Nenhuma assinatura encontrada.</p>
+                    </div>
+                `;
+            } else {
+                subsDiv.innerHTML = `
+                    <div class="leona-profile" style="border-color: var(--border); opacity: 0.7;">
+                        <h3 style="color: var(--paddle);">Paddle</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.85rem;">Nenhum cliente encontrado na Paddle.</p>
+                    </div>
+                `;
+            }
+
+            // --- Paddle products catalog ---
+            if (products && products.length > 0) {
+                productsDiv.innerHTML = `
+                    <div style="margin-bottom: 20px;">
+                        <h2 style="font-size: 1.2rem; margin-bottom: 16px; color: var(--paddle);">Paddle — Catálogo de Produtos</h2>
+                        <div class="product-grid">
+                            ${products.map(p => `
+                                <div class="product-card">
+                                    <div style="margin-bottom: 12px;">
+                                        <div style="font-weight: 600; font-size: 1rem; margin-bottom: 4px;">${p.name}</div>
+                                        ${p.description ? `<div style="color: var(--text-secondary); font-size: 0.8rem;">${p.description}</div>` : ''}
+                                    </div>
+                                    ${p.prices && p.prices.length > 0 ? `
+                                        <div style="border-top: 1px solid var(--border); padding-top: 10px;">
+                                            ${p.prices.map(pr => `
+                                                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 0.85rem;">
+                                                    <span style="color: var(--text-secondary);">${pr.description || pr.id}</span>
+                                                    <span style="font-weight: 600; color: var(--paddle);">
+                                                        ${pr.unit_price ? formatCurrency(pr.unit_price.amount, pr.unit_price.currency_code) : '—'}
+                                                        ${pr.billing_cycle ? `<span style="font-weight: 400; color: var(--text-secondary);"> / ${pr.billing_cycle.interval}</span>` : ''}
+                                                    </span>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                    ` : '<div style="color: var(--text-secondary); font-size: 0.8rem;">Sem preços configurados</div>'}
+                                    <div style="margin-top: 8px; font-size: 0.7rem; color: var(--text-secondary); font-family: monospace;">${p.id}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            section.classList.add('active');
+        }
+
+        // --- Paddle upgrade/downgrade simulation ---
+        function showPaddleSimPanel(subIdx, direction) {
+            const panel = document.getElementById(`paddle-sim-panel-${subIdx}`);
+            const label = document.getElementById(`paddle-sim-label-${subIdx}`);
+            const dirInput = document.getElementById(`paddle-direction-${subIdx}`);
+            const qtyInput = document.getElementById(`paddle-qty-${subIdx}`);
+            if (panel) panel.style.display = 'block';
+            if (dirInput) dirInput.value = direction || 'add';
+            if (qtyInput) qtyInput.value = '1';
+            if (label) label.textContent = direction === 'remove' ? 'Quantas instâncias reduzir?' : 'Quantas instâncias adicionar?';
+            const result = document.getElementById(`paddle-sim-result-${subIdx}`);
+            if (result) { result.style.display = 'none'; result.innerHTML = ''; }
+        }
+
+        function hidePaddleSimPanel(subIdx) {
+            const panel = document.getElementById(`paddle-sim-panel-${subIdx}`);
+            if (panel) panel.style.display = 'none';
+            const result = document.getElementById(`paddle-sim-result-${subIdx}`);
+            if (result) { result.style.display = 'none'; result.innerHTML = ''; }
+        }
+
+        async function previewPaddleUpdate(subIdx) {
+            if (!_lastData || !_lastData.paddle) return;
+
+            const sub = _lastData.paddle.subscriptions[subIdx];
+            if (!sub) return;
+
+            const qtyInput = document.getElementById(`paddle-qty-${subIdx}`);
+            const dirInput = document.getElementById(`paddle-direction-${subIdx}`);
+            const resultDiv = document.getElementById(`paddle-sim-result-${subIdx}`);
+
+            const delta = parseInt(qtyInput.value);
+            const direction = dirInput ? dirInput.value : 'add';
+
+            if (!delta || delta < 1) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); text-align: center; color: var(--error);">Informe pelo menos 1.</div>`;
+                return;
+            }
+
+            const currentItem = sub.items[0];
+            if (!currentItem) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); text-align: center; color: var(--error);">Assinatura sem itens configurados.</div>`;
+                return;
+            }
+
+            const currentQty = currentItem.quantity || 1;
+            const newQty = direction === 'remove' ? currentQty - delta : currentQty + delta;
+
+            if (newQty < 1) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); text-align: center; color: var(--error);">Não é possível reduzir para menos de 1 (atual: ${currentQty}).</div>`;
+                return;
+            }
+
+            if (newQty === currentQty) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); text-align: center; color: var(--error);">A quantidade resultante é igual à atual (${currentQty}).</div>`;
+                return;
+            }
+
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `
+                <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--paddle);">
+                    <div style="text-align: center; padding: 16px; color: var(--text-secondary);">
+                        <div class="spinner"></div>
+                        <div style="margin-top: 10px;">Simulando alteração via Paddle...</div>
+                    </div>
+                </div>
+            `;
+
+            const items = sub.items.map(item => ({
+                price_id: item.price_id,
+                quantity: item.price_id === currentItem.price_id ? newQty : item.quantity
+            }));
+
+            try {
+                const res = await fetch('/api/paddle-subscription', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'preview',
+                        subscription_id: sub.id,
+                        items,
+                        proration_billing_mode: 'prorated_immediately'
+                    })
+                });
+
+                const previewData = await res.json();
+
+                if (!res.ok) {
+                    const errorMsg = previewData.error?.detail || previewData.error?.type || JSON.stringify(previewData.error || previewData);
+                    resultDiv.innerHTML = `
+                        <div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); color: var(--error);">
+                            <strong>Erro na simulação:</strong> ${errorMsg}
+                        </div>
+                    `;
+                    return;
+                }
+
+                const preview = previewData.data || previewData;
+                const immediateTransaction = preview.immediate_transaction;
+                const nextTransaction = preview.next_transaction;
+                const updatedItems = preview.items || [];
+
+                resultDiv.innerHTML = `
+                    <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--paddle);">
+                        <div style="display: grid; gap: 14px;">
+                            <div style="text-align: center; font-weight: 600; color: var(--paddle); font-size: 1.1rem;">
+                                Simulação: ${currentQty} → ${newQty} instância(s)
+                            </div>
+
+                            ${immediateTransaction ? `
+                            <div style="background: var(--bg-secondary); padding: 14px; border-radius: 10px;">
+                                <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">Cobrança Imediata (pro rata)</div>
+                                <div style="display: grid; gap: 6px; font-size: 0.85rem;">
+                                    ${(immediateTransaction.details?.line_items || []).map(li => `
+                                        <div style="display: flex; justify-content: space-between;">
+                                            <span style="color: var(--text-secondary);">${li.product?.name || li.price_id || 'Item'} × ${li.quantity}</span>
+                                            <span style="color: var(--text-primary);">${formatCurrency(li.total_amount || li.unit_totals?.total || 0, immediateTransaction.currency_code || 'BRL')}</span>
+                                        </div>
+                                    `).join('')}
+                                    <div style="display: flex; justify-content: space-between; font-size: 1rem; padding-top: 8px; border-top: 1px solid var(--border); margin-top: 4px;">
+                                        <span style="font-weight: 600;">Total imediato:</span>
+                                        <span style="color: var(--paddle); font-weight: 700; font-size: 1.2rem;">
+                                            ${formatCurrency(
+                                                immediateTransaction.details?.totals?.total || immediateTransaction.totals?.total || 0,
+                                                immediateTransaction.currency_code || 'BRL'
+                                            )}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            ` : ''}
+
+                            ${nextTransaction ? `
+                            <div style="background: var(--bg-secondary); padding: 14px; border-radius: 10px;">
+                                <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">Próxima Cobrança</div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+                                    <span style="color: var(--text-secondary);">Recorrência mensal:</span>
+                                    <span style="font-weight: 600;">
+                                        ${formatCurrency(
+                                            nextTransaction.details?.totals?.total || nextTransaction.totals?.total || 0,
+                                            nextTransaction.currency_code || 'BRL'
+                                        )}
+                                    </span>
+                                </div>
+                            </div>
+                            ` : ''}
+
+                            <div style="display: flex; gap: 10px; justify-content: center; margin-top: 4px;">
+                                <button class="btn-primary" onclick="confirmPaddleUpdate(${subIdx}, ${JSON.stringify(items).replace(/"/g, '&quot;')})" style="padding: 12px 32px;">
+                                    Confirmar Alteração
+                                </button>
+                                <button class="btn-secondary" onclick="hidePaddleSimPanel(${subIdx})" style="padding: 12px 24px;">
+                                    Cancelar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+            } catch (err) {
+                resultDiv.innerHTML = `
+                    <div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); color: var(--error);">
+                        <strong>Erro:</strong> ${err.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function confirmPaddleUpdate(subIdx, items) {
+            if (!_lastData || !_lastData.paddle) return;
+            const sub = _lastData.paddle.subscriptions[subIdx];
+            if (!sub) return;
+
+            const resultDiv = document.getElementById(`paddle-sim-result-${subIdx}`);
+            resultDiv.innerHTML = `
+                <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--paddle);">
+                    <div style="text-align: center; padding: 16px; color: var(--text-secondary);">
+                        <div class="spinner"></div>
+                        <div style="margin-top: 10px;">Aplicando alteração...</div>
+                    </div>
+                </div>
+            `;
+
+            try {
+                const res = await fetch('/api/paddle-subscription', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'update',
+                        subscription_id: sub.id,
+                        items,
+                        proration_billing_mode: 'prorated_immediately'
+                    })
+                });
+
+                const data = await res.json();
+
+                if (!res.ok) {
+                    const errorMsg = data.error?.detail || data.error?.type || JSON.stringify(data.error || data);
+                    resultDiv.innerHTML = `
+                        <div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); color: var(--error);">
+                            <strong>Erro:</strong> ${errorMsg}
+                        </div>
+                    `;
+                    return;
+                }
+
+                resultDiv.innerHTML = `
+                    <div style="background: rgba(0,212,170,0.1); padding: 20px; border-radius: 10px; border: 2px solid var(--success);">
+                        <div style="text-align: center; color: var(--success); font-weight: 600; font-size: 1.1rem;">
+                            Assinatura atualizada com sucesso!
+                        </div>
+                        <div style="text-align: center; margin-top: 10px;">
+                            <button class="btn-primary" onclick="searchPaddle()" style="padding: 10px 24px;">Recarregar Dados</button>
+                        </div>
+                    </div>
+                `;
+
+            } catch (err) {
+                resultDiv.innerHTML = `
+                    <div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); color: var(--error);">
+                        <strong>Erro:</strong> ${err.message}
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
