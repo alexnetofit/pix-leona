@@ -2543,122 +2543,50 @@
                 return;
             }
 
-            const { proRata, diasRestantes, diasNoCiclo } = calcProRata(currentValue, newValue, periodEnd);
-
-            const discountPct = newValue > 0 ? (1 - proRata / newValue) * 100 : 0;
-            let couponPct = Math.round(discountPct / 5) * 5;
-            couponPct = Math.max(5, Math.min(95, couponPct));
-            const couponCode = `up-leona-${couponPct}`;
-            const couponDiscount = newValue * couponPct / 100;
-
             if (hasGuru) {
+                const activeSub = data.guru.subscriptions.find(s => s.status === 'active') || data.guru.subscriptions[0];
+                const subId = activeSub?.id;
+
                 resultDiv.style.display = 'block';
                 resultDiv.innerHTML = `
                     <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--success);">
                         <div style="display: grid; gap: 14px;">
-                            <div style="text-align: center; padding: 16px; color: var(--text-secondary);">
-                                <div class="spinner"></div>
-                                <div style="margin-top: 10px;">Preparando cupom pro rata...</div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 14px; border-bottom: 1px solid var(--border);">
+                                <span style="color: var(--text-secondary);">Tipo de alteração:</span>
+                                <span style="color: var(--success); font-weight: 700; font-size: 1.1rem;">⬆️ UPGRADE (+${diff} instância${diff > 1 ? 's' : ''})</span>
                             </div>
+                            <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="color: var(--text-secondary);">Instâncias:</span>
+                                    <span style="color: var(--text-primary); font-weight: 600; font-size: 1.2rem;">${currentQty} → ${newQty}</span>
+                                </div>
+                            </div>
+                            <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="color: var(--text-secondary);">Valor mensal:</span>
+                                    <span style="color: var(--text-primary); font-weight: 600;">${formatGuruCurrency(currentValue)} → ${formatGuruCurrency(newValue)}</span>
+                                </div>
+                            </div>
+                            <div style="background: rgba(0,212,170,0.1); padding: 14px; border-radius: 10px;">
+                                <div style="color: var(--accent); font-weight: 600; margin-bottom: 8px;">Upgrade nativo Guru</div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem;">
+                                    A Guru calcula o pro rata automaticamente e abre uma fatura de upgrade.
+                                </div>
+                            </div>
+                            <button class="btn-primary" id="exec-upgrade-${bpIdx}" onclick="executeGuruUpgrade('${subId}', '${newOffer.id}', ${bpIdx})" style="width: 100%; padding: 14px; font-size: 1rem;">
+                                Executar Upgrade para ${newOffer.name}
+                            </button>
                         </div>
                     </div>
                 `;
-
-                try {
-                    const addEmailRes = await fetch('/api/guru-coupons', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'add_email', coupon_code: couponCode, email })
-                    });
-                    const addEmailData = await addEmailRes.json();
-
-                    const baseUrl = newOffer.checkout_url || '';
-                    const checkoutUrl = baseUrl
-                        ? baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'coupon=' + couponCode + '&email=' + email
-                        : '';
-
-                    resultDiv.innerHTML = `
-                        <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--success);">
-                            <div style="display: grid; gap: 14px;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 14px; border-bottom: 1px solid var(--border);">
-                                    <span style="color: var(--text-secondary);">Tipo de alteração:</span>
-                                    <span style="color: var(--success); font-weight: 700; font-size: 1.1rem;">⬆️ UPGRADE (+${diff} instância${diff > 1 ? 's' : ''})</span>
-                                </div>
-                                <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="color: var(--text-secondary);">Instâncias:</span>
-                                        <span style="color: var(--text-primary); font-weight: 600; font-size: 1.2rem;">${currentQty} → ${newQty}</span>
-                                    </div>
-                                </div>
-                                <div style="background: var(--bg-secondary); padding: 14px; border-radius: 8px;">
-                                    <div style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 10px; font-weight: 500;">Cálculo pro rata:</div>
-                                    <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid var(--border);">
-                                        <span style="color: var(--text-secondary);">Crédito não utilizado (${currentQty}x Starter, ${diasRestantes} dias)</span>
-                                        <span style="color: var(--error); font-weight: 600;">-${formatGuruCurrency(currentValue * diasRestantes / diasNoCiclo)}</span>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid var(--border);">
-                                        <span style="color: var(--text-secondary);">Cobrança proporcional (${newQty}x Starter, ${diasRestantes} dias)</span>
-                                        <span style="color: var(--success); font-weight: 600;">+${formatGuruCurrency(newValue * diasRestantes / diasNoCiclo)}</span>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; font-size: 1rem; padding-top: 10px; margin-top: 4px;">
-                                        <span style="color: var(--text-primary); font-weight: 600;">Pro rata exato:</span>
-                                        <span style="color: var(--accent); font-weight: 700; font-size: 1.2rem;">${formatGuruCurrency(proRata)}</span>
-                                    </div>
-                                </div>
-                                <div style="background: rgba(156,39,176,0.1); padding: 12px; border-radius: 8px;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="color: #9c27b0; font-weight: 500;">Cupom aplicado: <strong>${couponCode}</strong> (${couponPct}% off)</span>
-                                        <span style="color: #9c27b0; font-weight: 600;">Desconto: ${formatGuruCurrency(couponDiscount)}</span>
-                                    </div>
-                                    <div style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 6px;">
-                                        Cliente pagará: ${formatGuruCurrency(newValue - couponDiscount)} na 1ª fatura, depois ${formatGuruCurrency(newValue)}/mês
-                                    </div>
-                                </div>
-                                <div style="background: rgba(0,212,170,0.1); padding: 14px; border-radius: 10px;">
-                                    <div style="color: var(--accent); font-weight: 600; margin-bottom: 8px;">Cliente na Guru — Upgrade via checkout</div>
-                                    <div style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 10px;">Envie o link abaixo para o cliente realizar o upgrade para <strong>${newOffer.name}</strong>:</div>
-                                    ${checkoutUrl ? `
-                                        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                                            <button class="btn-copy" id="copy-upgrade-${bpIdx}" onclick="copyGuruLink('${checkoutUrl}', 'copy-upgrade-${bpIdx}')" style="width: auto; white-space: nowrap;">
-                                                Copiar Link
-                                            </button>
-                                            <span style="font-size: 0.75rem; color: var(--text-secondary); font-family: monospace; word-break: break-all;">${checkoutUrl}</span>
-                                        </div>
-                                    ` : `
-                                        <div style="color: var(--warning); font-size: 0.85rem;">⚠️ Plano de upgrade não possui URL de checkout configurada.</div>
-                                    `}
-                                </div>
-                                ${!addEmailData.success ? `
-                                    <div style="background: rgba(255,193,7,0.1); padding: 10px; border-radius: 8px; color: var(--warning); font-size: 0.8rem;">
-                                        ⚠️ Não foi possível adicionar o email ao cupom automaticamente. Adicione manualmente no admin da Guru.
-                                    </div>
-                                ` : ''}
-                            </div>
-                        </div>
-                    `;
-                } catch (couponError) {
-                    const baseUrl = newOffer.checkout_url || '';
-                    const checkoutUrl = baseUrl
-                        ? baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'email=' + email
-                        : '';
-
-                    resultDiv.innerHTML = `
-                        <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--warning);">
-                            <div style="display: grid; gap: 14px;">
-                                <div style="color: var(--warning); font-weight: 600;">⚠️ Erro ao preparar cupom: ${couponError.message}</div>
-                                <div style="color: var(--text-secondary); font-size: 0.85rem;">Link sem cupom (pro rata de ${formatGuruCurrency(proRata)} não será aplicado automaticamente):</div>
-                                ${checkoutUrl ? `
-                                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                                        <button class="btn-copy" id="copy-upgrade-${bpIdx}" onclick="copyGuruLink('${checkoutUrl}', 'copy-upgrade-${bpIdx}')" style="width: auto;">
-                                            Copiar Link
-                                        </button>
-                                    </div>
-                                ` : ''}
-                            </div>
-                        </div>
-                    `;
-                }
             } else {
+                const { proRata, diasRestantes, diasNoCiclo } = calcProRata(currentValue, newValue, periodEnd);
+                const discountPct = newValue > 0 ? (1 - proRata / newValue) * 100 : 0;
+                let couponPct = Math.round(discountPct / 5) * 5;
+                couponPct = Math.max(5, Math.min(95, couponPct));
+                const couponCode = `up-leona-${couponPct}`;
+                const couponDiscount = newValue * couponPct / 100;
+
                 resultDiv.style.display = 'block';
                 resultDiv.innerHTML = `
                     <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--success);">
@@ -2737,6 +2665,80 @@
                                 </div>
                             ` : ''}
                         </div>
+                    </div>
+                `;
+            }
+        }
+
+        async function executeGuruUpgrade(subscriptionId, offerId, bpIdx) {
+            const resultDiv = document.getElementById(`leona-sim-result-${bpIdx}`);
+            const btn = document.getElementById(`exec-upgrade-${bpIdx}`);
+            if (btn) { btn.disabled = true; btn.textContent = 'Executando upgrade...'; }
+
+            try {
+                const res = await fetch('/api/guru-upgrade', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ subscription_id: subscriptionId, offer_id: offerId })
+                });
+                const data = await res.json();
+
+                if (!data.success) {
+                    const errMsg = data.error || 'Erro desconhecido';
+                    const isNotConfigured = errMsg.toLowerCase().includes('offer') || errMsg.toLowerCase().includes('upgrade') || res.status === 422 || res.status === 400;
+                    resultDiv.innerHTML = `
+                        <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--warning);">
+                            <div style="display: grid; gap: 14px;">
+                                <div style="color: var(--warning); font-weight: 700; font-size: 1.1rem;">⚠️ Upgrade não disponível</div>
+                                <div style="background: rgba(255,193,7,0.1); padding: 14px; border-radius: 8px;">
+                                    <div style="color: var(--text-secondary); font-size: 0.9rem;">
+                                        ${isNotConfigured
+                                            ? 'O plano atual não tem upgrade configurado para este destino na Guru. Configure o upgrade/downgrade na oferta do produto dentro do painel da Guru.'
+                                            : errMsg}
+                                    </div>
+                                </div>
+                                ${data.details ? `<details style="color: var(--text-secondary); font-size: 0.75rem;"><summary>Detalhes técnicos</summary><pre style="white-space: pre-wrap; margin-top: 8px;">${JSON.stringify(data.details, null, 2)}</pre></details>` : ''}
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const inv = data.invoice;
+                resultDiv.innerHTML = `
+                    <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--success);">
+                        <div style="display: grid; gap: 14px;">
+                            <div style="color: var(--success); font-weight: 700; font-size: 1.1rem;">✅ Upgrade realizado com sucesso!</div>
+                            ${inv ? `
+                                <div style="background: var(--bg-secondary); padding: 14px; border-radius: 8px;">
+                                    <div style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 10px; font-weight: 500;">Fatura de upgrade gerada:</div>
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid var(--border);">
+                                        <span style="color: var(--text-secondary);">Invoice</span>
+                                        <span style="font-family: monospace; color: var(--text-primary);">${inv.id}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid var(--border);">
+                                        <span style="color: var(--text-secondary);">Valor (pro rata)</span>
+                                        <span style="color: var(--accent); font-weight: 700; font-size: 1.1rem;">${formatGuruCurrency(inv.value)}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0;">
+                                        <span style="color: var(--text-secondary);">Status</span>
+                                        <span style="color: var(--warning);">${inv.status}</span>
+                                    </div>
+                                </div>
+                            ` : `
+                                <div style="color: var(--text-secondary); font-size: 0.85rem;">Upgrade executado. A Guru processará a cobrança pro rata.</div>
+                            `}
+                            <div style="color: var(--text-secondary); font-size: 0.8rem;">O webhook da Guru atualizará as instâncias no Leona automaticamente quando o pagamento for confirmado.</div>
+                        </div>
+                    </div>
+                `;
+
+                showMessage('Upgrade realizado com sucesso na Guru!', 'success');
+
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--error);">
+                        <div style="color: var(--error); font-weight: 600;">Erro ao executar upgrade: ${error.message}</div>
                     </div>
                 `;
             }

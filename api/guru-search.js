@@ -115,6 +115,8 @@ export default async function handler(req, res) {
           subscription_code: s.subscription_code,
           product_name: s.product?.name || '',
           product_group: s.product?.group?.name || '',
+          offer_id: s.offer?.id || s.product?.offer?.id || null,
+          offer_name: s.offer?.name || s.product?.offer?.name || null,
           status: s.last_status,
           status_at: s.last_status_at,
           payment_method: s.payment_method,
