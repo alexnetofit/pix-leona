@@ -74,10 +74,14 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'coupon_code e email são obrigatórios' });
       }
 
-      const listRes = await fetch(`${GURU_BASE}/coupons?limit=100&is_active=1`, { headers });
-      const listData = await listRes.json();
-      const coupons = Array.isArray(listData.data) ? listData.data : [];
-      const found = coupons.find(c => c.code === coupon_code || c.coupon_code === coupon_code);
+      let found = null;
+      for (const activeFilter of ['1', '0']) {
+        const listRes = await fetch(`${GURU_BASE}/coupons?limit=100&is_active=${activeFilter}`, { headers });
+        const listData = await listRes.json();
+        const coupons = Array.isArray(listData.data) ? listData.data : [];
+        found = coupons.find(c => c.code === coupon_code || c.coupon_code === coupon_code);
+        if (found) break;
+      }
       if (!found) return res.status(404).json({ error: `Cupom ${coupon_code} não encontrado` });
 
       const detailRes = await fetch(`${GURU_BASE}/coupons/${found.id}`, { headers });
@@ -102,7 +106,7 @@ export default async function handler(req, res) {
         usage_total: couponData.usage_total || 0,
         usage_contact: couponData.usage_contact || 0,
         maximum_subscription_cycles: couponData.maximum_subscription_cycles || 1,
-        is_active: couponData.is_active || 1,
+        is_active: 1,
         validate_by: 'email',
         emails: updatedEmails
       };
