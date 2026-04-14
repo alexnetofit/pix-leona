@@ -2546,6 +2546,7 @@
             if (hasGuru) {
                 const activeSub = data.guru.subscriptions.find(s => s.status === 'active') || data.guru.subscriptions[0];
                 const subId = activeSub?.id;
+                const { proRata, diasRestantes, diasNoCiclo } = calcProRata(currentValue, newValue, periodEnd);
 
                 resultDiv.style.display = 'block';
                 resultDiv.innerHTML = `
@@ -2561,17 +2562,21 @@
                                     <span style="color: var(--text-primary); font-weight: 600; font-size: 1.2rem;">${currentQty} → ${newQty}</span>
                                 </div>
                             </div>
-                            <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <span style="color: var(--text-secondary);">Valor mensal:</span>
-                                    <span style="color: var(--text-primary); font-weight: 600;">${formatGuruCurrency(currentValue)} → ${formatGuruCurrency(newValue)}</span>
+                            <div style="background: var(--bg-secondary); padding: 14px; border-radius: 8px;">
+                                <div style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 10px; font-weight: 500;">Estimativa pro rata:</div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid var(--border);">
+                                    <span style="color: var(--text-secondary);">Crédito não utilizado (${currentQty}x Starter, ${diasRestantes} dias)</span>
+                                    <span style="color: var(--error); font-weight: 600;">-${formatGuruCurrency(currentValue * diasRestantes / diasNoCiclo)}</span>
                                 </div>
-                            </div>
-                            <div style="background: rgba(0,212,170,0.1); padding: 14px; border-radius: 10px;">
-                                <div style="color: var(--accent); font-weight: 600; margin-bottom: 8px;">Upgrade nativo Guru</div>
-                                <div style="color: var(--text-secondary); font-size: 0.85rem;">
-                                    A Guru calcula o pro rata automaticamente e abre uma fatura de upgrade.
+                                <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid var(--border);">
+                                    <span style="color: var(--text-secondary);">Cobrança proporcional (${newQty}x Starter, ${diasRestantes} dias)</span>
+                                    <span style="color: var(--success); font-weight: 600;">+${formatGuruCurrency(newValue * diasRestantes / diasNoCiclo)}</span>
                                 </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 1rem; padding-top: 10px; margin-top: 4px;">
+                                    <span style="color: var(--text-primary); font-weight: 600;">Pro rata estimado:</span>
+                                    <span style="color: var(--accent); font-weight: 700; font-size: 1.2rem;">${formatGuruCurrency(proRata)}</span>
+                                </div>
+                                <div style="color: var(--text-secondary); font-size: 0.75rem; margin-top: 8px; font-style: italic;">O valor exato será calculado pela Guru no momento da execução.</div>
                             </div>
                             <button class="btn-primary" id="exec-upgrade-${bpIdx}" onclick="executeGuruUpgrade('${subId}', '${newOffer.id}', ${bpIdx})" style="width: 100%; padding: 14px; font-size: 1rem;">
                                 Executar Upgrade para ${newOffer.name}
