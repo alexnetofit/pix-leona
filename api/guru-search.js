@@ -88,7 +88,7 @@ export default async function handler(req, res) {
       leona = { found: false, billing_profile: null, billing_profiles: null, error: null };
     }
 
-    let guru = { found: false, contact: null, subscriptions: [], transactions: [] };
+    let guru = { found: false, contact: null, subscriptions: [], invoices: [] };
 
     if (contact) {
       guru.found = true;
@@ -139,41 +139,31 @@ export default async function handler(req, res) {
             const txData = await txRes.json();
             const allTx = Array.isArray(txData.data) ? txData.data : [];
             const leonaTx = allTx.filter(t =>
-              t.product?.internal_id === LEONA_PRODUCT_ID ||
-              leonaSubIds.has(t.subscription?.internal_id)
+              (t.product?.internal_id === LEONA_PRODUCT_ID ||
+              leonaSubIds.has(t.subscription?.internal_id)) &&
+              t.invoice
             );
 
-            guru.transactions = leonaTx.map(t => ({
-              id: t.id,
-              status: t.status,
-              product_name: t.product?.name || '',
-              offer_name: t.product?.offer?.name || '',
-              subscription_id: t.subscription?.internal_id || null,
-              subscription_code: t.subscription?.subscription_code || null,
-              invoice: t.invoice ? {
-                id: t.invoice.id,
-                status: t.invoice.status,
-                value: t.invoice.value,
-                cycle: t.invoice.cycle,
-                charge_at: t.invoice.charge_at,
-                period_start: t.invoice.period_start,
-                period_end: t.invoice.period_end
-              } : null,
-              payment: t.payment ? {
-                method: t.payment.method,
-                total: t.payment.total,
-                net: t.payment.net,
-                currency: t.payment.currency,
-                installments: t.payment.installments?.qty || 1,
-                card_brand: t.payment.credit_card?.brand || null,
-                card_last4: t.payment.credit_card?.last_digits || null
-              } : null,
-              dates: t.dates ? {
-                created_at: t.dates.created_at,
-                confirmed_at: t.dates.confirmed_at,
-                ordered_at: t.dates.ordered_at
-              } : null
-            }));
+            const invoiceMap = new Map();
+            for (const t of leonaTx) {
+              const key = t.invoice.id;
+              if (!invoiceMap.has(key)) {
+                invoiceMap.set(key, {
+                  id: t.invoice.id,
+                  status: t.invoice.status,
+                  value: t.invoice.value,
+                  cycle: t.invoice.cycle,
+                  charge_at: t.invoice.charge_at,
+                  period_start: t.invoice.period_start,
+                  period_end: t.invoice.period_end,
+                  offer_name: t.product?.offer?.name || '',
+                  product_name: t.product?.name || '',
+                  payment_method: t.payment?.method || null,
+                  subscription_id: t.subscription?.internal_id || null
+                });
+              }
+            }
+            guru.invoices = Array.from(invoiceMap.values());
           }
         }
       }
