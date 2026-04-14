@@ -176,10 +176,118 @@
             font-size: 0.9rem;
         }
 
+        .alert {
+            padding: 18px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .alert-warning {
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid var(--warning);
+            color: var(--warning);
+        }
+
+        .alert-error {
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid var(--error);
+            color: var(--error);
+        }
+
+        .alert-info {
+            background: rgba(0, 212, 170, 0.1);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+        }
+
+        .alert strong { display: block; margin-bottom: 6px; font-size: 1rem; }
+
+        .offer-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .offer-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .offer-card .offer-name { font-weight: 600; font-size: 0.95rem; }
+        .offer-card .offer-value { font-size: 1.3rem; font-weight: 700; color: var(--accent); }
+
+        .offer-card .btn-copy {
+            padding: 10px;
+            background: var(--accent);
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.85rem;
+            text-align: center;
+            transition: background 0.2s;
+        }
+
+        .offer-card .btn-copy:hover { background: var(--accent-hover); }
+        .offer-card .btn-copy.copied { background: var(--success); }
+
+        .invoice-card {
+            background: var(--bg-card);
+            border: 1px solid var(--warning);
+            border-radius: 12px;
+            padding: 18px;
+            margin-bottom: 12px;
+        }
+
+        .sim-panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 16px;
+        }
+
+        .sim-panel .sim-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .sim-panel input[type="number"] {
+            width: 80px;
+            padding: 10px 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            text-align: center;
+            outline: none;
+        }
+
+        .sim-panel input[type="number"]:focus { border-color: var(--accent); }
+
+        .sim-result {
+            margin-top: 14px;
+            display: none;
+        }
+
         @media (max-width: 600px) {
             .container { padding: 24px 16px; }
             .search-box { flex-direction: column; }
             .info-row { font-size: 0.85rem; }
+            .offer-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -199,6 +307,9 @@
     </div>
 
     <script>
+        let _data = null;
+        let _email = '';
+
         function getEmail() {
             const params = new URLSearchParams(window.location.search);
             return (params.get('email') || '').trim().toLowerCase();
@@ -210,9 +321,9 @@
             return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
         }
 
-        function formatCurrency(v) {
+        function fmtCurrency(v) {
             if (v == null) return '—';
-            return 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
         }
 
         function statusLabel(s) {
@@ -227,6 +338,53 @@
             return 'status-inactive';
         }
 
+        function invoiceStatusLabel(s) {
+            const map = { paid: 'Pago', pending: 'Pendente', waiting_payment: 'Aguardando pagamento', overdue: 'Em atraso', refunded: 'Reembolsado' };
+            return map[s] || s;
+        }
+
+        function getOfferForQty(offers, qty) {
+            if (!offers) return null;
+            for (const o of offers) {
+                const m = o.name.match(/(\d+)\s*conex/i);
+                if (m && parseInt(m[1]) === qty) return o;
+            }
+            return null;
+        }
+
+        function calcProRata(currentValue, newValue, periodEndStr) {
+            const now = new Date();
+            const periodEnd = new Date(periodEndStr);
+            const diffMs = periodEnd.getTime() - now.getTime();
+            const diasRestantes = Math.max(0, Math.ceil(diffMs / 86400000));
+            const diasNoCiclo = 30;
+            const proRata = (newValue - currentValue) * diasRestantes / diasNoCiclo;
+            return { proRata: Math.round(proRata * 100) / 100, diasRestantes, diasNoCiclo };
+        }
+
+        function isLeonaExpired(bp) {
+            if (!bp.subscription_status || bp.subscription_status !== 'active') return true;
+            if (bp.current_period_end && new Date(bp.current_period_end) <= new Date()) return true;
+            return false;
+        }
+
+        function copyLink(text, btnId) {
+            const btn = document.getElementById(btnId);
+            navigator.clipboard.writeText(text).then(() => {
+                btn.textContent = '✓ Copiado!';
+                btn.classList.add('copied');
+                setTimeout(() => { btn.textContent = 'Copiar Link'; btn.classList.remove('copied'); }, 2000);
+            }).catch(() => {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                btn.textContent = '✓ Copiado!';
+            });
+        }
+
         async function loadProfile() {
             let email = getEmail();
             if (!email) {
@@ -234,6 +392,7 @@
                 email = (input.value || '').trim().toLowerCase();
             }
             if (!email) return;
+            _email = email;
 
             const content = document.getElementById('content');
             content.innerHTML = `<div class="loading-state"><div class="spinner"></div><p style="color: var(--text-secondary); margin-top: 16px;">Carregando dados...</p></div>`;
@@ -251,15 +410,103 @@
                     return;
                 }
 
+                _data = data;
                 renderProfile(data, email);
             } catch (err) {
                 content.innerHTML = `<div class="error-msg">Erro de conexão: ${err.message}</div>`;
             }
         }
 
+        function renderProfileCard(bp, idx, total) {
+            const active = !isLeonaExpired(bp);
+            return `
+                <div class="card" style="${active ? 'border-color: var(--accent);' : 'border-color: var(--error);'}">
+                    <h3>Assinatura${total > 1 ? ` #${idx + 1}` : ''}</h3>
+                    <div>
+                        ${bp.user?.name ? `<div class="info-row"><span class="info-label">Nome</span><span class="info-value">${bp.user.name}</span></div>` : ''}
+                        ${bp.user?.email ? `<div class="info-row"><span class="info-label">Email</span><span class="info-value">${bp.user.email}</span></div>` : ''}
+                        ${bp.user?.phone ? `<div class="info-row"><span class="info-label">Telefone</span><span class="info-value">${bp.user.phone}</span></div>` : ''}
+                        ${bp.plan_summary ? `<div class="info-row"><span class="info-label">Plano</span><span class="info-value">${bp.plan_summary}</span></div>` : ''}
+                        ${bp.starter_instances != null ? `<div class="info-row"><span class="info-label">Conexões Starter</span><span class="info-value">${bp.starter_instances}</span></div>` : ''}
+                        ${bp.pro_instances != null && bp.pro_instances > 0 ? `<div class="info-row"><span class="info-label">Conexões Pro</span><span class="info-value">${bp.pro_instances}</span></div>` : ''}
+                        ${bp.subscription_status ? `<div class="info-row"><span class="info-label">Status</span><span class="info-value"><span class="status-badge ${statusClass(bp.subscription_status)}">${statusLabel(bp.subscription_status)}</span></span></div>` : ''}
+                        ${bp.current_period_end ? `<div class="info-row"><span class="info-label">${active ? 'Próxima renovação' : 'Venceu em'}</span><span class="info-value">${formatDate(bp.current_period_end)}</span></div>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderOffersGrid(offers, email) {
+            if (!offers || offers.length === 0) return '';
+            return `
+                <div class="card">
+                    <h3>Escolha um plano</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 4px;">Selecione o plano ideal e assine agora:</p>
+                    <div class="offer-grid">
+                        ${offers.map((o, i) => {
+                            const url = o.checkout_url ? o.checkout_url + (o.checkout_url.includes('?') ? '&' : '?') + 'email=' + email : '';
+                            return `
+                                <div class="offer-card">
+                                    <div>
+                                        <div class="offer-name">${o.name}</div>
+                                        <div class="offer-value">${fmtCurrency(o.value)}<span style="font-size: 0.75rem; font-weight: 400; color: var(--text-secondary);">/mês</span></div>
+                                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">
+                                            ${(o.payment_types || []).map(t => t === 'credit_card' ? 'Cartão' : t === 'pix' ? 'PIX' : t).join(' · ')}
+                                        </div>
+                                    </div>
+                                    ${url ? `<button class="btn-copy" id="copy-of-${i}" onclick="copyLink('${url}', 'copy-of-${i}')">Copiar Link</button>` : ''}
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderOpenInvoices(invoices) {
+            const open = (invoices || []).filter(inv => inv.status !== 'paid' && inv.status !== 'refunded');
+            if (open.length === 0) return null;
+            return `
+                <div class="card">
+                    <h3>Faturas em aberto</h3>
+                    ${open.map(inv => `
+                        <div class="invoice-card">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;">
+                                <div>
+                                    <div style="font-weight: 600;">${inv.offer_name || inv.product_name || 'Fatura'}</div>
+                                    <div style="font-family: monospace; font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">${inv.id}</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="font-size: 1.2rem; font-weight: 700; color: var(--accent);">${fmtCurrency(inv.value)}</div>
+                                    <div style="font-size: 0.8rem; color: var(--warning);">${invoiceStatusLabel(inv.status)}</div>
+                                    ${inv.charge_at ? `<div style="font-size: 0.75rem; color: var(--text-secondary);">Vence: ${formatDate(inv.charge_at)}</div>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">Realize o pagamento da fatura acima para reativar sua assinatura.</p>
+                </div>
+            `;
+        }
+
+        function renderUpgradePanel(bp, idx) {
+            const currentQty = bp.starter_instances || 0;
+            return `
+                <div class="sim-panel">
+                    <h3 style="color: var(--accent); font-size: 1rem; margin-bottom: 12px;">Alterar plano</h3>
+                    <div class="sim-row">
+                        <span style="color: var(--text-secondary); font-size: 0.9rem;">Conexões desejadas:</span>
+                        <input type="number" id="newQty-${idx}" value="${currentQty}" min="1">
+                        <button class="btn-primary" style="padding: 10px 18px; font-size: 0.9rem;" onclick="simulateChange(${idx})">Simular</button>
+                    </div>
+                    <div class="sim-result" id="simResult-${idx}"></div>
+                </div>
+            `;
+        }
+
         function renderProfile(data, email) {
             const content = document.getElementById('content');
-            const { leona, guru } = data;
+            const { leona, guru, offers } = data;
 
             const profiles = leona.billing_profiles || (leona.billing_profile ? [leona.billing_profile] : []);
 
@@ -269,33 +516,313 @@
                         <div class="icon">🔍</div>
                         <p>Nenhuma assinatura encontrada para <strong>${email}</strong>.</p>
                     </div>
+                    ${renderOffersGrid(offers, email)}
                 `;
                 return;
             }
 
+            const hasGuruActive = guru.found && guru.subscriptions.some(s => s.status === 'active');
+            const hasGuruAny = guru.found && guru.subscriptions.length > 0;
+
             let html = '';
 
-            for (const bp of profiles) {
-                const isActive = bp.subscription_status === 'active' && bp.current_period_end && new Date(bp.current_period_end) > new Date();
+            for (let i = 0; i < profiles.length; i++) {
+                const bp = profiles[i];
+                const expired = isLeonaExpired(bp);
 
-                html += `
-                    <div class="card" style="${isActive ? 'border-color: var(--accent);' : ''}">
-                        <h3>Assinatura${profiles.length > 1 ? ` — ${bp.account_id || ''}` : ''}</h3>
-                        <div>
-                            ${bp.user?.name ? `<div class="info-row"><span class="info-label">Nome</span><span class="info-value">${bp.user.name}</span></div>` : ''}
-                            ${bp.user?.email ? `<div class="info-row"><span class="info-label">Email</span><span class="info-value">${bp.user.email}</span></div>` : ''}
-                            ${bp.plan_summary ? `<div class="info-row"><span class="info-label">Plano</span><span class="info-value">${bp.plan_summary}</span></div>` : ''}
-                            ${bp.starter_instances != null ? `<div class="info-row"><span class="info-label">Conexões Starter</span><span class="info-value">${bp.starter_instances}</span></div>` : ''}
-                            ${bp.pro_instances != null && bp.pro_instances > 0 ? `<div class="info-row"><span class="info-label">Conexões Pro</span><span class="info-value">${bp.pro_instances}</span></div>` : ''}
-                            ${bp.subscription_status ? `<div class="info-row"><span class="info-label">Status</span><span class="info-value"><span class="status-badge ${statusClass(bp.subscription_status)}">${statusLabel(bp.subscription_status)}</span></span></div>` : ''}
-                            ${bp.current_period_end ? `<div class="info-row"><span class="info-label">Próxima renovação</span><span class="info-value">${formatDate(bp.current_period_end)}</span></div>` : ''}
-                            ${bp.subscription_type ? `<div class="info-row"><span class="info-label">Tipo</span><span class="info-value">${bp.subscription_type}</span></div>` : ''}
+                html += renderProfileCard(bp, i, profiles.length);
+
+                if (expired) {
+                    if (hasGuruActive) {
+                        // Cenário 3: Leona vencida + Guru ativa
+                        html += `
+                            <div class="alert alert-warning">
+                                <strong>Inconsistência detectada</strong>
+                                Identificamos que seu pagamento está em dia, mas sua conta Leona está inativa.
+                                Por favor, entre em contato com o suporte para regularizar sua situação.
+                                <div style="margin-top: 12px;">
+                                    <a href="https://wa.me/5511999999999" target="_blank" style="color: var(--accent); font-weight: 600; text-decoration: none;">Falar com o suporte →</a>
+                                </div>
+                            </div>
+                        `;
+                    } else if (hasGuruAny) {
+                        // Cenário 2: Leona vencida + Guru vencida/cancelada
+                        const invoicesHtml = renderOpenInvoices(guru.invoices);
+                        if (invoicesHtml) {
+                            html += invoicesHtml;
+                        } else {
+                            html += `
+                                <div class="alert alert-error">
+                                    <strong>Assinatura vencida</strong>
+                                    Não há faturas pendentes de pagamento. Escolha um plano abaixo para reativar sua assinatura.
+                                </div>
+                            `;
+                            html += renderOffersGrid(offers, email);
+                        }
+                    } else {
+                        // Cenário 1: Leona vencida + sem Guru
+                        html += `
+                            <div class="alert alert-error">
+                                <strong>Assinatura vencida</strong>
+                                Escolha um plano abaixo para reativar sua assinatura.
+                            </div>
+                        `;
+                        html += renderOffersGrid(offers, email);
+                    }
+                } else {
+                    // Cenário 4: Leona ativa — upgrade/downgrade
+                    html += `
+                        <div class="alert alert-info">
+                            <strong>Assinatura ativa</strong>
+                            Sua assinatura está em dia. Você pode alterar seu plano abaixo.
                         </div>
-                    </div>
-                `;
+                    `;
+                    html += renderUpgradePanel(bp, i);
+                }
             }
 
             content.innerHTML = html;
+        }
+
+        async function simulateChange(bpIdx) {
+            const data = _data;
+            const email = _email;
+            if (!data) return;
+
+            const profiles = data.leona.billing_profiles || (data.leona.billing_profile ? [data.leona.billing_profile] : []);
+            const bp = profiles[bpIdx];
+            if (!bp) return;
+
+            const input = document.getElementById(`newQty-${bpIdx}`);
+            const resultDiv = document.getElementById(`simResult-${bpIdx}`);
+            const newQty = parseInt(input.value);
+            const currentQty = bp.starter_instances || 0;
+
+            if (!newQty || newQty < 1) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<div class="alert alert-error">Informe pelo menos 1 conexão.</div>`;
+                return;
+            }
+            if (newQty === currentQty) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<div class="alert alert-warning">A quantidade é igual à atual (${currentQty}).</div>`;
+                return;
+            }
+
+            const offers = data.offers || [];
+            const currentOffer = getOfferForQty(offers, currentQty);
+            const newOffer = getOfferForQty(offers, newQty);
+
+            if (!newOffer) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<div class="alert alert-warning">Não existe plano configurado para ${newQty} conexão(ões).</div>`;
+                return;
+            }
+
+            const currentValue = currentOffer ? currentOffer.value : 0;
+            const newValue = newOffer.value;
+            const isUpgrade = newQty > currentQty;
+            const diff = Math.abs(newQty - currentQty);
+            const hasGuru = data.guru.found && data.guru.subscriptions.length > 0;
+            const periodEnd = bp.current_period_end;
+
+            resultDiv.style.display = 'block';
+
+            if (!isUpgrade) {
+                resultDiv.innerHTML = `
+                    <div style="background: var(--bg-card); padding: 18px; border-radius: 10px; border: 1px solid var(--warning);">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                            <span style="color: var(--text-secondary);">Alteração:</span>
+                            <span style="color: var(--warning); font-weight: 700;">⬇️ DOWNGRADE (-${diff})</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span style="color: var(--text-secondary);">Conexões:</span>
+                            <span style="font-weight: 600;">${currentQty} → ${newQty}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                            <span style="color: var(--text-secondary);">Valor mensal:</span>
+                            <span style="font-weight: 600;">${fmtCurrency(currentValue)} → ${fmtCurrency(newValue)}</span>
+                        </div>
+                        <div style="background: rgba(255,193,7,0.1); padding: 12px; border-radius: 8px; color: var(--warning); font-size: 0.85rem; text-align: center;">
+                            O downgrade será aplicado na próxima renovação. Sem cobrança adicional.
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            if (!periodEnd || new Date(periodEnd) <= new Date()) {
+                resultDiv.innerHTML = `<div class="alert alert-warning">Ciclo vencido. Não é possível calcular pro rata.</div>`;
+                return;
+            }
+
+            const { proRata, diasRestantes, diasNoCiclo } = calcProRata(currentValue, newValue, periodEnd);
+
+            if (hasGuru) {
+                const activeSub = data.guru.subscriptions.find(s => s.status === 'active') || data.guru.subscriptions[0];
+                const subId = activeSub?.id;
+
+                resultDiv.innerHTML = `
+                    <div style="background: var(--bg-card); padding: 18px; border-radius: 10px; border: 1px solid var(--success);">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                            <span style="color: var(--text-secondary);">Alteração:</span>
+                            <span style="color: var(--success); font-weight: 700;">⬆️ UPGRADE (+${diff})</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span style="color: var(--text-secondary);">Conexões:</span>
+                            <span style="font-weight: 600;">${currentQty} → ${newQty}</span>
+                        </div>
+                        <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+                            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">Estimativa pro rata:</div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; padding: 6px 0; border-bottom: 1px solid var(--border);">
+                                <span style="color: var(--text-secondary);">Crédito (${currentQty}x, ${diasRestantes}d)</span>
+                                <span style="color: var(--error);">-${fmtCurrency(currentValue * diasRestantes / diasNoCiclo)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; padding: 6px 0; border-bottom: 1px solid var(--border);">
+                                <span style="color: var(--text-secondary);">Cobrança (${newQty}x, ${diasRestantes}d)</span>
+                                <span style="color: var(--success);">+${fmtCurrency(newValue * diasRestantes / diasNoCiclo)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 1rem; padding-top: 8px;">
+                                <span style="font-weight: 600;">Pro rata estimado:</span>
+                                <span style="color: var(--accent); font-weight: 700;">${fmtCurrency(proRata)}</span>
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 6px; font-style: italic;">Valor exato calculado pela Guru na execução.</div>
+                        </div>
+                        <button class="btn-primary" id="execUpgrade-${bpIdx}" onclick="executeGuruUpgrade('${subId}', '${newOffer.id}', ${bpIdx})" style="width: 100%; padding: 14px;">
+                            Executar Upgrade para ${newOffer.name}
+                        </button>
+                    </div>
+                `;
+            } else {
+                const discountPct = newValue > 0 ? (1 - proRata / newValue) * 100 : 0;
+                let couponPct = Math.round(discountPct / 5) * 5;
+                couponPct = Math.max(5, Math.min(95, couponPct));
+                const couponCode = `up-leona-${couponPct}`;
+                const couponDiscount = newValue * couponPct / 100;
+
+                resultDiv.innerHTML = `
+                    <div style="background: var(--bg-card); padding: 18px; border-radius: 10px; border: 1px solid var(--success);">
+                        <div style="text-align: center; padding: 12px; color: var(--text-secondary);">
+                            <div class="spinner"></div>
+                            <div style="margin-top: 8px;">Preparando cupom...</div>
+                        </div>
+                    </div>
+                `;
+
+                let couponOk = false;
+                try {
+                    const addRes = await fetch('/api/guru-coupons', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'add_email', coupon_code: couponCode, email })
+                    });
+                    const addData = await addRes.json();
+                    couponOk = addData.success;
+                } catch (_) {}
+
+                const baseUrl = newOffer.checkout_url || '';
+                const checkoutUrl = baseUrl ? baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'coupon=' + couponCode + '&email=' + email : '';
+
+                resultDiv.innerHTML = `
+                    <div style="background: var(--bg-card); padding: 18px; border-radius: 10px; border: 1px solid var(--success);">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                            <span style="color: var(--text-secondary);">Alteração:</span>
+                            <span style="color: var(--success); font-weight: 700;">⬆️ UPGRADE (+${diff})</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span style="color: var(--text-secondary);">Conexões:</span>
+                            <span style="font-weight: 600;">${currentQty} → ${newQty}</span>
+                        </div>
+                        <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+                            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">Cálculo pro rata:</div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; padding: 6px 0; border-bottom: 1px solid var(--border);">
+                                <span style="color: var(--text-secondary);">Crédito (${currentQty}x, ${diasRestantes}d)</span>
+                                <span style="color: var(--error);">-${fmtCurrency(currentValue * diasRestantes / diasNoCiclo)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; padding: 6px 0; border-bottom: 1px solid var(--border);">
+                                <span style="color: var(--text-secondary);">Cobrança (${newQty}x, ${diasRestantes}d)</span>
+                                <span style="color: var(--success);">+${fmtCurrency(newValue * diasRestantes / diasNoCiclo)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 1rem; padding-top: 8px;">
+                                <span style="font-weight: 600;">Pro rata:</span>
+                                <span style="color: var(--accent); font-weight: 700;">${fmtCurrency(proRata)}</span>
+                            </div>
+                        </div>
+                        <div style="background: rgba(156,39,176,0.1); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: #9c27b0;">Cupom: <strong>${couponCode}</strong> (${couponPct}% off)</span>
+                                <span style="color: #9c27b0; font-weight: 600;">${fmtCurrency(couponDiscount)}</span>
+                            </div>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px;">
+                                Pagará ${fmtCurrency(newValue - couponDiscount)} na 1ª fatura, depois ${fmtCurrency(newValue)}/mês
+                            </div>
+                        </div>
+                        ${checkoutUrl ? `
+                            <div style="background: rgba(0,212,170,0.1); padding: 14px; border-radius: 8px;">
+                                <div style="color: var(--accent); font-weight: 600; margin-bottom: 8px;">Link de checkout com desconto</div>
+                                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                    <button class="btn-copy" id="copy-up-${bpIdx}" onclick="copyLink('${checkoutUrl}', 'copy-up-${bpIdx}')" style="width: auto;">Copiar Link</button>
+                                    <span style="font-size: 0.7rem; color: var(--text-secondary); font-family: monospace; word-break: break-all;">${checkoutUrl}</span>
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${!couponOk ? `<div style="margin-top: 8px; font-size: 0.8rem; color: var(--warning);">⚠️ Não foi possível adicionar o email ao cupom automaticamente.</div>` : ''}
+                    </div>
+                `;
+            }
+        }
+
+        async function executeGuruUpgrade(subscriptionId, offerId, bpIdx) {
+            const resultDiv = document.getElementById(`simResult-${bpIdx}`);
+            const btn = document.getElementById(`execUpgrade-${bpIdx}`);
+            if (btn) { btn.disabled = true; btn.textContent = 'Executando...'; }
+
+            try {
+                const res = await fetch('/api/guru-upgrade', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ subscription_id: subscriptionId, offer_id: offerId })
+                });
+                const data = await res.json();
+
+                if (!data.success) {
+                    const errMsg = data.error || 'Erro desconhecido';
+                    resultDiv.innerHTML = `
+                        <div class="alert alert-warning">
+                            <strong>Upgrade não disponível</strong>
+                            ${errMsg.toLowerCase().includes('offer') || res.status === 422 || res.status === 400
+                                ? 'O plano atual não tem upgrade configurado para este destino. Entre em contato com o suporte.'
+                                : errMsg}
+                            ${data.details ? `<details style="margin-top: 8px; font-size: 0.75rem;"><summary>Detalhes</summary><pre style="white-space: pre-wrap; margin-top: 4px;">${JSON.stringify(data.details, null, 2)}</pre></details>` : ''}
+                        </div>
+                    `;
+                    return;
+                }
+
+                const inv = data.invoice;
+                resultDiv.innerHTML = `
+                    <div style="background: var(--bg-card); padding: 18px; border-radius: 10px; border: 1px solid var(--success);">
+                        <div style="color: var(--success); font-weight: 700; margin-bottom: 12px;">✅ Upgrade realizado!</div>
+                        ${inv ? `
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="color: var(--text-secondary);">Fatura</span>
+                                <span style="font-family: monospace; font-size: 0.85rem;">${inv.id}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="color: var(--text-secondary);">Valor pro rata</span>
+                                <span style="color: var(--accent); font-weight: 700;">${fmtCurrency(inv.value)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: var(--text-secondary);">Status</span>
+                                <span style="color: var(--warning);">${invoiceStatusLabel(inv.status)}</span>
+                            </div>
+                        ` : '<p style="color: var(--text-secondary); font-size: 0.85rem;">Upgrade processado. A cobrança será feita automaticamente.</p>'}
+                        <p style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 12px;">Suas conexões serão atualizadas após a confirmação do pagamento.</p>
+                    </div>
+                `;
+            } catch (err) {
+                resultDiv.innerHTML = `<div class="alert alert-error">Erro: ${err.message}</div>`;
+            }
         }
 
         // Init
