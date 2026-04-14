@@ -6,6 +6,10 @@
       "dest": "/api/$1"
     },
     {
+      "src": "/paddle",
+      "dest": "/public/paddle.html"
+    },
+    {
       "src": "/(.*)",
       "dest": "/public/$1"
     }
