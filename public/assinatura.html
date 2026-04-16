@@ -323,29 +323,14 @@
             margin-top: 16px;
         }
 
-        .sim-panel .sim-row {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            margin-bottom: 12px;
+        .sim-panel input[type="number"]::-webkit-inner-spin-button,
+        .sim-panel input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
         }
 
         .sim-panel input[type="number"] {
-            width: 80px;
-            padding: 10px 12px;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            color: var(--text-primary);
-            font-size: 1rem;
-            text-align: center;
-            outline: none;
-            transition: all 0.25s ease;
-        }
-
-        .sim-panel input[type="number"]:focus {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px var(--glow-purple);
+            -moz-appearance: textfield;
         }
 
         .sim-result {
@@ -454,6 +439,39 @@
             const diasNoCiclo = 30;
             const proRata = (newValue - currentValue) * diasRestantes / diasNoCiclo;
             return { proRata: Math.round(proRata * 100) / 100, diasRestantes, diasNoCiclo };
+        }
+
+        function adjustQty(idx, delta) {
+            const input = document.getElementById(`newQty-${idx}`);
+            const val = parseInt(input.value) || 1;
+            const newVal = Math.max(1, val + delta);
+            input.value = newVal;
+            const profiles = _data?.leona?.billing_profiles || (_data?.leona?.billing_profile ? [_data.leona.billing_profile] : []);
+            const currentQty = profiles[idx]?.starter_instances || 0;
+            updateQtyLabel(idx, currentQty);
+        }
+
+        function updateQtyLabel(idx, currentQty) {
+            const input = document.getElementById(`newQty-${idx}`);
+            const label = document.getElementById(`qtyLabel-${idx}`);
+            const btn = document.getElementById(`simBtn-${idx}`);
+            const newQty = parseInt(input.value) || 0;
+            const diff = newQty - currentQty;
+
+            if (diff === 0) {
+                label.innerHTML = `<span style="color: var(--text-muted);">Igual ao plano atual</span>`;
+                btn.disabled = true;
+                btn.textContent = 'Simular alteração';
+            } else if (diff > 0) {
+                label.innerHTML = `<span style="color: var(--success);">+${diff} conexão${diff !== 1 ? 'es' : ''}</span><span style="color: var(--text-muted);"> · total: <strong style="color: var(--text-primary);">${newQty}</strong></span>`;
+                btn.disabled = false;
+                btn.textContent = `Simular upgrade para ${newQty} conexões`;
+            } else {
+                const absDiff = Math.abs(diff);
+                label.innerHTML = `<span style="color: var(--orange);">−${absDiff} conexão${absDiff !== 1 ? 'es' : ''}</span><span style="color: var(--text-muted);"> · total: <strong style="color: var(--text-primary);">${newQty}</strong></span>`;
+                btn.disabled = false;
+                btn.textContent = `Simular downgrade para ${newQty} conexão${newQty !== 1 ? 'es' : ''}`;
+            }
         }
 
         function isLeonaExpired(bp) {
@@ -628,12 +646,33 @@
             const currentQty = bp.starter_instances || 0;
             return `
                 <div class="sim-panel">
-                    <h3 style="color: var(--orange); font-size: 1rem; margin-bottom: 12px;">Alterar plano</h3>
-                    <div class="sim-row">
-                        <span style="color: var(--text-secondary); font-size: 0.9rem;">Conexões desejadas:</span>
-                        <input type="number" id="newQty-${idx}" value="${currentQty}" min="1">
-                        <button class="btn-primary" style="padding: 10px 18px; font-size: 0.9rem;" onclick="simulateChange(${idx})">Simular</button>
+                    <h3 style="color: var(--orange); font-size: 1rem; margin-bottom: 16px;">Alterar plano</h3>
+
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                        <span style="color: var(--text-secondary); font-size: 0.85rem;">Plano atual</span>
+                        <span style="color: var(--text-primary); font-weight: 700; font-size: 1.1rem;">${currentQty} conexão${currentQty !== 1 ? 'es' : ''}</span>
                     </div>
+
+                    <div style="border-top: 1px solid var(--border); padding-top: 16px; margin-top: 8px;">
+                        <span style="color: var(--text-secondary); font-size: 0.85rem; display: block; margin-bottom: 12px;">Novo total de conexões:</span>
+                        <div style="display: flex; align-items: center; justify-content: center; gap: 16px;">
+                            <button onclick="adjustQty(${idx}, -1)" style="width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); font-size: 1.4rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-primary)'">−</button>
+                            <div style="text-align: center; min-width: 80px;">
+                                <input type="number" id="newQty-${idx}" value="${currentQty}" min="1"
+                                    style="width: 64px; padding: 10px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; color: var(--text-primary); font-size: 1.3rem; font-weight: 700; text-align: center; outline: none; transition: all 0.25s;"
+                                    onfocus="this.style.borderColor='var(--accent)';this.style.boxShadow='0 0 0 3px var(--glow-purple)'"
+                                    onblur="this.style.borderColor='var(--border)';this.style.boxShadow='none'"
+                                    oninput="updateQtyLabel(${idx}, ${currentQty})">
+                            </div>
+                            <button onclick="adjustQty(${idx}, +1)" style="width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); font-size: 1.4rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--orange)';this.style.color='var(--orange)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-primary)'">+</button>
+                        </div>
+                        <div id="qtyLabel-${idx}" style="text-align: center; margin-top: 12px; font-size: 0.85rem; min-height: 22px; transition: all 0.2s;"></div>
+                    </div>
+
+                    <button class="btn-orange" style="width: 100%; padding: 14px; margin-top: 16px; font-size: 0.95rem;" onclick="simulateChange(${idx})" id="simBtn-${idx}" disabled>
+                        Simular alteração
+                    </button>
+
                     <div class="sim-result" id="simResult-${idx}"></div>
                 </div>
             `;
