@@ -58,7 +58,7 @@ export default async function handler(req, res) {
 
     if (r.ok) {
       const profile = await r.json();
-      return res.status(200).json({ found: true, profile, profiles: [profile] });
+      return res.status(200).json({ found: true, profiles: [profile] });
     }
 
     if (r.status === 409) {
@@ -68,7 +68,6 @@ export default async function handler(req, res) {
       if (ids.length === 0) {
         return res.status(200).json({
           found: false,
-          profile: null,
           profiles: [],
           error: 'Múltiplas contas encontradas, mas sem IDs retornados pelo Leona'
         });
@@ -88,14 +87,12 @@ export default async function handler(req, res) {
       const valid = profiles.filter(Boolean);
       return res.status(200).json({
         found: valid.length > 0,
-        profile: valid[0] || null,
-        profiles: valid,
-        multiple: true
+        profiles: valid
       });
     }
 
     if (r.status === 404) {
-      return res.status(200).json({ found: false, profile: null, profiles: [] });
+      return res.status(200).json({ found: false, profiles: [] });
     }
 
     const errBody = await r.json().catch(() => ({}));
