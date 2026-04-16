@@ -2788,6 +2788,21 @@
                                         <span style="color: var(--text-secondary);">Status</span>
                                         <span style="color: var(--warning);">${inv.status}</span>
                                     </div>
+                                    ${inv.payment_url ? `
+                                        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
+                                            <span style="color: var(--text-secondary); font-size: 0.8rem; display: block; margin-bottom: 8px;">Link de pagamento:</span>
+                                            <div style="display: flex; gap: 8px;">
+                                                <input type="text" value="${inv.payment_url}" readonly
+                                                    style="flex: 1; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; color: var(--text-primary); font-size: 0.8rem; font-family: monospace;"
+                                                    onclick="this.select()">
+                                                <button class="btn-primary" style="padding: 10px 16px; font-size: 0.85rem; white-space: nowrap;"
+                                                    onclick="navigator.clipboard.writeText('${inv.payment_url}').then(() => { this.textContent = 'Copiado!'; setTimeout(() => this.textContent = 'Copiar', 2000); })">
+                                                    Copiar
+                                                </button>
+                                            </div>
+                                            <a href="${inv.payment_url}" target="_blank" style="display: inline-block; margin-top: 8px; color: var(--accent); font-size: 0.85rem; text-decoration: none;">Abrir link de pagamento →</a>
+                                        </div>
+                                    ` : ''}
                                 </div>
                             ` : `
                                 <div style="color: var(--text-secondary); font-size: 0.85rem;">Upgrade executado. A Guru processará a cobrança pro rata.</div>
@@ -2997,6 +3012,25 @@
                                 <div style="margin-top: 8px; font-size: 0.75rem; color: var(--text-secondary); font-family: monospace;">
                                     ${sub.subscription_code || sub.id}
                                 </div>
+                                ${sub.current_invoice && (sub.current_invoice.status === 'waiting_payment' || sub.current_invoice.status === 'pending') ? `
+                                    <div style="margin-top: 12px; padding: 14px; background: rgba(255,193,7,0.08); border: 1px solid var(--warning); border-radius: 8px;">
+                                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+                                            <span style="color: var(--warning); font-weight: 600; font-size: 0.9rem;">⚠️ Fatura ${sub.current_invoice.type === 'upgrade' ? 'de upgrade' : ''} pendente — ${formatGuruCurrency(sub.current_invoice.value)}</span>
+                                        </div>
+                                        ${sub.current_invoice.payment_url ? `
+                                            <div style="display: flex; gap: 8px;">
+                                                <input type="text" value="${sub.current_invoice.payment_url}" readonly
+                                                    style="flex: 1; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; color: var(--text-primary); font-size: 0.8rem; font-family: monospace;"
+                                                    onclick="this.select()">
+                                                <button class="btn-primary" style="padding: 8px 14px; font-size: 0.85rem; white-space: nowrap;"
+                                                    onclick="navigator.clipboard.writeText('${sub.current_invoice.payment_url}').then(() => { this.textContent = 'Copiado!'; setTimeout(() => this.textContent = 'Copiar', 2000); })">
+                                                    Copiar
+                                                </button>
+                                            </div>
+                                            <a href="${sub.current_invoice.payment_url}" target="_blank" style="display: inline-block; margin-top: 6px; color: var(--accent); font-size: 0.8rem; text-decoration: none;">Abrir link →</a>
+                                        ` : ''}
+                                    </div>
+                                ` : ''}
                             </div>
                         `).join('')}
                     </div>
