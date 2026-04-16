@@ -252,7 +252,7 @@ async function syncGuruCycleDate(subscriptionId, leonaPeriodEnd, accountId, leon
         'Content-Type': 'application/json',
         'User-Agent': 'n8n'
       },
-      body: JSON.stringify({ cycle_end_date: cycleEndDate })
+      body: JSON.stringify({ new_end_date: cycleEndDate })
     });
 
     const data = await r.json().catch(() => ({}));
