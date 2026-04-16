@@ -935,21 +935,42 @@
         }
 
         (function checkAuth() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlToken = (urlParams.get('token') || '').trim();
             const saved = getStoredToken();
-            if (saved) {
-                fetch('/api/auth', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token: saved })
-                }).then(r => {
-                    if (r.ok) {
-                        document.getElementById('lockScreen').style.display = 'none';
-                        document.getElementById('appContent').style.display = 'block';
-                    } else {
-                        localStorage.removeItem('leona_token');
+            const candidate = urlToken || saved;
+
+            console.log('[auth] urlToken?', !!urlToken, 'saved?', !!saved);
+
+            if (!candidate) return;
+
+            fetch('/api/auth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: candidate })
+            }).then(async r => {
+                console.log('[auth] /api/auth status =', r.status);
+                if (r.ok) {
+                    localStorage.setItem('leona_token', candidate);
+                    document.getElementById('lockScreen').style.display = 'none';
+                    document.getElementById('appContent').style.display = 'block';
+                    if (urlToken) {
+                        urlParams.delete('token');
+                        const newQuery = urlParams.toString();
+                        const newUrl = window.location.pathname + (newQuery ? `?${newQuery}` : '') + window.location.hash;
+                        window.history.replaceState({}, document.title, newUrl);
                     }
-                });
-            }
+                } else {
+                    localStorage.removeItem('leona_token');
+                    if (urlToken) {
+                        const errEl = document.getElementById('lockError');
+                        if (errEl) {
+                            errEl.textContent = 'Token da URL inválido';
+                            errEl.style.display = 'block';
+                        }
+                    }
+                }
+            }).catch(e => console.error('[auth] erro', e));
         })();
 
         // ============================================
