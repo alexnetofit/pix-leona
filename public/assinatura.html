@@ -463,14 +463,14 @@
                 btn.disabled = true;
                 btn.textContent = 'Simular alteração';
             } else if (diff > 0) {
-                label.innerHTML = `<span style="color: var(--success);">+${diff} conexão${diff !== 1 ? 'es' : ''}</span><span style="color: var(--text-muted);"> · total: <strong style="color: var(--text-primary);">${newQty}</strong></span>`;
+                label.innerHTML = `<span style="color: var(--success);">+${diff} conex${diff !== 1 ? 'ões' : 'ão'}</span><span style="color: var(--text-muted);"> · total: <strong style="color: var(--text-primary);">${newQty}</strong></span>`;
                 btn.disabled = false;
                 btn.textContent = `Simular upgrade para ${newQty} conexões`;
             } else {
                 const absDiff = Math.abs(diff);
-                label.innerHTML = `<span style="color: var(--orange);">−${absDiff} conexão${absDiff !== 1 ? 'es' : ''}</span><span style="color: var(--text-muted);"> · total: <strong style="color: var(--text-primary);">${newQty}</strong></span>`;
+                label.innerHTML = `<span style="color: var(--orange);">−${absDiff} conex${absDiff !== 1 ? 'ões' : 'ão'}</span><span style="color: var(--text-muted);"> · total: <strong style="color: var(--text-primary);">${newQty}</strong></span>`;
                 btn.disabled = false;
-                btn.textContent = `Simular downgrade para ${newQty} conexão${newQty !== 1 ? 'es' : ''}`;
+                btn.textContent = `Simular downgrade para ${newQty} conex${newQty !== 1 ? 'ões' : 'ão'}`;
             }
         }
 
@@ -650,7 +650,7 @@
 
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
                         <span style="color: var(--text-secondary); font-size: 0.85rem;">Plano atual</span>
-                        <span style="color: var(--text-primary); font-weight: 700; font-size: 1.1rem;">${currentQty} conexão${currentQty !== 1 ? 'es' : ''}</span>
+                        <span style="color: var(--text-primary); font-weight: 700; font-size: 1.1rem;">${currentQty} conex${currentQty !== 1 ? 'ões' : 'ão'}</span>
                     </div>
 
                     <div style="border-top: 1px solid var(--border); padding-top: 16px; margin-top: 8px;">
@@ -793,7 +793,7 @@
 
             if (!newOffer) {
                 resultDiv.style.display = 'block';
-                resultDiv.innerHTML = `<div class="alert alert-warning">Não existe plano configurado para ${newQty} conexão(ões).</div>`;
+                resultDiv.innerHTML = `<div class="alert alert-warning">Não existe plano configurado para ${newQty} conex${newQty !== 1 ? 'ões' : 'ão'}.</div>`;
                 return;
             }
 
