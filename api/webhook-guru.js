@@ -98,14 +98,29 @@ export default async function handler(req, res) {
         match = unlinked[0];
         firstLink = true;
         console.log(`webhook-guru: conta ${match.account_id} sem guru_account_id, vinculando à subscription ${guruSubId}`);
+      } else if (unlinked.length > 1) {
+        const activeUnlinked = unlinked.filter(p =>
+          p.subscription_status === 'active' && p.current_period_end && new Date(p.current_period_end) > new Date()
+        );
+        if (activeUnlinked.length === 1) {
+          match = activeUnlinked[0];
+          firstLink = true;
+          console.log(`webhook-guru: múltiplas contas sem vínculo, mas apenas conta ${match.account_id} está ativa, vinculando à subscription ${guruSubId}`);
+        } else {
+          console.log(`webhook-guru: ${activeUnlinked.length} contas ativas sem vínculo, não é possível determinar qual atualizar. Contas: ${profiles.map(p => `${p.account_id}(guru=${p.guru_account_id}, status=${p.subscription_status})`).join(', ')}`);
+          return res.status(200).json({
+            received: true,
+            processed: false,
+            error: `múltiplas contas sem vínculo (${unlinked.length}), ${activeUnlinked.length} ativas — não é possível determinar qual atualizar`,
+            accounts_found: profiles.map(p => ({ account_id: p.account_id, guru_account_id: p.guru_account_id, status: p.subscription_status }))
+          });
+        }
       } else {
         console.log(`webhook-guru: nenhuma conta Leona com guru_account_id correspondente à subscription ${guruSubId}. Contas encontradas: ${profiles.map(p => `${p.account_id}(guru=${p.guru_account_id})`).join(', ')}`);
         return res.status(200).json({
           received: true,
           processed: false,
-          error: unlinked.length > 1
-            ? `múltiplas contas sem vínculo, não é possível determinar qual atualizar`
-            : `nenhuma conta Leona vinculada à subscription ${guruSubId}`,
+          error: `nenhuma conta Leona vinculada à subscription ${guruSubId}`,
           accounts_found: profiles.map(p => ({ account_id: p.account_id, guru_account_id: p.guru_account_id }))
         });
       }
