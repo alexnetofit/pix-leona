@@ -1,5 +1,6 @@
 const LEONA_PRODUCT_ID = 'a1869b83-b28d-4257-a986-1df94558a152';
 const LEONA_BASE = 'https://apiaws.leonasolutions.io/api/v1/integration';
+const GURU_BASE = 'https://digitalmanager.guru/api/v2';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -121,11 +122,19 @@ export default async function handler(req, res) {
       updateData.guru_account_id = guruSubId;
     }
 
-    if (!isUpgradeOrDowngrade) {
+    const existingPeriodEnd = match.current_period_end;
+    const hasActivePeriod = firstLink && existingPeriodEnd
+      && new Date(existingPeriodEnd) > new Date();
+
+    if (!isUpgradeOrDowngrade && !hasActivePeriod) {
       const dueDate = calculateDueDate(payload);
       if (dueDate) {
         updateData.due_date = dueDate;
       }
+    }
+
+    if (hasActivePeriod) {
+      console.log(`webhook-guru: firstLink com ciclo ativo (${existingPeriodEnd}), preservando due_date do Leona`);
     }
 
     console.log(`webhook-guru: atualizando conta ${accountId}:`, JSON.stringify(updateData));
@@ -143,13 +152,20 @@ export default async function handler(req, res) {
 
     if (leonaPostRes.ok) {
       console.log(`webhook-guru: conta ${accountId} atualizada com sucesso`);
+
+      if (hasActivePeriod) {
+        await syncGuruCycleDate(guruSubId, existingPeriodEnd);
+      }
+
       return res.status(200).json({
         received: true,
         processed: true,
         account_id: accountId,
         instances,
         is_upgrade_downgrade: isUpgradeOrDowngrade,
-        due_date: updateData.due_date || null
+        due_date: updateData.due_date || null,
+        preserved_due_date: hasActivePeriod ? existingPeriodEnd : null,
+        guru_cycle_synced: hasActivePeriod
       });
     }
 
@@ -204,6 +220,40 @@ function extractInstances(planName) {
   const match = planName.match(/(\d+)\s*conex/i);
   if (match) return parseInt(match[1], 10);
   return null;
+}
+
+async function syncGuruCycleDate(subscriptionId, leonaPeriodEnd) {
+  const guruToken = process.env.GURU_TOKEN;
+  if (!guruToken) {
+    console.log('webhook-guru: GURU_TOKEN não configurado, não foi possível ajustar ciclo na Guru');
+    return;
+  }
+
+  const cycleEndDate = leonaPeriodEnd.split('T')[0];
+  console.log(`webhook-guru: ajustando ciclo da Guru sub=${subscriptionId} para ${cycleEndDate}`);
+
+  try {
+    const r = await fetch(`${GURU_BASE}/subscriptions/${subscriptionId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${guruToken}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'n8n'
+      },
+      body: JSON.stringify({ cycle_end_date: cycleEndDate })
+    });
+
+    const data = await r.json().catch(() => ({}));
+
+    if (r.ok) {
+      console.log(`webhook-guru: ciclo da Guru ajustado com sucesso para ${cycleEndDate}`);
+    } else {
+      console.error(`webhook-guru: erro ao ajustar ciclo da Guru (${r.status}):`, JSON.stringify(data));
+    }
+  } catch (e) {
+    console.error('webhook-guru: erro ao ajustar ciclo na Guru:', e.message);
+  }
 }
 
 function calculateDueDate(payload) {
