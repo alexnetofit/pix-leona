@@ -110,33 +110,52 @@ export default async function handler(req, res) {
         const allSubs = Array.isArray(subsData.data) ? subsData.data : [];
         const leonaSubs = allSubs.filter(s => s.product?.id === LEONA_PRODUCT_ID);
 
-        guru.subscriptions = leonaSubs.map(s => ({
-          id: s.id,
-          subscription_code: s.subscription_code,
-          product_name: s.product?.name || '',
-          product_group: s.product?.group?.name || '',
-          offer_id: s.offer?.id || s.product?.offer?.id || null,
-          offer_name: s.offer?.name || s.product?.offer?.name || null,
-          status: s.last_status,
-          status_at: s.last_status_at,
-          payment_method: s.payment_method,
-          charged_times: s.charged_times,
-          cycle_start: s.cycle_start_date,
-          cycle_end: s.cycle_end_date,
-          next_cycle: s.next_cycle_at,
-          started_at: s.started_at,
-          cancelled_at: s.cancelled_at,
-          trial_start: s.trial_started_at,
-          trial_end: s.trial_finished_at,
-          charged_every_days: s.charged_every_days,
-          current_invoice: s.current_invoice ? {
-            id: s.current_invoice.id,
-            status: s.current_invoice.status,
-            type: s.current_invoice.type,
-            value: s.current_invoice.value,
-            payment_url: s.current_invoice.payment_url || null
-          } : null
-        }));
+        const subDetails = await Promise.all(
+          leonaSubs.map(async (s) => {
+            let currentInvoice = null;
+            if (s.last_status === 'active') {
+              try {
+                const detailRes = await fetch(`${GURU_BASE}/subscriptions/${s.id}`, { headers });
+                if (detailRes.ok) {
+                  const detail = await detailRes.json();
+                  const ci = detail.current_invoice;
+                  if (ci && ci.status !== 'paid') {
+                    currentInvoice = {
+                      id: ci.id,
+                      status: ci.status,
+                      type: ci.type,
+                      value: ci.value,
+                      payment_url: ci.payment_url || null
+                    };
+                  }
+                }
+              } catch (_) {}
+            }
+            return {
+              id: s.id,
+              subscription_code: s.subscription_code,
+              product_name: s.product?.name || '',
+              product_group: s.product?.group?.name || '',
+              offer_id: s.offer?.id || s.product?.offer?.id || null,
+              offer_name: s.offer?.name || s.product?.offer?.name || null,
+              status: s.last_status,
+              status_at: s.last_status_at,
+              payment_method: s.payment_method,
+              charged_times: s.charged_times,
+              cycle_start: s.cycle_start_date,
+              cycle_end: s.cycle_end_date,
+              next_cycle: s.next_cycle_at,
+              started_at: s.started_at,
+              cancelled_at: s.cancelled_at,
+              trial_start: s.trial_started_at,
+              trial_end: s.trial_finished_at,
+              charged_every_days: s.charged_every_days,
+              current_invoice: currentInvoice
+            };
+          })
+        );
+
+        guru.subscriptions = subDetails;
 
         if (guru.subscriptions.length > 0) {
           const leonaSubIds = new Set(leonaSubs.map(s => s.id));
