@@ -682,7 +682,14 @@
             const content = document.getElementById('content');
             const { leona, guru, offers } = data;
 
-            const profiles = leona.billing_profiles || (leona.billing_profile ? [leona.billing_profile] : []);
+            let profiles = leona.billing_profiles || (leona.billing_profile ? [leona.billing_profile] : []);
+
+            if (profiles.length > 1) {
+                const active = profiles.filter(p => p.subscription_status === 'active' && p.starter_instances > 0);
+                if (active.length >= 1) {
+                    profiles = active;
+                }
+            }
 
             if (!leona.found || profiles.length === 0) {
                 content.innerHTML = `
