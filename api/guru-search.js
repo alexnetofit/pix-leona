@@ -128,7 +128,14 @@ export default async function handler(req, res) {
           cancelled_at: s.cancelled_at,
           trial_start: s.trial_started_at,
           trial_end: s.trial_finished_at,
-          charged_every_days: s.charged_every_days
+          charged_every_days: s.charged_every_days,
+          current_invoice: s.current_invoice ? {
+            id: s.current_invoice.id,
+            status: s.current_invoice.status,
+            type: s.current_invoice.type,
+            value: s.current_invoice.value,
+            payment_url: s.current_invoice.payment_url || null
+          } : null
         }));
 
         if (guru.subscriptions.length > 0) {

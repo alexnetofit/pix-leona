@@ -25,7 +25,7 @@ export default async function handler(req, res) {
   const headers = GURU_HEADERS(guruToken);
 
   try {
-    const upgradeRes = await fetch(`${GURU_BASE}/subscriptions/${subscription_id}`, {
+    const upgradeRes = await fetch(`${GURU_BASE}/subscriptions/${subscription_id}/plans`, {
       method: 'PUT',
       headers,
       body: JSON.stringify({ offer_id })
@@ -41,27 +41,26 @@ export default async function handler(req, res) {
       });
     }
 
-    const txRes = await fetch(
-      `${GURU_BASE}/transactions?subscription_id=${subscription_id}&limit=5`,
+    const subRes = await fetch(
+      `${GURU_BASE}/subscriptions/${subscription_id}`,
       { headers }
     );
 
     let invoice = null;
-    if (txRes.ok) {
-      const txData = await txRes.json();
-      const txList = Array.isArray(txData.data) ? txData.data : [];
-      const upgradeTx = txList.find(t => t.invoice?.type === 'upgrade' || t.invoice?.type === 'downgrade');
-      const latestTx = upgradeTx || txList[0];
-      if (latestTx?.invoice) {
+    if (subRes.ok) {
+      const subData = await subRes.json();
+      const ci = subData.current_invoice;
+      if (ci) {
         invoice = {
-          id: latestTx.invoice.id,
-          status: latestTx.invoice.status,
-          value: latestTx.invoice.value,
-          type: latestTx.invoice.type,
-          cycle: latestTx.invoice.cycle,
-          charge_at: latestTx.invoice.charge_at,
-          period_start: latestTx.invoice.period_start,
-          period_end: latestTx.invoice.period_end
+          id: ci.id,
+          status: ci.status,
+          value: ci.value,
+          type: ci.type,
+          cycle: ci.cycle,
+          charge_at: ci.charge_at,
+          period_start: ci.period_start,
+          period_end: ci.period_end,
+          payment_url: ci.payment_url || null
         };
       }
     }
