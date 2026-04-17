@@ -60,29 +60,70 @@ export default async function handler(req, res) {
           const subsData = await subsRes.json();
           const subs = subsData.data || [];
 
-          paddle.subscriptions = subs.map(s => ({
-            id: s.id,
-            status: s.status,
-            currency_code: s.currency_code,
-            started_at: s.started_at,
-            first_billed_at: s.first_billed_at,
-            next_billed_at: s.next_billed_at,
-            paused_at: s.paused_at,
-            canceled_at: s.canceled_at,
-            current_billing_period: s.current_billing_period,
-            billing_cycle: s.billing_cycle,
-            items: (s.items || []).map(item => ({
-              price_id: item.price?.id,
-              product_id: item.price?.product_id,
-              product_name: item.product?.name || item.price?.description || null,
-              quantity: item.quantity,
-              unit_price: item.price?.unit_price,
-              billing_cycle: item.price?.billing_cycle,
-              status: item.status
-            })),
-            management_urls: s.management_urls || null,
-            scheduled_change: s.scheduled_change || null,
-            discount: s.discount || null
+          paddle.subscriptions = await Promise.all(subs.map(async (s) => {
+            let transactions = [];
+            try {
+              const txRes = await fetch(
+                `${PADDLE_BASE}/transactions?subscription_id=${s.id}&per_page=20&order_by=billed_at[DESC]`,
+                { headers }
+              );
+              if (txRes.ok) {
+                const txData = await txRes.json();
+                transactions = (txData.data || []).map(t => ({
+                  id: t.id,
+                  status: t.status,
+                  origin: t.origin,
+                  invoice_id: t.invoice_id,
+                  invoice_number: t.invoice_number,
+                  billed_at: t.billed_at,
+                  created_at: t.created_at,
+                  currency_code: t.currency_code,
+                  total: t.details?.totals?.total || null,
+                  grand_total: t.details?.totals?.grand_total || null,
+                  fee: t.details?.totals?.fee || null,
+                  earnings: t.details?.totals?.earnings || null,
+                  collection_mode: t.collection_mode,
+                  payments: (t.payments || []).map(p => ({
+                    payment_method_id: p.payment_method_id,
+                    status: p.status,
+                    amount: p.amount,
+                    method_details: p.method_details
+                  })),
+                  items_summary: (t.items || []).map(it => ({
+                    item_id: it.id,
+                    quantity: it.quantity,
+                    price_name: it.price?.name || it.price?.description || null,
+                    product_id: it.price?.product_id || null
+                  }))
+                }));
+              }
+            } catch (_) {}
+
+            return {
+              id: s.id,
+              status: s.status,
+              currency_code: s.currency_code,
+              started_at: s.started_at,
+              first_billed_at: s.first_billed_at,
+              next_billed_at: s.next_billed_at,
+              paused_at: s.paused_at,
+              canceled_at: s.canceled_at,
+              current_billing_period: s.current_billing_period,
+              billing_cycle: s.billing_cycle,
+              items: (s.items || []).map(item => ({
+                price_id: item.price?.id,
+                product_id: item.price?.product_id,
+                product_name: item.product?.name || item.price?.description || null,
+                quantity: item.quantity,
+                unit_price: item.price?.unit_price,
+                billing_cycle: item.price?.billing_cycle,
+                status: item.status
+              })),
+              management_urls: s.management_urls || null,
+              scheduled_change: s.scheduled_change || null,
+              discount: s.discount || null,
+              transactions
+            };
           }));
         }
       }

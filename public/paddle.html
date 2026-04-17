@@ -3,962 +3,1257 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Paddle Testes - Leona</title>
+    <title>Minha Assinatura Paddle - Leona</title>
+    <link rel="icon" type="image/png" href="/logo-leona.png">
     <style>
         :root {
-            --bg-primary: #0f0f0f;
-            --bg-secondary: #1a1a1a;
-            --bg-card: #242424;
-            --accent: #00d4aa;
-            --accent-hover: #00b894;
-            --text-primary: #ffffff;
-            --text-secondary: #a0a0a0;
-            --error: #ff6b6b;
-            --success: #00d4aa;
-            --warning: #ffc107;
-            --border: #333333;
+            --bg-primary: #0c0a12;
+            --bg-secondary: #151120;
+            --bg-card: #1e1830;
+            --bg-elevated: #261f3a;
+            --accent: #8b5cf6;
+            --accent-hover: #7c3aed;
+            --accent-soft: rgba(139, 92, 246, 0.12);
+            --orange: #f59e0b;
+            --orange-hover: #d97706;
+            --orange-soft: rgba(245, 158, 11, 0.12);
             --paddle: #3B82F6;
+            --paddle-soft: rgba(59, 130, 246, 0.12);
+            --text-primary: #f0ecf7;
+            --text-secondary: #9589ad;
+            --text-muted: #6b5f82;
+            --error: #ef4444;
+            --error-soft: rgba(239, 68, 68, 0.1);
+            --success: #10b981;
+            --warning: #f59e0b;
+            --border: #2a2240;
+            --border-light: #352d50;
+            --glow-purple: rgba(139, 92, 246, 0.25);
+            --glow-orange: rgba(245, 158, 11, 0.2);
+            --glow-paddle: rgba(59, 130, 246, 0.25);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
-        @font-face {
-            font-family: 'Geist';
-            src: local('Geist'), local('SF Pro Display');
-        }
-
         body {
-            font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
             background: var(--bg-primary);
             color: var(--text-primary);
             min-height: 100vh;
             line-height: 1.6;
         }
 
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: 400px;
+            background: radial-gradient(ellipse at 50% -20%, rgba(139, 92, 246, 0.08) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
         .container {
-            max-width: 900px;
+            max-width: 640px;
             margin: 0 auto;
-            padding: 40px 20px;
+            padding: 40px 20px 60px;
+            position: relative;
+            z-index: 1;
         }
 
-        header {
-            text-align: center;
-            margin-bottom: 50px;
-        }
+        header { text-align: center; margin-bottom: 32px; }
 
-        .logo {
-            font-size: 2.5rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, var(--paddle) 0%, #818CF8 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 10px;
+        .logo-img {
+            height: 60px;
+            width: auto;
+            margin-bottom: 8px;
+            filter: drop-shadow(0 4px 20px var(--glow-purple));
         }
 
         .subtitle {
             color: var(--text-secondary);
-            font-size: 1rem;
-        }
-
-        .search-section {
-            background: var(--bg-card);
-            border-radius: 16px;
-            padding: 30px;
-            margin-bottom: 30px;
-            border: 1px solid var(--border);
-        }
-
-        .search-section h2 {
-            font-size: 1.1rem;
-            margin-bottom: 20px;
-            color: var(--text-secondary);
+            font-size: 0.85rem;
             font-weight: 500;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
         }
 
-        .input-group {
-            display: flex;
-            gap: 12px;
-        }
+        .search-box { display: flex; gap: 10px; margin-bottom: 30px; }
 
-        input[type="email"], input[type="text"], input[type="number"] {
+        .search-box input {
             flex: 1;
-            padding: 16px 20px;
-            border: 2px solid var(--border);
-            border-radius: 12px;
+            padding: 14px 16px;
             background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
             color: var(--text-primary);
             font-size: 1rem;
-            transition: all 0.3s ease;
-        }
-
-        input:focus {
             outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 4px rgba(0, 212, 170, 0.1);
+            transition: all 0.25s ease;
         }
 
-        input::placeholder { color: var(--text-secondary); }
+        .search-box input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--glow-purple); }
+        .search-box input::placeholder { color: var(--text-muted); }
 
-        button {
-            padding: 16px 32px;
+        .btn {
+            padding: 13px 22px;
             border: none;
             border-radius: 12px;
-            font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s ease;
+            font-size: 0.92rem;
+            white-space: nowrap;
+            transition: all 0.25s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
         }
+
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
 
         .btn-primary {
-            background: var(--accent);
-            color: var(--bg-primary);
+            background: linear-gradient(135deg, var(--accent), #a78bfa);
+            color: #fff;
+            box-shadow: 0 2px 12px var(--glow-purple);
         }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 20px var(--glow-purple); }
 
-        .btn-primary:hover {
-            background: var(--accent-hover);
-            transform: translateY(-2px);
+        .btn-paddle {
+            background: linear-gradient(135deg, var(--paddle), #60a5fa);
+            color: #fff;
+            box-shadow: 0 2px 12px var(--glow-paddle);
         }
+        .btn-paddle:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 20px var(--glow-paddle); }
 
-        .btn-primary:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
+        .btn-orange {
+            background: linear-gradient(135deg, var(--orange), #fbbf24);
+            color: #1a1005;
+            box-shadow: 0 2px 12px var(--glow-orange);
         }
+        .btn-orange:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 20px var(--glow-orange); }
 
-        .btn-secondary {
-            background: var(--bg-secondary);
+        .btn-ghost {
+            background: var(--bg-card);
             color: var(--text-primary);
-            border: 2px solid var(--border);
+            border: 1px solid var(--border);
+        }
+        .btn-ghost:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+
+        .btn-danger {
+            background: var(--error-soft);
+            color: var(--error);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+        }
+        .btn-danger:hover:not(:disabled) {
+            background: rgba(239, 68, 68, 0.18);
+            border-color: var(--error);
         }
 
-        .btn-secondary:hover {
-            border-color: var(--accent);
+        .btn-link {
+            background: transparent;
+            color: var(--paddle);
+            padding: 6px 10px;
+            font-size: 0.8rem;
+        }
+        .btn-link:hover { background: var(--paddle-soft); }
+
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 22px;
+            margin-bottom: 16px;
+            transition: border-color 0.25s ease;
+        }
+
+        .card-paddle { border-color: rgba(59,130,246,0.35); box-shadow: 0 0 24px rgba(59,130,246,0.08); }
+        .card-active { border-color: var(--accent); box-shadow: 0 0 24px var(--glow-purple); }
+        .card-error { border-color: var(--error); }
+
+        .card h3 {
+            font-size: 0.95rem;
+            margin-bottom: 14px;
             color: var(--accent);
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
         }
+        .card h3.paddle-tone { color: var(--paddle); }
+        .card h3.orange-tone { color: var(--orange); }
 
-        .results-section { display: none; }
-        .results-section.active { display: block; }
-
-        .section-header {
+        .info-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.88rem;
             gap: 10px;
         }
+        .info-row:last-child { border-bottom: none; }
+        .info-label { color: var(--text-secondary); }
+        .info-value { font-weight: 600; text-align: right; word-break: break-word; }
 
-        .section-header h2 {
-            font-size: 1.3rem;
-            font-weight: 600;
-        }
-
-        .customer-info {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-        }
-
-        .message {
-            padding: 16px 20px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            display: none;
-        }
-
-        .message.active {
-            display: block;
-            animation: fadeIn 0.3s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        .message.error {
-            background: rgba(255, 107, 107, 0.1);
-            border: 1px solid var(--error);
-            color: var(--error);
-        }
-
-        .message.success {
-            background: rgba(0, 212, 170, 0.1);
-            border: 1px solid var(--success);
-            color: var(--success);
-        }
-
-        .loading {
+        .status-badge {
             display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 2px solid transparent;
-            border-top-color: currentColor;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin-right: 8px;
-            vertical-align: middle;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
         }
 
-        @keyframes spin { to { transform: rotate(360deg); } }
+        .status-active { background: rgba(16,185,129,0.15); color: var(--success); }
+        .status-trialing { background: rgba(139,92,246,0.18); color: var(--accent); }
+        .status-paused { background: rgba(160,160,160,0.2); color: var(--text-secondary); }
+        .status-past_due { background: var(--orange-soft); color: var(--warning); }
+        .status-canceled { background: rgba(239,68,68,0.12); color: var(--error); }
+        .status-inactive { background: rgba(107,95,130,0.2); color: var(--text-secondary); }
+
+        .alert {
+            padding: 14px 16px;
+            border-radius: 12px;
+            margin-bottom: 14px;
+            font-size: 0.88rem;
+            line-height: 1.5;
+        }
+        .alert strong { display: block; margin-bottom: 4px; font-size: 0.95rem; }
+        .alert-info { background: var(--accent-soft); border: 1px solid rgba(139,92,246,0.2); color: #b49cfa; }
+        .alert-warning { background: var(--orange-soft); border: 1px solid rgba(245,158,11,0.25); color: var(--orange); }
+        .alert-error { background: var(--error-soft); border: 1px solid rgba(239,68,68,0.25); color: var(--error); }
+        .alert-success { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); color: var(--success); }
+        .alert-paddle { background: var(--paddle-soft); border: 1px solid rgba(59,130,246,0.25); color: var(--paddle); }
+
+        .empty-state { text-align: center; padding: 50px 20px; color: var(--text-secondary); }
+        .empty-state .icon { font-size: 2.8rem; margin-bottom: 14px; opacity: 0.7; }
 
         .spinner {
-            width: 30px;
-            height: 30px;
+            width: 26px;
+            height: 26px;
             border: 3px solid var(--border);
             border-top-color: var(--accent);
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
             margin: 0 auto;
         }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
-        .leona-profile {
+        .loading-state { text-align: center; padding: 50px 20px; }
+
+        .panel {
             background: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
+            border-radius: 14px;
+            padding: 18px;
+            margin-top: 14px;
         }
 
-        .leona-profile h3 {
-            font-size: 1rem;
-            color: var(--accent);
-            margin-bottom: 12px;
-        }
-
-        .guru-status {
-            font-size: 0.75rem;
-            padding: 4px 10px;
-            border-radius: 6px;
+        .panel-title {
+            font-size: 0.92rem;
+            color: var(--text-primary);
             font-weight: 600;
-            display: inline-block;
-        }
-        .guru-status.active { background: rgba(0, 212, 170, 0.2); color: var(--success); }
-        .guru-status.trial { background: rgba(33, 150, 243, 0.2); color: #64b5f6; }
-        .guru-status.canceled { background: rgba(255, 107, 107, 0.2); color: var(--error); }
-        .guru-status.pastdue { background: rgba(255, 193, 7, 0.2); color: var(--warning); }
-        .guru-status.inactive { background: rgba(160, 160, 160, 0.2); color: var(--text-secondary); }
-
-        .paddle-sub-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 20px;
             margin-bottom: 12px;
-            transition: border-color 0.3s;
-        }
-        .paddle-sub-card:hover { border-color: var(--paddle); }
-
-        .paddle-status {
-            font-size: 0.75rem;
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-weight: 600;
-            display: inline-block;
-        }
-        .paddle-status.active { background: rgba(59, 130, 246, 0.2); color: var(--paddle); }
-        .paddle-status.trialing { background: rgba(139, 92, 246, 0.2); color: #8B5CF6; }
-        .paddle-status.canceled { background: rgba(255, 107, 107, 0.2); color: var(--error); }
-        .paddle-status.past_due { background: rgba(255, 193, 7, 0.2); color: var(--warning); }
-        .paddle-status.paused { background: rgba(160, 160, 160, 0.2); color: var(--text-secondary); }
-
-        .product-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-            gap: 12px;
+            display: flex; justify-content: space-between; align-items: center;
         }
 
-        .product-card {
-            background: var(--bg-card);
+        .qty-control {
+            display: flex; align-items: center; justify-content: center; gap: 14px;
+            margin: 12px 0;
+        }
+        .qty-control button {
+            width: 40px; height: 40px;
+            border-radius: 10px;
             border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 20px;
-            transition: border-color 0.3s;
-        }
-        .product-card:hover { border-color: var(--paddle); }
-
-        .btn-copy {
-            background: transparent;
-            border: 1px solid var(--accent);
-            color: var(--accent);
-            padding: 8px 16px;
-            font-size: 0.85rem;
-            border-radius: 8px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 1.3rem; font-weight: 700;
             cursor: pointer;
-            transition: all 0.3s;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+        }
+        .qty-control button:hover { border-color: var(--accent); color: var(--accent); }
+        .qty-control input {
+            width: 60px;
+            padding: 8px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 1.2rem; font-weight: 700;
+            text-align: center;
+            outline: none;
+        }
+        .qty-control input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--glow-purple); }
+        .qty-control input::-webkit-inner-spin-button, .qty-control input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        .qty-control input { -moz-appearance: textfield; }
+
+        select {
             width: 100%;
+            padding: 11px 14px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            outline: none;
+            cursor: pointer;
+        }
+        select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--glow-purple); }
+
+        textarea {
+            width: 100%;
+            padding: 11px 14px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            outline: none;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 70px;
+        }
+        textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--glow-purple); }
+
+        .actions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 8px;
             margin-top: 12px;
         }
-        .btn-copy:hover {
-            background: var(--accent);
-            color: var(--bg-primary);
+
+        .tx-row {
+            display: flex; justify-content: space-between; align-items: center; gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
         }
-        .btn-copy.copied {
-            background: var(--success);
-            border-color: var(--success);
-            color: var(--bg-primary);
+        .tx-row:last-child { border-bottom: none; }
+        .tx-info { flex: 1; min-width: 0; }
+        .tx-info .tx-date { color: var(--text-primary); font-weight: 600; }
+        .tx-info .tx-id { color: var(--text-muted); font-family: monospace; font-size: 0.7rem; margin-top: 2px; word-break: break-all; }
+        .tx-amount { font-weight: 700; text-align: right; white-space: nowrap; }
+        .tx-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+        .modal-backdrop {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: none;
+            align-items: center; justify-content: center;
+            padding: 20px;
         }
+        .modal-backdrop.active { display: flex; }
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 460px;
+            width: 100%;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+        .modal h3 { color: var(--text-primary); margin-bottom: 12px; font-size: 1.1rem; }
+        .modal-actions { display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end; flex-wrap: wrap; }
+
+        .pill-row { display: flex; flex-wrap: wrap; gap: 6px; }
+        .pill {
+            display: inline-block;
+            padding: 4px 10px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+        .pill.active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+
+        .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border); }
+        .footer-logo { height: 26px; opacity: 0.4; }
+
+        .wpp-section { margin-top: 24px; }
+        .wpp-btn {
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            width: 100%;
+            padding: 12px 16px;
+            background: #25d366;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.86rem;
+            transition: all 0.25s ease;
+        }
+        .wpp-btn:hover { background: #1ebe5a; transform: translateY(-1px); }
 
         @media (max-width: 600px) {
-            .input-group { flex-direction: column; }
-            .section-header { flex-direction: column; align-items: flex-start; }
-            .product-grid { grid-template-columns: 1fr; }
+            .container { padding: 20px 14px 36px; }
+            .search-box { flex-direction: column; }
+            .info-row { font-size: 0.8rem; padding: 8px 0; }
+            .logo-img { height: 44px; }
+            .subtitle { font-size: 0.74rem; }
+            header { margin-bottom: 22px; }
+            .card { padding: 16px; border-radius: 12px; margin-bottom: 12px; }
+            .card h3 { font-size: 0.85rem; margin-bottom: 10px; }
+            .panel { padding: 14px; border-radius: 12px; }
+            .alert { padding: 12px; border-radius: 10px; font-size: 0.82rem; }
+            .btn { padding: 10px 16px; font-size: 0.82rem; border-radius: 10px; }
+            .actions-grid { grid-template-columns: 1fr 1fr; }
+            .tx-row { flex-direction: column; align-items: flex-start; gap: 6px; }
+            .tx-actions { width: 100%; justify-content: flex-end; }
+            .qty-control button { width: 36px; height: 36px; font-size: 1.1rem; }
+            .qty-control input { width: 52px; font-size: 1.05rem; }
         }
     </style>
 </head>
 <body>
-    <div id="lockScreen" style="position: fixed; inset: 0; background: var(--bg-primary); z-index: 9999; display: flex; align-items: center; justify-content: center;">
-        <div style="width: 100%; max-width: 380px; padding: 20px; text-align: center;">
-            <h1 class="logo" style="margin-bottom: 8px;">Leona Paddle</h1>
-            <p style="color: var(--text-secondary); margin-bottom: 32px; font-size: 0.9rem;">Acesso restrito</p>
-            <div style="display: flex; gap: 10px;">
-                <input type="password" id="tokenInput" placeholder="Token de acesso" style="flex: 1; padding: 14px 16px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 10px; color: var(--text-primary); font-size: 1rem; outline: none;" onkeydown="if(event.key==='Enter')validateToken()">
-                <button onclick="validateToken()" style="padding: 14px 24px; background: var(--accent); color: #000; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 1rem;">Entrar</button>
-            </div>
-            <div id="lockError" style="color: var(--error); margin-top: 12px; font-size: 0.85rem; display: none;">Token inválido</div>
+    <div class="container">
+        <header>
+            <img src="/logo-leona.png" alt="Leona" class="logo-img">
+            <p class="subtitle">Minha Assinatura</p>
+        </header>
+
+        <div id="searchSection" class="search-box" style="display: none;">
+            <input type="email" id="emailInput" placeholder="Digite seu e-mail" onkeydown="if(event.key==='Enter')loadProfile()">
+            <button class="btn btn-primary" onclick="loadProfile()">Buscar</button>
+        </div>
+
+        <div id="content"></div>
+
+        <div id="whatsappSection" class="wpp-section" style="display: none;">
+            <a id="whatsappBtn" href="#" target="_blank" class="wpp-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                <span>Precisa de ajuda? Chame nosso suporte</span>
+            </a>
+        </div>
+
+        <div class="footer">
+            <img src="/logo-leona.png" alt="Leona" class="footer-logo">
         </div>
     </div>
 
-    <div class="container" id="appContent" style="display: none;">
-        <header>
-            <h1 class="logo">Leona Paddle</h1>
-            <p class="subtitle">Testes de Pagamento via Paddle</p>
-        </header>
-
-        <div id="message" class="message"></div>
-
-        <section class="search-section">
-            <h2>Buscar cliente por e-mail</h2>
-            <div class="input-group">
-                <input type="email" id="emailInput" placeholder="cliente@email.com" onkeypress="if(event.key==='Enter') searchPaddle()">
-                <button class="btn-primary" id="searchBtn" onclick="searchPaddle()">Buscar</button>
-            </div>
-        </section>
-
-        <section class="results-section" id="resultsSection">
-            <div id="leonaProfile"></div>
-            <div id="stripeInfo"></div>
-            <div id="paddleSubscriptions"></div>
-            <div id="paddleProducts"></div>
-        </section>
+    <div id="modalBackdrop" class="modal-backdrop">
+        <div class="modal" id="modalBox"></div>
     </div>
 
     <script>
-        function getStoredToken() { return localStorage.getItem('leona_token'); }
+        let _data = null;
+        let _email = '';
+        const _pending = {};
 
-        async function validateToken() {
-            const input = document.getElementById('tokenInput');
-            const errEl = document.getElementById('lockError');
-            const token = input.value.trim();
-            if (!token) { errEl.style.display = 'block'; return; }
-            try {
-                const res = await fetch('/api/auth', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token })
-                });
-                if (res.ok) {
-                    localStorage.setItem('leona_token', token);
-                    document.getElementById('lockScreen').style.display = 'none';
-                    document.getElementById('appContent').style.display = 'block';
-                } else {
-                    errEl.style.display = 'block';
-                    input.value = '';
-                    input.focus();
-                }
-            } catch (_) { errEl.style.display = 'block'; }
+        function getEmailFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            return (params.get('email') || '').trim().toLowerCase();
         }
 
-        (function checkAuth() {
-            const saved = getStoredToken();
-            if (saved) {
-                fetch('/api/auth', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token: saved })
-                }).then(r => {
-                    if (r.ok) {
-                        document.getElementById('lockScreen').style.display = 'none';
-                        document.getElementById('appContent').style.display = 'block';
-                    } else {
-                        localStorage.removeItem('leona_token');
-                    }
-                });
-            }
-        })();
-
-        let _lastData = null;
-        let _lastEmail = '';
-
-        function showMessage(text, type = 'error') {
-            const msgEl = document.getElementById('message');
-            let message = text;
-            if (typeof text === 'object') {
-                try { message = JSON.stringify(text); } catch (_) { message = String(text); }
-            }
-            msgEl.className = `message ${type} active`;
-            msgEl.textContent = message;
-            setTimeout(() => msgEl.classList.remove('active'), 5000);
+        function fmtCurrency(amount, currency = 'BRL') {
+            const n = typeof amount === 'string' ? parseFloat(amount) : amount;
+            if (isNaN(n)) return '—';
+            const divisor = currency === 'BRL_RAW' ? 1 : 100;
+            const cur = currency === 'BRL_RAW' ? 'BRL' : currency;
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: cur }).format(n / divisor);
         }
 
-        function setButtonLoading(btn, loading, originalText = 'Buscar') {
-            if (loading) {
-                btn.disabled = true;
-                btn.innerHTML = `<span class="loading"></span>Aguarde...`;
-            } else {
-                btn.disabled = false;
-                btn.textContent = originalText;
-            }
+        function fmtDate(d) {
+            if (!d) return '—';
+            const date = new Date(d);
+            if (isNaN(date.getTime())) return '—';
+            return date.toLocaleDateString('pt-BR');
         }
 
-        function formatCurrency(value, currencyCode = 'BRL') {
-            const num = typeof value === 'string' ? parseFloat(value) : value;
-            const currency = currencyCode === 'BRL_RAW' ? 'BRL' : currencyCode;
-            const divisor = currencyCode === 'BRL_RAW' ? 1 : 100;
-            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency }).format(num / divisor);
+        function fmtDateTime(d) {
+            if (!d) return '—';
+            const date = new Date(d);
+            if (isNaN(date.getTime())) return '—';
+            return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
         }
 
-        function formatDate(dateStr) {
-            if (!dateStr) return '—';
-            if (typeof dateStr === 'number') return new Date(dateStr * 1000).toLocaleDateString('pt-BR');
-            return new Date(dateStr).toLocaleDateString('pt-BR');
+        function statusLabel(s) {
+            const map = {
+                active: 'Ativa', trialing: 'Trial', paused: 'Pausada', past_due: 'Em atraso',
+                canceled: 'Cancelada', completed: 'Concluída', billed: 'Faturada',
+                paid: 'Paga', ready: 'Aguardando', refunded: 'Reembolsada', past_refunded: 'Parc. reembolsada'
+            };
+            return map[s] || s || '—';
         }
 
-        function getStatusClass(status) {
-            const map = { active: 'active', trialing: 'trialing', canceled: 'canceled', past_due: 'past_due', paused: 'paused' };
-            return map[status] || 'inactive';
+        const _knownStatusClasses = new Set(['status-active', 'status-trialing', 'status-paused', 'status-past_due', 'status-canceled']);
+        function statusClass(s) {
+            const cls = `status-${s}`;
+            return _knownStatusClasses.has(cls) ? cls : 'status-inactive';
         }
 
-        function getStatusLabel(status) {
-            const map = { active: 'Ativa', trialing: 'Trial', canceled: 'Cancelada', past_due: 'Em atraso', paused: 'Pausada' };
-            return map[status] || status;
+        function showWhatsapp(email) {
+            const section = document.getElementById('whatsappSection');
+            const btn = document.getElementById('whatsappBtn');
+            const msg = encodeURIComponent(`Olá, preciso de ajuda com minha assinatura (${email})`);
+            btn.href = `https://api.whatsapp.com/send/?phone=5511947209231&text=${msg}`;
+            section.style.display = 'block';
         }
 
-        function getLeonaStatusClass(status) {
-            const map = { active: 'active', trial: 'trial', canceled: 'canceled', pastdue: 'pastdue' };
-            return map[status] || 'inactive';
+        function openModal(html) {
+            const backdrop = document.getElementById('modalBackdrop');
+            const box = document.getElementById('modalBox');
+            box.innerHTML = html;
+            backdrop.classList.add('active');
         }
 
-        function copyText(text, btnId) {
-            const btn = document.getElementById(btnId);
-            navigator.clipboard.writeText(text).then(() => {
-                btn.textContent = '✓ Copiado!';
-                btn.classList.add('copied');
-                setTimeout(() => { btn.textContent = 'Copiar'; btn.classList.remove('copied'); }, 2000);
-            });
+        function closeModal() {
+            document.getElementById('modalBackdrop').classList.remove('active');
         }
 
-        async function searchPaddle() {
-            const email = document.getElementById('emailInput').value.trim().toLowerCase();
-            const btn = document.getElementById('searchBtn');
+        document.getElementById('modalBackdrop').addEventListener('click', (e) => {
+            if (e.target.id === 'modalBackdrop') closeModal();
+        });
 
+        async function loadProfile() {
+            let email = getEmailFromUrl();
             if (!email) {
-                showMessage('Por favor, digite um e-mail válido.');
+                const input = document.getElementById('emailInput');
+                email = (input.value || '').trim().toLowerCase();
+            }
+            if (!email) return;
+            _email = email;
+
+            const content = document.getElementById('content');
+            content.innerHTML = `<div class="loading-state"><div class="spinner"></div><p style="color: var(--text-secondary); margin-top: 14px;">Carregando dados...</p></div>`;
+
+            try {
+                const res = await fetch('/api/paddle-search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                const data = await res.json();
+
+                if (!res.ok) {
+                    content.innerHTML = `<div class="alert alert-error">${data.error || 'Erro ao buscar dados'}</div>`;
+                    showWhatsapp(email);
+                    return;
+                }
+
+                _data = data;
+                renderProfile(data, email);
+                showWhatsapp(email);
+            } catch (err) {
+                content.innerHTML = `<div class="alert alert-error">Erro de conexão: ${err.message}</div>`;
+                showWhatsapp(email);
+            }
+        }
+
+        function renderProfile(data, email) {
+            const content = document.getElementById('content');
+            const { paddle, leona, products } = data;
+
+            let html = '';
+
+            // ===== Card Leona resumo =====
+            const profiles = leona.billing_profiles || (leona.billing_profile ? [leona.billing_profile] : []);
+            const activeProfile = profiles.find(p => p.subscription_status === 'active') || profiles[0];
+
+            if (activeProfile) {
+                html += renderLeonaSummary(activeProfile);
+            }
+
+            // ===== Sem cliente Paddle =====
+            if (!paddle.found) {
+                html += `
+                    <div class="empty-state">
+                        <div class="icon">🔍</div>
+                        <p>Nenhuma assinatura Paddle encontrada para <strong>${escapeHtml(email)}</strong>.</p>
+                    </div>
+                `;
+                if (products && products.length > 0) {
+                    html += renderProductCatalog(products);
+                }
+                content.innerHTML = html;
                 return;
             }
 
-            setButtonLoading(btn, true, 'Buscar');
-            document.getElementById('resultsSection').classList.remove('active');
-
-            try {
-                const [paddleRes, stripeRes] = await Promise.all([
-                    fetch('/api/paddle-search', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email })
-                    }),
-                    fetch('/api/stripe', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email })
-                    }).catch(() => null)
-                ]);
-
-                const data = await paddleRes.json();
-                if (!paddleRes.ok) throw new Error(data.error || 'Erro ao buscar');
-
-                let stripeData = null;
-                if (stripeRes && stripeRes.ok) {
-                    stripeData = await stripeRes.json();
+            // ===== Sem subs =====
+            if (!paddle.subscriptions || paddle.subscriptions.length === 0) {
+                html += `
+                    <div class="card">
+                        <h3 class="paddle-tone">Cliente Paddle encontrado</h3>
+                        <div class="info-row"><span class="info-label">E-mail</span><span class="info-value">${escapeHtml(paddle.customer.email)}</span></div>
+                        ${paddle.customer.name ? `<div class="info-row"><span class="info-label">Nome</span><span class="info-value">${escapeHtml(paddle.customer.name)}</span></div>` : ''}
+                        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 12px;">Você não tem nenhuma assinatura ativa.</p>
+                    </div>
+                `;
+                if (products && products.length > 0) {
+                    html += renderProductCatalog(products);
                 }
-
-                _lastData = data;
-                _lastEmail = email;
-
-                renderResults(data, email, stripeData);
-
-            } catch (error) {
-                showMessage(error.message);
-            } finally {
-                setButtonLoading(btn, false, 'Buscar');
+                content.innerHTML = html;
+                return;
             }
+
+            // ===== Cards de subscriptions =====
+            for (let i = 0; i < paddle.subscriptions.length; i++) {
+                html += renderSubscription(paddle.subscriptions[i], i, products, activeProfile);
+            }
+
+            content.innerHTML = html;
         }
 
-        function renderResults(data, email, stripeData) {
-            const section = document.getElementById('resultsSection');
-            const leonaDiv = document.getElementById('leonaProfile');
-            const stripeDiv = document.getElementById('stripeInfo');
-            const subsDiv = document.getElementById('paddleSubscriptions');
-            const productsDiv = document.getElementById('paddleProducts');
+        function renderLeonaSummary(bp) {
+            const status = bp.subscription_status || 'inactive';
+            const expired = bp.current_period_end && new Date(bp.current_period_end) <= new Date();
+            const cssClass = expired ? 'status-canceled' : (status === 'active' ? 'status-active' : 'status-inactive');
 
-            leonaDiv.innerHTML = '';
-            stripeDiv.innerHTML = '';
-            subsDiv.innerHTML = '';
-            productsDiv.innerHTML = '';
+            return `
+                <div class="card ${status === 'active' && !expired ? 'card-active' : ''}">
+                    <h3>Sua conta Leona <span class="status-badge ${cssClass}">${statusLabel(status)}</span></h3>
+                    ${bp.user?.name ? `<div class="info-row"><span class="info-label">Nome</span><span class="info-value">${escapeHtml(bp.user.name)}</span></div>` : ''}
+                    ${bp.user?.email ? `<div class="info-row"><span class="info-label">E-mail</span><span class="info-value">${escapeHtml(bp.user.email)}</span></div>` : ''}
+                    ${bp.plan_summary ? `<div class="info-row"><span class="info-label">Plano</span><span class="info-value">${escapeHtml(bp.plan_summary)}</span></div>` : ''}
+                    ${bp.starter_instances != null ? `<div class="info-row"><span class="info-label">Conexões Starter</span><span class="info-value">${bp.starter_instances}</span></div>` : ''}
+                    ${bp.pro_instances ? `<div class="info-row"><span class="info-label">Conexões Pro</span><span class="info-value">${bp.pro_instances}</span></div>` : ''}
+                    ${bp.current_period_end ? `<div class="info-row"><span class="info-label">${expired ? 'Venceu em' : 'Próxima renovação'}</span><span class="info-value">${fmtDate(bp.current_period_end)}</span></div>` : ''}
+                </div>
+            `;
+        }
 
-            const { paddle, leona, products } = data;
+        function renderSubscription(sub, idx, products, leonaProfile) {
+            const item = sub.items[0];
+            const productName = item?.product_name || 'Plano';
+            const totalQty = sub.items.reduce((s, i) => s + (i.quantity || 0), 0);
+            const unit = item?.unit_price;
+            const cycle = item?.billing_cycle || sub.billing_cycle;
 
-            // --- Leona billing profiles ---
-            const profiles = leona.billing_profiles || (leona.billing_profile ? [leona.billing_profile] : []);
-            if (profiles.length > 0) {
-                leonaDiv.innerHTML = profiles.map((bp, bpIdx) => `
-                    <div class="leona-profile">
-                        <h3>Leona — Perfil de Cobrança${profiles.length > 1 ? ` #${bpIdx + 1}` : ''}${bp.account_id ? ` <span style="font-size: 0.75rem; font-weight: 400; color: var(--text-secondary);">(ID: ${bp.account_id})</span>` : ''}</h3>
-                        <div style="display: grid; gap: 8px; font-size: 0.9rem;">
-                            ${bp.user?.name ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Nome:</span><span>${bp.user.name}</span></div>` : ''}
-                            ${bp.user?.email ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Email:</span><span>${bp.user.email}</span></div>` : ''}
-                            ${bp.user?.phone ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Telefone:</span><span>${bp.user.phone}</span></div>` : ''}
-                            ${bp.plan_summary ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Plano:</span><span>${bp.plan_summary}</span></div>` : ''}
-                            ${bp.starter_instances != null ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Instâncias Starter:</span><span style="font-weight: 600;">${bp.starter_instances}</span></div>` : ''}
-                            ${bp.pro_instances != null ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Instâncias Pro:</span><span style="font-weight: 600;">${bp.pro_instances}</span></div>` : ''}
-                            ${bp.subscription_status ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Status:</span><span class="guru-status ${getLeonaStatusClass(bp.subscription_status)}">${bp.subscription_status}</span></div>` : ''}
-                            ${bp.current_period_end ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Fim do período:</span><span>${formatDate(bp.current_period_end)}</span></div>` : ''}
-                            ${bp.subscription_type ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Tipo:</span><span>${bp.subscription_type}</span></div>` : ''}
-                            ${bp.guru_account_id ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Guru Account ID:</span><span style="font-family: monospace; font-size: 0.8rem;">${bp.guru_account_id}</span></div>` : ''}
-                        </div>
-                    </div>
-                `).join('');
-            } else if (leona.error) {
-                leonaDiv.innerHTML = `
-                    <div class="leona-profile" style="border-color: var(--warning);">
-                        <h3 style="color: var(--warning);">Leona — Aviso</h3>
-                        <p style="color: var(--text-secondary); font-size: 0.9rem;">${leona.error}</p>
+            let cardClass = 'card-paddle';
+            if (sub.status === 'canceled') cardClass = 'card-error';
+
+            let scheduledNote = '';
+            if (sub.scheduled_change) {
+                const sc = sub.scheduled_change;
+                const labelMap = { cancel: 'Cancelamento', pause: 'Pausa', resume: 'Retomada' };
+                scheduledNote = `
+                    <div class="alert alert-warning" style="margin-top: 12px;">
+                        <strong>${labelMap[sc.action] || sc.action} agendado(a)</strong>
+                        Acontecerá em <strong>${fmtDate(sc.effective_at)}</strong>.
                     </div>
                 `;
             }
 
-            // --- Stripe info ---
-            if (stripeData && stripeData.customer_exists && stripeData.subscriptions && stripeData.subscriptions.length > 0) {
-                const stripeSubs = stripeData.subscriptions.filter(s => s.id !== 'no_subscription');
-                if (stripeSubs.length > 0) {
-                    const statusMap = { active: 'Ativa', trialing: 'Trial', past_due: 'Atrasada', canceled: 'Cancelada', incomplete: 'Incompleta', incomplete_expired: 'Expirada', unpaid: 'Não paga', paused: 'Pausada' };
-                    const statusColorMap = { active: 'var(--success)', trialing: '#2196F3', past_due: 'var(--warning)', canceled: 'var(--error)', incomplete: 'var(--warning)', unpaid: 'var(--error)' };
+            return `
+                <div class="card ${cardClass}">
+                    <h3 class="paddle-tone">
+                        Assinatura Paddle
+                        <span class="status-badge status-${sub.status}">${statusLabel(sub.status)}</span>
+                    </h3>
 
-                    stripeDiv.innerHTML = `
-                        <div class="leona-profile" style="border-color: #635BFF;">
-                            <h3 style="color: #635BFF;">Stripe — Assinaturas</h3>
-                            ${stripeSubs.map(sub => {
-                                const statusLabel = statusMap[sub.status] || sub.status;
-                                const statusColor = statusColorMap[sub.status] || 'var(--text-secondary)';
-                                const lastPaidInvoice = sub.invoices ? sub.invoices.find(i => i.status === 'paid') : null;
-                                const periodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
-                                const lastPayDate = lastPaidInvoice ? new Date(lastPaidInvoice.created * 1000) : null;
+                    <div class="info-row"><span class="info-label">Plano</span><span class="info-value">${escapeHtml(productName)}</span></div>
+                    <div class="info-row"><span class="info-label">Quantidade</span><span class="info-value">${totalQty}</span></div>
+                    ${unit ? `<div class="info-row"><span class="info-label">Valor unitário</span><span class="info-value">${fmtCurrency(unit.amount, unit.currency_code || sub.currency_code)} / ${cycle?.interval || 'ciclo'}</span></div>` : ''}
+                    ${unit ? `<div class="info-row"><span class="info-label">Total mensal</span><span class="info-value">${fmtCurrency((parseInt(unit.amount) || 0) * totalQty, unit.currency_code || sub.currency_code)}</span></div>` : ''}
+                    ${sub.next_billed_at ? `<div class="info-row"><span class="info-label">Próxima cobrança</span><span class="info-value">${fmtDate(sub.next_billed_at)}</span></div>` : ''}
+                    ${sub.current_billing_period ? `<div class="info-row"><span class="info-label">Período atual</span><span class="info-value">${fmtDate(sub.current_billing_period.starts_at)} → ${fmtDate(sub.current_billing_period.ends_at)}</span></div>` : ''}
+                    ${sub.started_at ? `<div class="info-row"><span class="info-label">Início</span><span class="info-value">${fmtDate(sub.started_at)}</span></div>` : ''}
+                    ${sub.canceled_at ? `<div class="info-row"><span class="info-label">Cancelada em</span><span class="info-value">${fmtDate(sub.canceled_at)}</span></div>` : ''}
+                    ${sub.paused_at ? `<div class="info-row"><span class="info-label">Pausada em</span><span class="info-value">${fmtDate(sub.paused_at)}</span></div>` : ''}
 
-                                return `<div style="background: var(--bg-secondary); padding: 14px; border-radius: 10px; border: 1px solid var(--border); margin-top: 12px;">
-                                    <div style="display: grid; gap: 8px; font-size: 0.9rem;">
-                                        <div style="display: flex; justify-content: space-between;">
-                                            <span style="color: var(--text-secondary);">Assinatura:</span>
-                                            <span style="font-weight: 600;">${sub.product_name || 'N/A'}</span>
-                                        </div>
-                                        <div style="display: flex; justify-content: space-between;">
-                                            <span style="color: var(--text-secondary);">Status:</span>
-                                            <span style="color: ${statusColor}; font-weight: 600;">${statusLabel}</span>
-                                        </div>
-                                        <div style="display: flex; justify-content: space-between;">
-                                            <span style="color: var(--text-secondary);">Instâncias:</span>
-                                            <span style="font-weight: 600;">${sub.current_quantity || 1}</span>
-                                        </div>
-                                        ${lastPayDate ? `<div style="display: flex; justify-content: space-between;">
-                                            <span style="color: var(--text-secondary);">Último pagamento:</span>
-                                            <span>${lastPayDate.toLocaleDateString('pt-BR')} — ${formatCurrency((lastPaidInvoice.amount_paid || 0))}</span>
-                                        </div>` : ''}
-                                        ${periodEnd ? `<div style="display: flex; justify-content: space-between;">
-                                            <span style="color: var(--text-secondary);">Vencimento:</span>
-                                            <span>${periodEnd.toLocaleDateString('pt-BR')}</span>
-                                        </div>` : ''}
-                                    </div>
-                                    <div style="margin-top: 6px; font-size: 0.75rem; color: var(--text-secondary); font-family: monospace;">${sub.id}</div>
-                                </div>`;
-                            }).join('')}
+                    ${scheduledNote}
+
+                    ${sub.management_urls?.update_payment_method ? `
+                        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
+                            <a href="${sub.management_urls.update_payment_method}" target="_blank" style="color: var(--paddle); font-size: 0.85rem; font-weight: 500; text-decoration: none;">
+                                Atualizar método de pagamento →
+                            </a>
                         </div>
-                    `;
-                }
-            } else if (stripeData && !stripeData.customer_exists) {
-                stripeDiv.innerHTML = `
-                    <div class="leona-profile" style="border-color: var(--border); opacity: 0.7;">
-                        <h3 style="color: #635BFF;">Stripe</h3>
-                        <p style="color: var(--text-secondary); font-size: 0.85rem;">Nenhum cliente encontrado na Stripe.</p>
+                    ` : ''}
+
+                    ${(sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due') ? renderQtyPanel(sub, idx, leonaProfile) : ''}
+                    ${(sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due') ? renderPlanSwitchPanel(sub, idx, products, leonaProfile) : ''}
+                    ${renderManagePanel(sub, idx, leonaProfile)}
+                    ${renderTransactionsPanel(sub, idx)}
+                </div>
+            `;
+        }
+
+        function renderQtyPanel(sub, idx, leonaProfile) {
+            const item = sub.items[0];
+            if (!item) return '';
+            const currentQty = item.quantity || 1;
+
+            return `
+                <div class="panel">
+                    <div class="panel-title">
+                        Alterar quantidade
+                        <span style="color: var(--text-muted); font-size: 0.78rem;">${currentQty} atual</span>
+                    </div>
+                    <div class="qty-control">
+                        <button onclick="adjustQty(${idx}, -1)">−</button>
+                        <input type="number" id="qty-${idx}" value="${currentQty}" min="1" oninput="updateQtyHint(${idx}, ${currentQty})">
+                        <button onclick="adjustQty(${idx}, 1)">+</button>
+                    </div>
+                    <div id="qtyHint-${idx}" style="text-align: center; font-size: 0.82rem; color: var(--text-muted); min-height: 18px;">
+                        Igual ao plano atual
+                    </div>
+                    <button class="btn btn-paddle" id="qtyBtn-${idx}" style="width: 100%; margin-top: 10px;" onclick="previewQty(${idx})" disabled>
+                        Simular alteração
+                    </button>
+                    <div id="qtyResult-${idx}"></div>
+                </div>
+            `;
+        }
+
+        function renderPlanSwitchPanel(sub, idx, products, leonaProfile) {
+            const item = sub.items[0];
+            if (!item || !products || products.length === 0) return '';
+
+            const currentPriceId = item.price_id;
+            const currentProductId = item.product_id;
+
+            const sameProduct = products.find(p => p.id === currentProductId);
+            if (!sameProduct || !sameProduct.prices || sameProduct.prices.length <= 1) return '';
+
+            const otherPrices = sameProduct.prices.filter(p => p.id !== currentPriceId && p.status === 'active');
+            if (otherPrices.length === 0) return '';
+
+            return `
+                <div class="panel">
+                    <div class="panel-title">Trocar de plano</div>
+                    <select id="planSelect-${idx}">
+                        <option value="">Selecione um plano…</option>
+                        ${otherPrices.map(p => `
+                            <option value="${p.id}">${escapeHtml(p.description || p.id)} — ${p.unit_price ? fmtCurrency(p.unit_price.amount, p.unit_price.currency_code) : ''} / ${p.billing_cycle?.interval || 'ciclo'}</option>
+                        `).join('')}
+                    </select>
+                    <button class="btn btn-paddle" style="width: 100%; margin-top: 10px;" onclick="previewPlanSwitch(${idx})">
+                        Simular troca de plano
+                    </button>
+                    <div id="planResult-${idx}"></div>
+                </div>
+            `;
+        }
+
+        function renderManagePanel(sub, idx, leonaProfile) {
+            const isActive = sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due';
+            const isPaused = sub.status === 'paused';
+            const isCanceled = sub.status === 'canceled';
+            const accId = leonaProfile?.account_id || null;
+
+            if (isCanceled) {
+                return '';
+            }
+
+            const buttons = [];
+            if (isActive) {
+                buttons.push(`<button class="btn btn-ghost" onclick="confirmAction('pause', ${idx}, ${accId || 'null'})">Pausar</button>`);
+                buttons.push(`<button class="btn btn-danger" onclick="confirmAction('cancel', ${idx}, ${accId || 'null'})">Cancelar</button>`);
+            }
+            if (isPaused) {
+                buttons.push(`<button class="btn btn-paddle" onclick="confirmAction('resume', ${idx}, ${accId || 'null'})">Retomar</button>`);
+                buttons.push(`<button class="btn btn-danger" onclick="confirmAction('cancel', ${idx}, ${accId || 'null'})">Cancelar</button>`);
+            }
+
+            if (buttons.length === 0) return '';
+
+            return `
+                <div class="panel">
+                    <div class="panel-title">Gerenciar assinatura</div>
+                    <div class="actions-grid">${buttons.join('')}</div>
+                    <div id="manageResult-${idx}"></div>
+                </div>
+            `;
+        }
+
+        function renderTransactionsPanel(sub, idx) {
+            const txs = sub.transactions || [];
+            if (txs.length === 0) {
+                return `
+                    <div class="panel">
+                        <div class="panel-title">Histórico de cobranças</div>
+                        <p style="color: var(--text-muted); font-size: 0.85rem; text-align: center; padding: 8px 0;">Nenhuma cobrança registrada.</p>
                     </div>
                 `;
             }
 
-            // --- Paddle subscriptions ---
-            if (paddle.found && paddle.subscriptions.length > 0) {
-                subsDiv.innerHTML = `
-                    <div style="margin-bottom: 20px;">
-                        <div class="section-header">
-                            <div>
-                                <h2 style="color: var(--paddle);">Paddle — Assinaturas</h2>
-                                <span class="customer-info">${paddle.customer?.name || ''} (${paddle.customer?.email || email})</span>
-                            </div>
-                        </div>
-                        ${paddle.subscriptions.map((sub, subIdx) => {
-                            const billingPeriod = sub.current_billing_period;
-                            const itemsSummary = sub.items.map(i =>
-                                `${i.product_name || i.price_id} × ${i.quantity}`
-                            ).join(', ');
-
-                            return `
-                            <div class="paddle-sub-card">
-                                <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
-                                    <div>
-                                        <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 4px;">${sub.items.map(i => i.product_name || 'Produto').join(', ')}</div>
-                                        <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 4px;">${itemsSummary}</div>
-                                        <div style="margin-top: 8px;">
-                                            <span class="paddle-status ${getStatusClass(sub.status)}">${getStatusLabel(sub.status)}</span>
-                                        </div>
-                                    </div>
-                                    <div style="text-align: right; font-size: 0.85rem; color: var(--text-secondary);">
-                                        ${sub.items.length > 0 && sub.items[0].unit_price ? `<div>Valor: ${formatCurrency(sub.items[0].unit_price.amount, sub.currency_code)} / ${sub.items[0].billing_cycle ? sub.items[0].billing_cycle.interval : 'ciclo'}</div>` : ''}
-                                        ${billingPeriod ? `<div>Período: ${formatDate(billingPeriod.starts_at)} — ${formatDate(billingPeriod.ends_at)}</div>` : ''}
-                                        ${sub.next_billed_at ? `<div>Próx. cobrança: ${formatDate(sub.next_billed_at)}</div>` : ''}
-                                        ${sub.started_at ? `<div>Início: ${formatDate(sub.started_at)}</div>` : ''}
-                                    </div>
+            return `
+                <div class="panel">
+                    <div class="panel-title">Histórico de cobranças</div>
+                    ${txs.map((tx, txIdx) => {
+                        const refundable = tx.status === 'completed' || tx.status === 'paid' || tx.status === 'billed';
+                        return `
+                            <div class="tx-row">
+                                <div class="tx-info">
+                                    <div class="tx-date">${fmtDateTime(tx.billed_at || tx.created_at)} · <span class="status-badge status-${tx.status}">${statusLabel(tx.status)}</span></div>
+                                    <div class="tx-id">${tx.id}${tx.invoice_number ? ` · #${tx.invoice_number}` : ''}</div>
                                 </div>
-                                ${sub.scheduled_change ? `
-                                    <div style="margin-top: 10px; background: rgba(255,193,7,0.1); padding: 10px; border-radius: 8px; font-size: 0.8rem; color: var(--warning);">
-                                        Mudança agendada: ${sub.scheduled_change.action || 'N/A'} em ${formatDate(sub.scheduled_change.effective_at)}
-                                    </div>
-                                ` : ''}
-                                <div style="margin-top: 8px; font-size: 0.75rem; color: var(--text-secondary); font-family: monospace;">${sub.id}</div>
-
-                                ${sub.status === 'active' || sub.status === 'trialing' ? `
-                                <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
-                                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                                        <button class="btn-primary" onclick="showPaddleSimPanel(${subIdx}, 'add')" style="padding: 10px 18px; font-size: 0.85rem;">
-                                            + Adicionar Instância
-                                        </button>
-                                        <button class="btn-secondary" onclick="showPaddleSimPanel(${subIdx}, 'remove')" style="padding: 10px 18px; font-size: 0.85rem;">
-                                            - Reduzir Instância
-                                        </button>
-                                    </div>
-                                    <div id="paddle-sim-panel-${subIdx}" style="display: none; margin-top: 14px;">
-                                        <div style="background: var(--bg-secondary); padding: 16px; border-radius: 10px; border: 1px solid var(--border);">
-                                            <label id="paddle-sim-label-${subIdx}" style="color: var(--text-secondary); font-size: 0.85rem; display: block; margin-bottom: 8px;">Quantas instâncias adicionar?</label>
-                                            <div style="display: flex; gap: 10px; align-items: center;">
-                                                <input type="number" id="paddle-qty-${subIdx}" min="1" value="1" style="width: 80px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 1rem; text-align: center;">
-                                                <input type="hidden" id="paddle-direction-${subIdx}" value="add">
-                                                <button class="btn-primary" onclick="previewPaddleUpdate(${subIdx})" style="padding: 10px 24px;">
-                                                    Simular
-                                                </button>
-                                                <button class="btn-secondary" onclick="hidePaddleSimPanel(${subIdx})" style="padding: 10px 20px;">
-                                                    Cancelar
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div id="paddle-sim-result-${subIdx}" style="display: none; margin-top: 14px;"></div>
+                                <div class="tx-amount" style="color: ${refundable ? 'var(--success)' : 'var(--text-secondary)'};">
+                                    ${fmtCurrency(tx.grand_total || tx.total || 0, tx.currency_code)}
                                 </div>
-                                ` : ''}
-                            </div>`;
-                        }).join('')}
-                    </div>
-                `;
-            } else if (paddle.found) {
-                subsDiv.innerHTML = `
-                    <div class="leona-profile" style="border-color: var(--paddle);">
-                        <h3 style="color: var(--paddle);">Paddle — Cliente Encontrado</h3>
-                        <div style="display: grid; gap: 8px; font-size: 0.9rem;">
-                            <div style="display: flex; justify-content: space-between;">
-                                <span style="color: var(--text-secondary);">Email:</span>
-                                <span>${paddle.customer?.email || email}</span>
+                                <div class="tx-actions">
+                                    ${refundable ? `<button class="btn btn-link" onclick="openRefundModal(${idx}, ${txIdx})">Reembolsar</button>` : ''}
+                                </div>
                             </div>
-                            ${paddle.customer?.name ? `<div style="display: flex; justify-content: space-between;">
-                                <span style="color: var(--text-secondary);">Nome:</span>
-                                <span>${paddle.customer.name}</span>
-                            </div>` : ''}
-                            <div style="display: flex; justify-content: space-between;">
-                                <span style="color: var(--text-secondary);">Status:</span>
-                                <span>${paddle.customer?.status || 'N/A'}</span>
-                            </div>
-                        </div>
-                        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 12px;">Nenhuma assinatura encontrada.</p>
-                    </div>
-                `;
-            } else {
-                subsDiv.innerHTML = `
-                    <div class="leona-profile" style="border-color: var(--border); opacity: 0.7;">
-                        <h3 style="color: var(--paddle);">Paddle</h3>
-                        <p style="color: var(--text-secondary); font-size: 0.85rem;">Nenhum cliente encontrado na Paddle.</p>
-                    </div>
-                `;
-            }
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
 
-            // --- Paddle products catalog ---
-            if (products && products.length > 0) {
-                productsDiv.innerHTML = `
-                    <div style="margin-bottom: 20px;">
-                        <h2 style="font-size: 1.2rem; margin-bottom: 16px; color: var(--paddle);">Paddle — Catálogo de Produtos</h2>
-                        <div class="product-grid">
-                            ${products.map(p => `
-                                <div class="product-card">
-                                    <div style="margin-bottom: 12px;">
-                                        <div style="font-weight: 600; font-size: 1rem; margin-bottom: 4px;">${p.name}</div>
-                                        ${p.description ? `<div style="color: var(--text-secondary); font-size: 0.8rem;">${p.description}</div>` : ''}
-                                    </div>
-                                    ${p.prices && p.prices.length > 0 ? `
-                                        <div style="border-top: 1px solid var(--border); padding-top: 10px;">
-                                            ${p.prices.map(pr => `
-                                                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 0.85rem;">
-                                                    <span style="color: var(--text-secondary);">${pr.description || pr.id}</span>
-                                                    <span style="font-weight: 600; color: var(--paddle);">
-                                                        ${pr.unit_price ? formatCurrency(pr.unit_price.amount, pr.unit_price.currency_code) : '—'}
-                                                        ${pr.billing_cycle ? `<span style="font-weight: 400; color: var(--text-secondary);"> / ${pr.billing_cycle.interval}</span>` : ''}
-                                                    </span>
-                                                </div>
-                                            `).join('')}
-                                        </div>
-                                    ` : '<div style="color: var(--text-secondary); font-size: 0.8rem;">Sem preços configurados</div>'}
-                                    <div style="margin-top: 8px; font-size: 0.7rem; color: var(--text-secondary); font-family: monospace;">${p.id}</div>
+        function renderProductCatalog(products) {
+            return `
+                <div class="card">
+                    <h3 class="paddle-tone">Planos disponíveis</h3>
+                    ${products.map(p => `
+                        <div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border);">
+                            <div style="font-weight: 600; margin-bottom: 4px;">${escapeHtml(p.name)}</div>
+                            ${p.description ? `<div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">${escapeHtml(p.description)}</div>` : ''}
+                            ${(p.prices || []).filter(pr => pr.status === 'active').map(pr => `
+                                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; padding: 4px 0;">
+                                    <span style="color: var(--text-secondary);">${escapeHtml(pr.description || pr.id)}</span>
+                                    <span style="font-weight: 600; color: var(--paddle);">
+                                        ${pr.unit_price ? fmtCurrency(pr.unit_price.amount, pr.unit_price.currency_code) : '—'} / ${pr.billing_cycle?.interval || 'ciclo'}
+                                    </span>
                                 </div>
                             `).join('')}
                         </div>
-                    </div>
-                `;
-            }
-
-            section.classList.add('active');
+                    `).join('')}
+                </div>
+            `;
         }
 
-        // --- Paddle upgrade/downgrade simulation ---
-        function showPaddleSimPanel(subIdx, direction) {
-            const panel = document.getElementById(`paddle-sim-panel-${subIdx}`);
-            const label = document.getElementById(`paddle-sim-label-${subIdx}`);
-            const dirInput = document.getElementById(`paddle-direction-${subIdx}`);
-            const qtyInput = document.getElementById(`paddle-qty-${subIdx}`);
-            if (panel) panel.style.display = 'block';
-            if (dirInput) dirInput.value = direction || 'add';
-            if (qtyInput) qtyInput.value = '1';
-            if (label) label.textContent = direction === 'remove' ? 'Quantas instâncias reduzir?' : 'Quantas instâncias adicionar?';
-            const result = document.getElementById(`paddle-sim-result-${subIdx}`);
-            if (result) { result.style.display = 'none'; result.innerHTML = ''; }
+        function escapeHtml(s) {
+            if (s == null) return '';
+            return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
         }
 
-        function hidePaddleSimPanel(subIdx) {
-            const panel = document.getElementById(`paddle-sim-panel-${subIdx}`);
-            if (panel) panel.style.display = 'none';
-            const result = document.getElementById(`paddle-sim-result-${subIdx}`);
-            if (result) { result.style.display = 'none'; result.innerHTML = ''; }
+        // ============================================
+        // Quantidade
+        // ============================================
+        function adjustQty(idx, delta) {
+            const input = document.getElementById(`qty-${idx}`);
+            const sub = _data.paddle.subscriptions[idx];
+            const currentQty = sub.items[0]?.quantity || 1;
+            const newVal = Math.max(1, (parseInt(input.value) || 1) + delta);
+            input.value = newVal;
+            updateQtyHint(idx, currentQty);
         }
 
-        async function previewPaddleUpdate(subIdx) {
-            if (!_lastData || !_lastData.paddle) return;
+        function updateQtyHint(idx, currentQty) {
+            const input = document.getElementById(`qty-${idx}`);
+            const hint = document.getElementById(`qtyHint-${idx}`);
+            const btn = document.getElementById(`qtyBtn-${idx}`);
+            const newQty = parseInt(input.value) || 0;
+            const diff = newQty - currentQty;
 
-            const sub = _lastData.paddle.subscriptions[subIdx];
-            if (!sub) return;
+            if (diff === 0) {
+                hint.innerHTML = `<span style="color: var(--text-muted);">Igual ao plano atual</span>`;
+                btn.disabled = true;
+                btn.textContent = 'Simular alteração';
+            } else if (diff > 0) {
+                hint.innerHTML = `<span style="color: var(--success);">+${diff}</span> · total: <strong>${newQty}</strong>`;
+                btn.disabled = false;
+                btn.textContent = `Simular upgrade para ${newQty}`;
+            } else {
+                hint.innerHTML = `<span style="color: var(--orange);">${diff}</span> · total: <strong>${newQty}</strong>`;
+                btn.disabled = false;
+                btn.textContent = `Simular downgrade para ${newQty}`;
+            }
+        }
 
-            const qtyInput = document.getElementById(`paddle-qty-${subIdx}`);
-            const dirInput = document.getElementById(`paddle-direction-${subIdx}`);
-            const resultDiv = document.getElementById(`paddle-sim-result-${subIdx}`);
+        async function previewQty(idx) {
+            const sub = _data.paddle.subscriptions[idx];
+            const input = document.getElementById(`qty-${idx}`);
+            const resultDiv = document.getElementById(`qtyResult-${idx}`);
+            const newQty = parseInt(input.value);
+            const currentQty = sub.items[0]?.quantity || 1;
+            if (newQty === currentQty) return;
 
-            const delta = parseInt(qtyInput.value);
-            const direction = dirInput ? dirInput.value : 'add';
+            const items = sub.items.map((it, i) => ({
+                price_id: it.price_id,
+                quantity: i === 0 ? newQty : it.quantity
+            }));
 
-            if (!delta || delta < 1) {
-                resultDiv.style.display = 'block';
-                resultDiv.innerHTML = `<div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); text-align: center; color: var(--error);">Informe pelo menos 1.</div>`;
+            const isUpgrade = newQty > currentQty;
+            const defaultMode = isUpgrade ? 'prorated_immediately' : 'prorated_next_billing_period';
+
+            await runPreviewAndConfirm(idx, items, defaultMode, resultDiv, `${currentQty} → ${newQty}`);
+        }
+
+        async function previewPlanSwitch(idx) {
+            const sub = _data.paddle.subscriptions[idx];
+            const select = document.getElementById(`planSelect-${idx}`);
+            const resultDiv = document.getElementById(`planResult-${idx}`);
+            const newPriceId = select.value;
+            if (!newPriceId) {
+                resultDiv.innerHTML = `<div class="alert alert-warning" style="margin-top: 10px;">Selecione um plano antes.</div>`;
                 return;
             }
 
-            const currentItem = sub.items[0];
-            if (!currentItem) {
-                resultDiv.style.display = 'block';
-                resultDiv.innerHTML = `<div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); text-align: center; color: var(--error);">Assinatura sem itens configurados.</div>`;
-                return;
-            }
+            const items = [{ price_id: newPriceId, quantity: sub.items[0]?.quantity || 1 }];
+            await runPreviewAndConfirm(idx, items, 'prorated_immediately', resultDiv, `Trocar para novo plano`);
+        }
 
-            const currentQty = currentItem.quantity || 1;
-            const newQty = direction === 'remove' ? currentQty - delta : currentQty + delta;
+        async function runPreviewAndConfirm(idx, items, prorationMode, resultDiv, summary) {
+            const sub = _data.paddle.subscriptions[idx];
 
-            if (newQty < 1) {
-                resultDiv.style.display = 'block';
-                resultDiv.innerHTML = `<div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); text-align: center; color: var(--error);">Não é possível reduzir para menos de 1 (atual: ${currentQty}).</div>`;
-                return;
-            }
-
-            if (newQty === currentQty) {
-                resultDiv.style.display = 'block';
-                resultDiv.innerHTML = `<div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); text-align: center; color: var(--error);">A quantidade resultante é igual à atual (${currentQty}).</div>`;
-                return;
-            }
-
-            resultDiv.style.display = 'block';
             resultDiv.innerHTML = `
-                <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--paddle);">
-                    <div style="text-align: center; padding: 16px; color: var(--text-secondary);">
-                        <div class="spinner"></div>
-                        <div style="margin-top: 10px;">Simulando alteração via Paddle...</div>
-                    </div>
+                <div style="margin-top: 12px; padding: 16px; background: var(--bg-secondary); border-radius: 10px; text-align: center;">
+                    <div class="spinner"></div>
+                    <p style="margin-top: 10px; color: var(--text-secondary); font-size: 0.85rem;">Simulando...</p>
                 </div>
             `;
 
-            const items = sub.items.map(item => ({
-                price_id: item.price_id,
-                quantity: item.price_id === currentItem.price_id ? newQty : item.quantity
-            }));
-
             try {
-                const res = await fetch('/api/paddle-subscription', {
+                const r = await fetch('/api/paddle-subscription', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         action: 'preview',
                         subscription_id: sub.id,
                         items,
-                        proration_billing_mode: 'prorated_immediately'
+                        proration_billing_mode: prorationMode
                     })
                 });
-
-                const previewData = await res.json();
-
-                if (!res.ok) {
-                    const errorMsg = previewData.error?.detail || previewData.error?.type || JSON.stringify(previewData.error || previewData);
-                    resultDiv.innerHTML = `
-                        <div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); color: var(--error);">
-                            <strong>Erro na simulação:</strong> ${errorMsg}
-                        </div>
-                    `;
+                const data = await r.json();
+                if (!r.ok) {
+                    const errMsg = data.error?.detail || data.error?.type || JSON.stringify(data.error || data);
+                    resultDiv.innerHTML = `<div class="alert alert-error" style="margin-top: 10px;"><strong>Erro</strong>${errMsg}</div>`;
                     return;
                 }
 
-                const preview = previewData.data || previewData;
-                const immediateTransaction = preview.immediate_transaction;
-                const nextTransaction = preview.next_transaction;
-                const updatedItems = preview.items || [];
+                const preview = data.data || data;
+                const immediate = preview.immediate_transaction;
+                const next = preview.next_transaction;
+                const currency = sub.currency_code || 'BRL';
 
-                resultDiv.innerHTML = `
-                    <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--paddle);">
-                        <div style="display: grid; gap: 14px;">
-                            <div style="text-align: center; font-weight: 600; color: var(--paddle); font-size: 1.1rem;">
-                                Simulação: ${currentQty} → ${newQty} instância(s)
-                            </div>
+                _pending[`sub-${idx}`] = { items, mode: prorationMode, summary, resultId: resultDiv.id };
 
-                            ${immediateTransaction ? `
-                            <div style="background: var(--bg-secondary); padding: 14px; border-radius: 10px;">
-                                <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">Cobrança Imediata (pro rata)</div>
-                                <div style="display: grid; gap: 6px; font-size: 0.85rem;">
-                                    ${(immediateTransaction.details?.line_items || []).map(li => `
-                                        <div style="display: flex; justify-content: space-between;">
-                                            <span style="color: var(--text-secondary);">${li.product?.name || li.price_id || 'Item'} × ${li.quantity}</span>
-                                            <span style="color: var(--text-primary);">${formatCurrency(li.total_amount || li.unit_totals?.total || 0, immediateTransaction.currency_code || 'BRL')}</span>
-                                        </div>
-                                    `).join('')}
-                                    <div style="display: flex; justify-content: space-between; font-size: 1rem; padding-top: 8px; border-top: 1px solid var(--border); margin-top: 4px;">
-                                        <span style="font-weight: 600;">Total imediato:</span>
-                                        <span style="color: var(--paddle); font-weight: 700; font-size: 1.2rem;">
-                                            ${formatCurrency(
-                                                immediateTransaction.details?.totals?.total || immediateTransaction.totals?.total || 0,
-                                                immediateTransaction.currency_code || 'BRL'
-                                            )}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                            ` : ''}
+                let html = `
+                    <div style="margin-top: 14px; padding: 16px; background: var(--bg-secondary); border-radius: 12px; border: 1px solid rgba(59,130,246,0.3);">
+                        <div style="text-align: center; font-weight: 600; color: var(--paddle); margin-bottom: 12px;">${escapeHtml(summary)}</div>
 
-                            ${nextTransaction ? `
-                            <div style="background: var(--bg-secondary); padding: 14px; border-radius: 10px;">
-                                <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">Próxima Cobrança</div>
-                                <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
-                                    <span style="color: var(--text-secondary);">Recorrência mensal:</span>
-                                    <span style="font-weight: 600;">
-                                        ${formatCurrency(
-                                            nextTransaction.details?.totals?.total || nextTransaction.totals?.total || 0,
-                                            nextTransaction.currency_code || 'BRL'
-                                        )}
-                                    </span>
-                                </div>
-                            </div>
-                            ` : ''}
-
-                            <div style="display: flex; gap: 10px; justify-content: center; margin-top: 4px;">
-                                <button class="btn-primary" onclick="confirmPaddleUpdate(${subIdx}, ${JSON.stringify(items).replace(/"/g, '&quot;')})" style="padding: 12px 32px;">
-                                    Confirmar Alteração
-                                </button>
-                                <button class="btn-secondary" onclick="hidePaddleSimPanel(${subIdx})" style="padding: 12px 24px;">
-                                    Cancelar
-                                </button>
+                        <div style="display: grid; gap: 6px;">
+                            <div style="font-size: 0.78rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">Modo de cobrança</div>
+                            <div class="pill-row" style="margin-bottom: 8px;">
+                                ${prorationMakeOptions(prorationMode, idx)}
                             </div>
                         </div>
+                `;
+
+                if (immediate) {
+                    const total = immediate.details?.totals?.grand_total || immediate.details?.totals?.total || 0;
+                    html += `
+                        <div style="margin-top: 10px; padding: 12px; background: var(--bg-card); border-radius: 10px;">
+                            <div style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 6px;">Cobrança imediata (pro rata)</div>
+                            <div style="display: flex; justify-content: space-between; font-size: 1.1rem; font-weight: 700;">
+                                <span>Total</span>
+                                <span style="color: var(--paddle);">${fmtCurrency(total, immediate.currency_code || currency)}</span>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                if (next) {
+                    const nextTotal = next.details?.totals?.grand_total || next.details?.totals?.total || 0;
+                    html += `
+                        <div style="margin-top: 8px; padding: 12px; background: var(--bg-card); border-radius: 10px;">
+                            <div style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 6px;">Próxima recorrência</div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.95rem; font-weight: 600;">
+                                <span>${fmtDate(next.billing_period?.starts_at)}</span>
+                                <span>${fmtCurrency(nextTotal, next.currency_code || currency)}</span>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                if (!immediate && !next) {
+                    html += `<div class="alert alert-info" style="margin-top: 10px;">Sem cobrança imediata. A alteração entra em vigor no próximo ciclo.</div>`;
+                }
+
+                html += `
+                    <div style="display: flex; gap: 8px; margin-top: 14px;">
+                        <button class="btn btn-paddle" style="flex: 1;" onclick="confirmChange(${idx})">Confirmar alteração</button>
+                        <button class="btn btn-ghost" onclick="document.getElementById('${resultDiv.id}').innerHTML = ''">Cancelar</button>
                     </div>
                 `;
 
+                html += `</div>`;
+                resultDiv.innerHTML = html;
             } catch (err) {
-                resultDiv.innerHTML = `
-                    <div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); color: var(--error);">
-                        <strong>Erro:</strong> ${err.message}
-                    </div>
-                `;
+                resultDiv.innerHTML = `<div class="alert alert-error" style="margin-top: 10px;"><strong>Erro</strong>${err.message}</div>`;
             }
         }
 
-        async function confirmPaddleUpdate(subIdx, items) {
-            if (!_lastData || !_lastData.paddle) return;
-            const sub = _lastData.paddle.subscriptions[subIdx];
-            if (!sub) return;
+        function prorationMakeOptions(currentMode, idx) {
+            const opts = [
+                { val: 'prorated_immediately', label: 'Cobrar pro rata agora' },
+                { val: 'prorated_next_billing_period', label: 'No próximo ciclo (com pro rata)' },
+                { val: 'full_immediately', label: 'Cobrar valor cheio agora' },
+                { val: 'do_not_bill', label: 'Não cobrar' }
+            ];
+            return opts.map(o => `
+                <span class="pill ${o.val === currentMode ? 'active' : ''}"
+                    style="cursor: pointer;"
+                    onclick="switchProration(${idx}, '${o.val}')">${o.label}</span>
+            `).join('');
+        }
 
-            const resultDiv = document.getElementById(`paddle-sim-result-${subIdx}`);
+        async function switchProration(idx, mode) {
+            const pending = _pending[`sub-${idx}`];
+            if (!pending) return;
+            const resultDiv = document.getElementById(pending.resultId);
+            await runPreviewAndConfirm(idx, pending.items, mode, resultDiv, pending.summary);
+        }
+
+        async function confirmChange(idx) {
+            const pending = _pending[`sub-${idx}`];
+            if (!pending) return;
+            const sub = _data.paddle.subscriptions[idx];
+            const accId = getActiveLeonaAccountId();
+            const resultDiv = document.getElementById(pending.resultId);
+            const items = pending.items;
+            const prorationMode = pending.mode;
+
             resultDiv.innerHTML = `
-                <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--paddle);">
-                    <div style="text-align: center; padding: 16px; color: var(--text-secondary);">
-                        <div class="spinner"></div>
-                        <div style="margin-top: 10px;">Aplicando alteração...</div>
-                    </div>
+                <div style="margin-top: 12px; padding: 16px; background: var(--bg-secondary); border-radius: 10px; text-align: center;">
+                    <div class="spinner"></div>
+                    <p style="margin-top: 10px; color: var(--text-secondary); font-size: 0.85rem;">Aplicando...</p>
                 </div>
             `;
 
             try {
-                const res = await fetch('/api/paddle-subscription', {
+                const r = await fetch('/api/paddle-subscription', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         action: 'update',
                         subscription_id: sub.id,
                         items,
-                        proration_billing_mode: 'prorated_immediately'
+                        proration_billing_mode: prorationMode,
+                        account_id: accId,
+                        email: _email
                     })
                 });
+                const data = await r.json();
 
-                const data = await res.json();
+                if (!r.ok) {
+                    const errMsg = data.error?.detail || data.error?.type || JSON.stringify(data.error || data);
+                    resultDiv.innerHTML = `<div class="alert alert-error" style="margin-top: 10px;"><strong>Erro</strong>${errMsg}</div>`;
+                    return;
+                }
 
-                if (!res.ok) {
-                    const errorMsg = data.error?.detail || data.error?.type || JSON.stringify(data.error || data);
-                    resultDiv.innerHTML = `
-                        <div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); color: var(--error);">
-                            <strong>Erro:</strong> ${errorMsg}
-                        </div>
-                    `;
+                let leonaMsg = '';
+                if (data.leona_sync) {
+                    if (data.leona_sync.ok) leonaMsg = `<div style="font-size: 0.78rem; color: var(--success); margin-top: 6px;">✓ Conta Leona sincronizada (${data.leona_sync.starter_instances} conexões)</div>`;
+                    else leonaMsg = `<div style="font-size: 0.78rem; color: var(--orange); margin-top: 6px;">⚠ Sincronização Leona falhou: ${data.leona_sync.error || 'erro desconhecido'}</div>`;
+                }
+
+                resultDiv.innerHTML = `
+                    <div class="alert alert-success" style="margin-top: 12px;">
+                        <strong>Alteração realizada!</strong>
+                        Sua assinatura foi atualizada na Paddle.
+                        ${leonaMsg}
+                    </div>
+                    <button class="btn btn-paddle" style="width: 100%;" onclick="loadProfile()">Recarregar</button>
+                `;
+            } catch (err) {
+                resultDiv.innerHTML = `<div class="alert alert-error" style="margin-top: 10px;"><strong>Erro</strong>${err.message}</div>`;
+            }
+        }
+
+        // ============================================
+        // Pause / Resume / Cancel
+        // ============================================
+        function confirmAction(action, idx, accId) {
+            const sub = _data.paddle.subscriptions[idx];
+            const labelMap = {
+                pause: { title: 'Pausar assinatura', confirm: 'Pausar', danger: false, hasWhen: true,
+                         desc: 'Sua assinatura será pausada e você não será mais cobrado. Você pode retomar a qualquer momento.' },
+                cancel: { title: 'Cancelar assinatura', confirm: 'Sim, cancelar', danger: true, hasWhen: true,
+                          desc: 'Sua assinatura será cancelada. Esta ação não pode ser desfeita pela página.' },
+                resume: { title: 'Retomar assinatura', confirm: 'Retomar', danger: false, hasWhen: false,
+                          desc: 'Sua assinatura será reativada imediatamente e a próxima cobrança seguirá o ciclo normal.' }
+            };
+            const m = labelMap[action];
+
+            const whenChooser = m.hasWhen ? `
+                <div style="margin: 14px 0;">
+                    <label style="display: block; margin-bottom: 6px; font-size: 0.85rem; color: var(--text-secondary);">Quando?</label>
+                    <select id="modal-when">
+                        <option value="next_billing_period">No fim do período atual (${sub.current_billing_period ? fmtDate(sub.current_billing_period.ends_at) : 'próxima cobrança'})</option>
+                        <option value="immediately">Imediatamente</option>
+                    </select>
+                </div>
+            ` : '';
+
+            openModal(`
+                <h3>${m.title}</h3>
+                <p style="color: var(--text-secondary); font-size: 0.9rem;">${m.desc}</p>
+                ${whenChooser}
+                <div id="modal-result"></div>
+                <div class="modal-actions">
+                    <button class="btn btn-ghost" onclick="closeModal()">Voltar</button>
+                    <button class="btn ${m.danger ? 'btn-danger' : 'btn-paddle'}" onclick="executeAction('${action}', ${idx}, ${accId === null ? 'null' : accId})">${m.confirm}</button>
+                </div>
+            `);
+        }
+
+        async function executeAction(action, idx, accId) {
+            const sub = _data.paddle.subscriptions[idx];
+            const whenEl = document.getElementById('modal-when');
+            const when = whenEl ? whenEl.value : null;
+            const resultDiv = document.getElementById('modal-result');
+
+            resultDiv.innerHTML = `
+                <div style="margin-top: 12px; padding: 14px; background: var(--bg-card); border-radius: 10px; text-align: center;">
+                    <div class="spinner"></div>
+                    <p style="margin-top: 8px; color: var(--text-secondary); font-size: 0.85rem;">Processando...</p>
+                </div>
+            `;
+
+            try {
+                const body = {
+                    action,
+                    subscription_id: sub.id,
+                    account_id: accId,
+                    email: _email
+                };
+                if (when) body.effective_from = when;
+
+                const r = await fetch('/api/paddle-subscription', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await r.json();
+
+                if (!r.ok) {
+                    const errMsg = data.error?.detail || data.error?.type || JSON.stringify(data.error || data);
+                    resultDiv.innerHTML = `<div class="alert alert-error"><strong>Erro</strong>${errMsg}</div>`;
+                    return;
+                }
+
+                let leonaMsg = '';
+                if (data.leona_sync) {
+                    if (data.leona_sync.ok) leonaMsg = `<div style="font-size: 0.78rem; color: var(--success); margin-top: 6px;">✓ Conta Leona sincronizada</div>`;
+                    else leonaMsg = `<div style="font-size: 0.78rem; color: var(--orange); margin-top: 6px;">⚠ Sincronização Leona: ${data.leona_sync.error || 'falhou'}</div>`;
+                }
+
+                resultDiv.innerHTML = `
+                    <div class="alert alert-success">
+                        <strong>Ação realizada!</strong>
+                        ${leonaMsg}
+                    </div>
+                    <button class="btn btn-paddle" style="width: 100%; margin-top: 10px;" onclick="closeModal(); loadProfile();">OK, recarregar</button>
+                `;
+            } catch (err) {
+                resultDiv.innerHTML = `<div class="alert alert-error"><strong>Erro</strong>${err.message}</div>`;
+            }
+        }
+
+        // ============================================
+        // Refund
+        // ============================================
+        function openRefundModal(subIdx, txIdx) {
+            const sub = _data.paddle.subscriptions[subIdx];
+            const tx = sub.transactions[txIdx];
+            const amount = fmtCurrency(tx.grand_total || tx.total || 0, tx.currency_code);
+
+            openModal(`
+                <h3>Reembolsar cobrança</h3>
+                <p style="color: var(--text-secondary); font-size: 0.9rem;">Você está prestes a reembolsar:</p>
+                <div style="background: var(--bg-card); padding: 14px; border-radius: 10px; margin: 14px 0;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                        <span style="color: var(--text-secondary);">Cobrança</span>
+                        <span style="font-family: monospace; font-size: 0.78rem;">${tx.id}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                        <span style="color: var(--text-secondary);">Data</span>
+                        <span>${fmtDateTime(tx.billed_at || tx.created_at)}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 1.1rem; font-weight: 700; padding-top: 8px; border-top: 1px solid var(--border); margin-top: 8px;">
+                        <span>Valor</span>
+                        <span style="color: var(--orange);">${amount}</span>
+                    </div>
+                </div>
+                <label style="display: block; margin-bottom: 6px; font-size: 0.85rem; color: var(--text-secondary);">Motivo do reembolso</label>
+                <textarea id="refund-reason" placeholder="Ex.: Solicitação do cliente, cobrança duplicada, etc."></textarea>
+                <div class="alert alert-warning" style="margin-top: 12px;">
+                    O reembolso é enviado para análise da Paddle e processado em até 7 dias úteis.
+                </div>
+                <div id="modal-result"></div>
+                <div class="modal-actions">
+                    <button class="btn btn-ghost" onclick="closeModal()">Voltar</button>
+                    <button class="btn btn-orange" onclick="executeRefund(${subIdx}, ${txIdx})">Solicitar reembolso</button>
+                </div>
+            `);
+        }
+
+        async function executeRefund(subIdx, txIdx) {
+            const sub = _data.paddle.subscriptions[subIdx];
+            const tx = sub.transactions[txIdx];
+            const reasonEl = document.getElementById('refund-reason');
+            const reason = (reasonEl?.value || '').trim();
+            const resultDiv = document.getElementById('modal-result');
+
+            if (!reason) {
+                resultDiv.innerHTML = `<div class="alert alert-warning" style="margin-top: 10px;">Informe o motivo do reembolso.</div>`;
+                return;
+            }
+
+            resultDiv.innerHTML = `
+                <div style="margin-top: 12px; padding: 14px; background: var(--bg-card); border-radius: 10px; text-align: center;">
+                    <div class="spinner"></div>
+                    <p style="margin-top: 8px; color: var(--text-secondary); font-size: 0.85rem;">Solicitando reembolso...</p>
+                </div>
+            `;
+
+            try {
+                const r = await fetch('/api/paddle-subscription', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'refund',
+                        transaction_id: tx.id,
+                        refund_type: 'full',
+                        refund_reason: reason
+                    })
+                });
+                const data = await r.json();
+
+                if (!r.ok) {
+                    const errMsg = data.error?.detail || data.error?.type || JSON.stringify(data.error || data);
+                    resultDiv.innerHTML = `<div class="alert alert-error"><strong>Erro</strong>${errMsg}</div>`;
                     return;
                 }
 
                 resultDiv.innerHTML = `
-                    <div style="background: rgba(0,212,170,0.1); padding: 20px; border-radius: 10px; border: 2px solid var(--success);">
-                        <div style="text-align: center; color: var(--success); font-weight: 600; font-size: 1.1rem;">
-                            Assinatura atualizada com sucesso!
-                        </div>
-                        <div style="text-align: center; margin-top: 10px;">
-                            <button class="btn-primary" onclick="searchPaddle()" style="padding: 10px 24px;">Recarregar Dados</button>
-                        </div>
+                    <div class="alert alert-success">
+                        <strong>Reembolso solicitado!</strong>
+                        Status: ${data.data?.status || 'pendente de aprovação'}
                     </div>
+                    <button class="btn btn-paddle" style="width: 100%; margin-top: 10px;" onclick="closeModal(); loadProfile();">OK, recarregar</button>
                 `;
-
             } catch (err) {
-                resultDiv.innerHTML = `
-                    <div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); color: var(--error);">
-                        <strong>Erro:</strong> ${err.message}
-                    </div>
-                `;
+                resultDiv.innerHTML = `<div class="alert alert-error"><strong>Erro</strong>${err.message}</div>`;
             }
+        }
+
+        // ============================================
+        // Helpers
+        // ============================================
+        function getActiveLeonaAccountId() {
+            const profiles = _data?.leona?.billing_profiles || (_data?.leona?.billing_profile ? [_data.leona.billing_profile] : []);
+            const active = profiles.find(p => p.subscription_status === 'active');
+            return active?.account_id || profiles[0]?.account_id || null;
+        }
+
+        // ============================================
+        // Init
+        // ============================================
+        const emailParam = getEmailFromUrl();
+        if (emailParam) {
+            loadProfile();
+        } else {
+            document.getElementById('searchSection').style.display = 'flex';
         }
     </script>
 </body>
