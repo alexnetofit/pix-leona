@@ -138,18 +138,24 @@ export default async function handler(req, res) {
     }
 
     const existingPeriodEnd = match.current_period_end;
-    const hasActivePeriod = firstLink && existingPeriodEnd
-      && new Date(existingPeriodEnd) > new Date();
+    let hasActivePeriod = false;
 
-    if (!isUpgradeOrDowngrade && !hasActivePeriod) {
-      const dueDate = calculateDueDate(payload);
-      if (dueDate) {
-        updateData.due_date = dueDate;
+    if (!isUpgradeOrDowngrade) {
+      const calculatedDueDate = calculateDueDate(payload);
+      const preserveExisting = firstLink
+        && existingPeriodEnd
+        && calculatedDueDate
+        && new Date(existingPeriodEnd) > new Date(calculatedDueDate + 'T23:59:59Z');
+
+      if (preserveExisting) {
+        hasActivePeriod = true;
+        console.log(`webhook-guru: firstLink com ciclo Leona (${existingPeriodEnd}) mais distante que o calculado (${calculatedDueDate}), preservando due_date do Leona`);
+      } else if (calculatedDueDate) {
+        updateData.due_date = calculatedDueDate;
+        if (firstLink && existingPeriodEnd) {
+          console.log(`webhook-guru: firstLink — substituindo current_period_end Leona (${existingPeriodEnd}) pelo due_date do payload (${calculatedDueDate})`);
+        }
       }
-    }
-
-    if (hasActivePeriod) {
-      console.log(`webhook-guru: firstLink com ciclo ativo (${existingPeriodEnd}), preservando due_date do Leona`);
     }
 
     console.log(`webhook-guru: atualizando conta ${accountId}:`, JSON.stringify(updateData));
