@@ -121,13 +121,37 @@ export default async function handler(req, res) {
           });
         }
       } else {
-        console.log(`webhook-guru: nenhuma conta Leona com guru_account_id correspondente à subscription ${guruSubId}. Contas encontradas: ${profiles.map(p => `${p.account_id}(guru=${p.guru_account_id})`).join(', ')}`);
-        return res.status(200).json({
-          received: true,
-          processed: false,
-          error: `nenhuma conta Leona vinculada à subscription ${guruSubId}`,
-          accounts_found: profiles.map(p => ({ account_id: p.account_id, guru_account_id: p.guru_account_id }))
-        });
+        const linked = profiles.filter(p => p.guru_account_id);
+
+        if (linked.length === 1) {
+          const candidate = linked[0];
+          const currentQty = Number(candidate.starter_instances) || 0;
+          const newQty = Number(instances) || 0;
+
+          if (newQty >= currentQty) {
+            match = candidate;
+            firstLink = true;
+            console.log(`webhook-guru: sub ${guruSubId} não bate com nenhuma conta. Única candidata=${candidate.account_id} (guru antigo=${candidate.guru_account_id}, qty atual=${currentQty}, nova=${newQty}). Re-vinculando (qty cresceu/manteve).`);
+          } else {
+            console.log(`webhook-guru: sub ${guruSubId} não bate. Única candidata=${candidate.account_id} teria reduzido qty ${currentQty}→${newQty}. NÃO re-vinculando para evitar perder conexões. Ação manual necessária.`);
+            return res.status(200).json({
+              received: true,
+              processed: false,
+              error: `re-vínculo abortado: nova qty (${newQty}) é menor que atual (${currentQty}) na conta ${candidate.account_id}. Verifique se o cliente realmente quis reduzir antes de vincular manualmente.`,
+              candidate_account: { account_id: candidate.account_id, guru_account_id: candidate.guru_account_id, current_qty: currentQty, new_qty: newQty }
+            });
+          }
+        } else {
+          console.log(`webhook-guru: nenhuma conta Leona com guru_account_id correspondente à subscription ${guruSubId}. Contas encontradas: ${profiles.map(p => `${p.account_id}(guru=${p.guru_account_id})`).join(', ')}`);
+          return res.status(200).json({
+            received: true,
+            processed: false,
+            error: linked.length === 0
+              ? `nenhuma conta Leona vinculada à subscription ${guruSubId}`
+              : `múltiplas contas Leona já vinculadas (${linked.length}) — não é possível determinar qual re-vincular`,
+            accounts_found: profiles.map(p => ({ account_id: p.account_id, guru_account_id: p.guru_account_id, starter_instances: p.starter_instances }))
+          });
+        }
       }
     }
 
