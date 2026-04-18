@@ -29,13 +29,17 @@ export default async function handler(req, res) {
       return res.status(200).json({ received: true, ignored: true, reason: `webhook_type: ${payload.webhook_type}` });
     }
 
-    if (payload.status !== 'approved') {
-      return res.status(200).json({ received: true, ignored: true, reason: `status: ${payload.status}` });
-    }
-
     const productId = payload.product?.internal_id;
     if (productId !== LEONA_PRODUCT_ID) {
       return res.status(200).json({ received: true, ignored: true, reason: 'produto diferente do Leona Flow' });
+    }
+
+    if (payload.status === 'refunded' || payload.status === 'chargedback') {
+      return await handleRefundOrChargeback(payload, leonaToken, res);
+    }
+
+    if (payload.status !== 'approved') {
+      return res.status(200).json({ received: true, ignored: true, reason: `status: ${payload.status}` });
     }
 
     if (!payload.subscription || !payload.subscription.internal_id) {
@@ -198,6 +202,82 @@ export default async function handler(req, res) {
     console.error('webhook-guru error:', error);
     return res.status(200).json({ received: true, error: error.message });
   }
+}
+
+async function handleRefundOrChargeback(payload, leonaToken, res) {
+  const action = payload.status;
+  const guruSubId = payload.subscription?.internal_id;
+  const guruSubCode = payload.subscription?.subscription_code || null;
+  const email = payload.contact?.email;
+
+  if (!guruSubId || !email) {
+    console.log(`webhook-guru ${action}: sub/email ausentes — ignorando`);
+    return res.status(200).json({ received: true, ignored: true, reason: 'sub/email ausentes' });
+  }
+
+  const leonaHeaders = {
+    'Authorization': `Bearer ${leonaToken}`,
+    'Accept': 'application/json',
+    'Content-Type': 'application/json'
+  };
+
+  const profiles = await fetchLeonaProfiles(email, leonaHeaders);
+  const match = profiles.find(p =>
+    p.guru_account_id &&
+    (p.guru_account_id === guruSubId || p.guru_account_id === guruSubCode)
+  );
+
+  if (!match) {
+    console.log(`webhook-guru ${action}: nenhuma conta Leona vinculada à subscription ${guruSubId}`);
+    return res.status(200).json({
+      received: true,
+      processed: false,
+      reason: action,
+      error: `nenhuma conta Leona vinculada à subscription ${guruSubId}`
+    });
+  }
+
+  const eventTs = action === 'refunded'
+    ? payload.dates?.refunded_at
+    : payload.dates?.chargedback_at;
+  const fallbackTs = payload.dates?.updated_at || Math.floor(Date.now() / 1000);
+  const eventDate = new Date((eventTs || fallbackTs) * 1000);
+  eventDate.setUTCDate(eventDate.getUTCDate() - 1);
+  const dueDate = eventDate.toISOString().split('T')[0];
+
+  const updateData = {
+    due_date: dueDate,
+    status: 'inactive'
+  };
+
+  console.log(`webhook-guru ${action}: atualizando conta ${match.account_id} due_date=${dueDate}, status=inactive`);
+
+  const r = await fetch(`${LEONA_BASE}/accounts/${match.account_id}/billing_profile`, {
+    method: 'POST',
+    headers: leonaHeaders,
+    body: JSON.stringify(updateData)
+  });
+  const body = await r.json().catch(() => ({}));
+
+  if (r.ok) {
+    return res.status(200).json({
+      received: true,
+      processed: true,
+      action,
+      account_id: match.account_id,
+      due_date: dueDate,
+      status: 'inactive'
+    });
+  }
+
+  console.error(`webhook-guru ${action}: erro ao atualizar conta ${match.account_id}:`, JSON.stringify(body));
+  return res.status(200).json({
+    received: true,
+    processed: false,
+    action,
+    account_id: match.account_id,
+    error: body.error || 'Erro ao atualizar conta Leona'
+  });
 }
 
 async function fetchLeonaProfiles(email, headers) {
