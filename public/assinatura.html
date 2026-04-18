@@ -403,6 +403,67 @@
             .footer { margin-top: 24px; padding-top: 16px; }
             .footer-logo { height: 20px; }
         }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 16px;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 480px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-card h3 {
+            margin: 0 0 12px;
+            color: var(--orange);
+            font-size: 1.05rem;
+        }
+        .modal-card p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.5;
+            margin: 8px 0;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 18px;
+            flex-wrap: wrap;
+        }
+        .modal-actions button {
+            flex: 1;
+            min-width: 140px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            transition: all 0.2s;
+        }
+        .modal-actions button:hover { border-color: var(--accent); }
+        .modal-actions button.danger {
+            background: var(--orange);
+            color: #fff;
+            border-color: var(--orange);
+        }
+        .modal-actions button.danger:hover { filter: brightness(1.05); }
+        .modal-actions button:disabled { opacity: 0.6; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -428,6 +489,17 @@
 
         <div class="footer">
             <img src="/logo-leona.png" alt="Leona" class="footer-logo">
+        </div>
+    </div>
+
+    <div id="confirmModal" class="modal-overlay" onclick="if(event.target===this)closeConfirmModal()">
+        <div class="modal-card">
+            <h3 id="confirmModalTitle">Confirmar ação</h3>
+            <div id="confirmModalBody"></div>
+            <div class="modal-actions">
+                <button onclick="closeConfirmModal()">Cancelar</button>
+                <button id="confirmModalOk" class="danger" onclick="confirmModalConfirm()">Confirmar</button>
+            </div>
         </div>
     </div>
 
@@ -604,31 +676,96 @@
             `;
         }
 
-        function renderOffersGrid(offers, email) {
+        const _qtySelStates = {};
+
+        function renderQtySelInfo(offer, qty) {
+            if (!offer) {
+                return `<div style="color: var(--orange); font-size: 0.9rem;">Não existe plano configurado para ${qty} conex${qty !== 1 ? 'ões' : 'ão'}.</div>`;
+            }
+            const pmts = (offer.payment_types || []).map(t => t === 'credit_card' ? 'Cartão' : t === 'pix' ? 'PIX' : t).join(' · ');
+            return `
+                <div style="font-size: 1rem; color: var(--text-primary); font-weight: 600; margin-bottom: 4px;">${offer.name}</div>
+                <div style="font-size: 1.4rem; color: var(--orange); font-weight: 700;">${fmtCurrency(offer.value)}<span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 400;">/mês</span></div>
+                ${pmts ? `<div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">${pmts}</div>` : ''}
+            `;
+        }
+
+        function renderQtySelector(offers, email, slot) {
             if (!offers || offers.length === 0) return '';
+            const qtys = [];
+            for (const o of offers) {
+                const m = (o.name || '').match(/(\d+)\s*conex/i);
+                if (m) {
+                    const q = parseInt(m[1]);
+                    if (q > 0 && !qtys.includes(q)) qtys.push(q);
+                }
+            }
+            qtys.sort((a, b) => a - b);
+            if (qtys.length === 0) return '';
+            const slotId = slot || 'g';
+            const initialQty = qtys[0];
+            const initialOffer = getOfferForQty(offers, initialQty);
+
+            _qtySelStates[slotId] = { offers, email };
+
             return `
                 <div class="card">
-                    <h3>Escolha um plano</h3>
-                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 4px;">Selecione o plano ideal e assine agora:</p>
-                    <div class="offer-grid">
-                        ${offers.map((o, i) => {
-                            const url = o.checkout_url ? o.checkout_url + (o.checkout_url.includes('?') ? '&' : '?') + 'email=' + email : '';
-                            return `
-                                <div class="offer-card">
-                                    <div>
-                                        <div class="offer-name">${o.name}</div>
-                                        <div class="offer-value">${fmtCurrency(o.value)}<span style="font-size: 0.75rem; font-weight: 400; color: var(--text-secondary);">/mês</span></div>
-                                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">
-                                            ${(o.payment_types || []).map(t => t === 'credit_card' ? 'Cartão' : t === 'pix' ? 'PIX' : t).join(' · ')}
-                                        </div>
-                                    </div>
-                                    ${url ? `<button class="btn-copy" id="copy-of-${i}" onclick="copyLink('${url}', 'copy-of-${i}')">Copiar Link</button>` : ''}
-                                </div>
-                            `;
-                        }).join('')}
+                    <h3>Escolha seu plano</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 16px;">Selecione quantas conexões deseja e clique em Assinar agora:</p>
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 16px;">
+                        <button onclick="qtySelAdjust('${slotId}', -1)" style="width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); font-size: 1.4rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-primary)'">−</button>
+                        <input type="number" id="qtySel-${slotId}" value="${initialQty}" min="1"
+                            style="width: 80px; padding: 10px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; color: var(--text-primary); font-size: 1.3rem; font-weight: 700; text-align: center; outline: none; transition: all 0.25s;"
+                            onfocus="this.style.borderColor='var(--accent)';this.style.boxShadow='0 0 0 3px var(--glow-purple)'"
+                            onblur="this.style.borderColor='var(--border)';this.style.boxShadow='none'"
+                            oninput="qtySelUpdate('${slotId}')">
+                        <button onclick="qtySelAdjust('${slotId}', +1)" style="width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); font-size: 1.4rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--orange)';this.style.color='var(--orange)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-primary)'">+</button>
                     </div>
+                    <div id="qtySelInfo-${slotId}" style="text-align: center; margin-top: 18px; min-height: 70px;">${renderQtySelInfo(initialOffer, initialQty)}</div>
+                    <button class="btn-orange" id="qtySelBtn-${slotId}" style="width: 100%; padding: 14px; margin-top: 12px; font-size: 0.95rem;" ${initialOffer ? '' : 'disabled'} onclick="qtySelGoCheckout('${slotId}')">
+                        ${initialOffer ? 'Assinar agora' : 'Plano indisponível'}
+                    </button>
                 </div>
             `;
+        }
+
+        function qtySelAdjust(slot, delta) {
+            const input = document.getElementById(`qtySel-${slot}`);
+            if (!input) return;
+            const val = parseInt(input.value) || 1;
+            input.value = Math.max(1, val + delta);
+            qtySelUpdate(slot);
+        }
+
+        function qtySelUpdate(slot) {
+            const state = _qtySelStates[slot];
+            if (!state) return;
+            const input = document.getElementById(`qtySel-${slot}`);
+            const info = document.getElementById(`qtySelInfo-${slot}`);
+            const btn = document.getElementById(`qtySelBtn-${slot}`);
+            if (!input || !info || !btn) return;
+            const qty = parseInt(input.value) || 0;
+            const offer = getOfferForQty(state.offers, qty);
+            info.innerHTML = renderQtySelInfo(offer, qty);
+            if (offer) {
+                btn.disabled = false;
+                btn.textContent = 'Assinar agora';
+            } else {
+                btn.disabled = true;
+                btn.textContent = 'Plano indisponível';
+            }
+        }
+
+        function qtySelGoCheckout(slot) {
+            const state = _qtySelStates[slot];
+            if (!state) return;
+            const input = document.getElementById(`qtySel-${slot}`);
+            const qty = parseInt(input.value) || 0;
+            const offer = getOfferForQty(state.offers, qty);
+            if (!offer || !offer.checkout_url) return;
+            const sep = offer.checkout_url.includes('?') ? '&' : '?';
+            const url = offer.checkout_url + sep + 'email=' + encodeURIComponent(state.email);
+            window.open(url, '_blank');
         }
 
         function renderOpenInvoices(invoices) {
@@ -753,7 +890,7 @@
                         <div class="icon">🔍</div>
                         <p>Nenhuma assinatura encontrada para <strong>${email}</strong>.</p>
                     </div>
-                    ${renderOffersGrid(offers, email)}
+                    ${renderQtySelector(offers, email, 'none')}
                 `;
                 return;
             }
@@ -794,7 +931,7 @@
                                     Não há faturas pendentes de pagamento. Escolha um plano abaixo para reativar sua assinatura.
                                 </div>
                             `;
-                            html += renderOffersGrid(offers, email);
+                            html += renderQtySelector(offers, email, `exp${i}`);
                         }
                     } else {
                         // Cenário 1: Leona vencida + sem Guru
@@ -804,7 +941,7 @@
                                 Escolha um plano abaixo para reativar sua assinatura.
                             </div>
                         `;
-                        html += renderOffersGrid(offers, email);
+                        html += renderQtySelector(offers, email, `noguru${i}`);
                     }
                 } else {
                     // Cenário 4: Leona ativa — upgrade/downgrade
@@ -870,6 +1007,10 @@
             resultDiv.style.display = 'block';
 
             if (!isUpgrade) {
+                const activeSub = hasGuru ? (data.guru.subscriptions.find(s => s.status === 'active') || data.guru.subscriptions[0]) : null;
+                const subId = activeSub?.id;
+                const canExecute = hasGuru && subId && bp.account_id;
+
                 resultDiv.innerHTML = `
                     <div style="background: var(--bg-card); padding: 20px; border-radius: 14px; border: 1px solid rgba(245,158,11,0.3);">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
@@ -884,9 +1025,18 @@
                             <span style="color: var(--text-secondary);">Valor mensal:</span>
                             <span style="font-weight: 600;">${fmtCurrency(currentValue)} → ${fmtCurrency(newValue)}</span>
                         </div>
-                        <div style="background: var(--orange-soft); padding: 12px; border-radius: 10px; color: var(--orange); font-size: 0.85rem; text-align: center;">
-                            O downgrade será aplicado na próxima renovação. Sem cobrança adicional.
-                        </div>
+                        ${canExecute ? `
+                            <div style="background: var(--orange-soft); padding: 12px; border-radius: 10px; color: var(--orange); font-size: 0.85rem; margin-bottom: 14px;">
+                                <strong>Importante:</strong> antes de confirmar, abra o painel da Leona e <u>exclua manualmente</u> as conexões que NÃO quer manter, deixando apenas <strong>${newQty}</strong> ativa${newQty !== 1 ? 's' : ''}. Caso contrário, o sistema pode desativar conexões aleatórias.
+                            </div>
+                            <button class="btn-orange" id="downBtn-${bpIdx}" style="width: 100%; padding: 14px;" onclick="askDowngradeConfirm('${subId}', '${newOffer.id}', ${bp.account_id}, ${currentQty}, ${newQty}, ${bpIdx})">
+                                Confirmar downgrade para ${newQty} conex${newQty !== 1 ? 'ões' : 'ão'}
+                            </button>
+                        ` : `
+                            <div style="background: var(--orange-soft); padding: 12px; border-radius: 10px; color: var(--orange); font-size: 0.85rem; text-align: center;">
+                                ${!hasGuru ? 'Não há assinatura Guru ativa. O downgrade não pode ser executado por aqui.' : 'Não foi possível identificar sua conta. Entre em contato com o suporte.'}
+                            </div>
+                        `}
                     </div>
                 `;
                 return;
@@ -1074,6 +1224,103 @@
                             ` : ''}
                         ` : '<p style="color: var(--text-secondary); font-size: 0.85rem;">Upgrade processado. A cobrança será feita automaticamente.</p>'}
                         <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 14px;">Suas conexões serão atualizadas após a confirmação do pagamento.</p>
+                    </div>
+                `;
+            } catch (err) {
+                resultDiv.innerHTML = `<div class="alert alert-error">Erro: ${err.message}</div>`;
+            }
+        }
+
+        let _confirmModalAction = null;
+
+        function openConfirmModal({ title, bodyHtml, okText, onConfirm }) {
+            const modal = document.getElementById('confirmModal');
+            document.getElementById('confirmModalTitle').textContent = title || 'Confirmar ação';
+            document.getElementById('confirmModalBody').innerHTML = bodyHtml || '';
+            const okBtn = document.getElementById('confirmModalOk');
+            okBtn.textContent = okText || 'Confirmar';
+            okBtn.disabled = false;
+            _confirmModalAction = onConfirm || null;
+            modal.classList.add('open');
+        }
+
+        function closeConfirmModal() {
+            const modal = document.getElementById('confirmModal');
+            modal.classList.remove('open');
+            _confirmModalAction = null;
+        }
+
+        async function confirmModalConfirm() {
+            const okBtn = document.getElementById('confirmModalOk');
+            const fn = _confirmModalAction;
+            if (!fn) return closeConfirmModal();
+            okBtn.disabled = true;
+            okBtn.textContent = 'Processando...';
+            try {
+                await fn();
+            } finally {
+                closeConfirmModal();
+            }
+        }
+
+        function askDowngradeConfirm(subId, offerId, accountId, currentQty, newQty, bpIdx) {
+            openConfirmModal({
+                title: 'Confirmar downgrade',
+                bodyHtml: `
+                    <p>Você está reduzindo de <strong>${currentQty}</strong> para <strong>${newQty}</strong> conex${newQty !== 1 ? 'ões' : 'ão'}.</p>
+                    <p style="color: var(--orange);"><strong>Antes de confirmar:</strong> abra o painel da Leona e exclua manualmente as conexões que NÃO quer manter, deixando apenas <strong>${newQty}</strong> ativa${newQty !== 1 ? 's' : ''}.</p>
+                    <p>Caso contrário, o sistema pode desativar conexões aleatórias após o downgrade.</p>
+                    <p style="color: var(--text-muted); font-size: 0.82rem;">A mudança será aplicada imediatamente, sem cobrança adicional.</p>
+                `,
+                okText: 'Já organizei, confirmar',
+                onConfirm: () => executeGuruDowngrade(subId, offerId, accountId, newQty, bpIdx)
+            });
+        }
+
+        async function executeGuruDowngrade(subscriptionId, offerId, accountId, newQty, bpIdx) {
+            const resultDiv = document.getElementById(`simResult-${bpIdx}`);
+            const btn = document.getElementById(`downBtn-${bpIdx}`);
+            if (btn) { btn.disabled = true; btn.textContent = 'Executando...'; }
+
+            try {
+                const res = await fetch('/api/guru-upgrade', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        subscription_id: subscriptionId,
+                        offer_id: offerId,
+                        sync_leona: { account_id: accountId, starter_instances: newQty }
+                    })
+                });
+                const data = await res.json();
+
+                if (!data.success) {
+                    const errMsg = data.error || 'Erro desconhecido';
+                    resultDiv.innerHTML = `
+                        <div class="alert alert-warning">
+                            <strong>Não foi possível executar o downgrade</strong>
+                            ${errMsg}
+                            ${data.details ? `<details style="margin-top: 8px; font-size: 0.75rem;"><summary>Detalhes</summary><pre style="white-space: pre-wrap; margin-top: 4px;">${JSON.stringify(data.details, null, 2)}</pre></details>` : ''}
+                        </div>
+                    `;
+                    return;
+                }
+
+                const leonaSync = data.leona_sync;
+                const leonaOk = leonaSync && leonaSync.ok;
+                resultDiv.innerHTML = `
+                    <div style="background: var(--bg-card); padding: 20px; border-radius: 14px; border: 1px solid rgba(16,185,129,0.3); box-shadow: 0 0 20px rgba(16,185,129,0.1);">
+                        <div style="color: var(--success); font-weight: 700; margin-bottom: 12px; font-size: 1.05rem;">✅ Downgrade efetivado na Guru</div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span style="color: var(--text-secondary);">Novo plano</span>
+                            <span style="font-weight: 600;">${newQty} conex${newQty !== 1 ? 'ões' : 'ão'}</span>
+                        </div>
+                        <div style="margin-top: 14px; padding: 12px; border-radius: 10px; background: ${leonaOk ? 'rgba(16,185,129,0.1)' : 'var(--orange-soft)'}; color: ${leonaOk ? 'var(--success)' : 'var(--orange)'}; font-size: 0.88rem;">
+                            ${leonaOk
+                                ? `✓ Conta Leona sincronizada (${leonaSync.starter_instances} starter)`
+                                : `⚠️ Guru atualizada, mas a Leona não sincronizou${leonaSync?.error ? ': ' + leonaSync.error : ''}. Entre em contato com o suporte.`}
+                        </div>
+                        <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 14px;">A mudança já está em vigor. Atualize a página para ver os novos valores.</p>
                     </div>
                 `;
             } catch (err) {
