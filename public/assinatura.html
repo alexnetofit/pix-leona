@@ -512,6 +512,38 @@
             return (params.get('email') || '').trim().toLowerCase();
         }
 
+        function getAccountIdParam() {
+            const params = new URLSearchParams(window.location.search);
+            const raw = (params.get('account_id') || '').trim();
+            if (!raw) return null;
+            const n = Number(raw);
+            return Number.isFinite(n) && n > 0 ? n : null;
+        }
+
+        function getDisplayProfiles(data) {
+            const leona = data?.leona || {};
+            let profiles = leona.billing_profiles || (leona.billing_profile ? [leona.billing_profile] : []);
+
+            const accountIdParam = getAccountIdParam();
+            if (accountIdParam && profiles.length > 0) {
+                const filtered = profiles.filter(p => Number(p.account_id) === accountIdParam);
+                if (filtered.length > 0) {
+                    profiles = filtered;
+                }
+            }
+
+            if (profiles.length > 1) {
+                profiles = [...profiles].sort((a, b) => {
+                    const aActive = !isLeonaExpired(a) ? 0 : 1;
+                    const bActive = !isLeonaExpired(b) ? 0 : 1;
+                    if (aActive !== bActive) return aActive - bActive;
+                    return (b.starter_instances || 0) - (a.starter_instances || 0);
+                });
+            }
+
+            return profiles;
+        }
+
         function formatDate(d) {
             if (!d) return '—';
             const date = new Date(d.includes('T') ? d : d + 'T00:00:00Z');
@@ -875,16 +907,7 @@
             const content = document.getElementById('content');
             const { leona, guru, offers } = data;
 
-            let profiles = leona.billing_profiles || (leona.billing_profile ? [leona.billing_profile] : []);
-
-            if (profiles.length > 1) {
-                profiles = [...profiles].sort((a, b) => {
-                    const aActive = !isLeonaExpired(a) ? 0 : 1;
-                    const bActive = !isLeonaExpired(b) ? 0 : 1;
-                    if (aActive !== bActive) return aActive - bActive;
-                    return (b.starter_instances || 0) - (a.starter_instances || 0);
-                });
-            }
+            const profiles = getDisplayProfiles(data);
 
             if (!leona.found || profiles.length === 0) {
                 content.innerHTML = `
@@ -969,7 +992,7 @@
             const email = _email;
             if (!data) return;
 
-            const profiles = data.leona.billing_profiles || (data.leona.billing_profile ? [data.leona.billing_profile] : []);
+            const profiles = getDisplayProfiles(data);
             const bp = profiles[bpIdx];
             if (!bp) return;
 
