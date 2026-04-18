@@ -166,7 +166,8 @@ export default async function handler(req, res) {
       updateData.guru_account_id = guruSubId;
     }
 
-    const couponCode = payload.payment?.coupon || '';
+    const couponRaw = payload.payment?.coupon;
+    const couponCode = (typeof couponRaw === 'string' ? couponRaw : couponRaw?.coupon_code) || '';
     const isStripeUpgrade = couponCode.toLowerCase().startsWith(STRIPE_UPGRADE_COUPON_PREFIX);
     const existingPeriodEnd = match.current_period_end;
     const preserveStripeCycle = isStripeUpgrade
