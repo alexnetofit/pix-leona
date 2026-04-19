@@ -490,8 +490,8 @@
         function showWhatsapp(email) {
             const section = document.getElementById('whatsappSection');
             const btn = document.getElementById('whatsappBtn');
-            const msg = encodeURIComponent(`Olá, preciso de ajuda com minha assinatura (${email})`);
-            btn.href = `https://api.whatsapp.com/send/?phone=5511947209231&text=${msg}`;
+            const msg = encodeURIComponent(`Olá, preciso de ajuda com minha assinatura. Email: ${email}`);
+            btn.href = `https://api.whatsapp.com/send/?phone=5511947209231&text=${msg}&type=phone_number&app_absent=0`;
             section.style.display = 'block';
         }
 
