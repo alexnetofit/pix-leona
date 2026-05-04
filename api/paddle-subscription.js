@@ -77,15 +77,16 @@ function tierUnitCents(qty) {
   if (q >= 2) return 9900;
   return TIER_BASE_UNIT_CENTS;
 }
-function tierDiscount(qty, currency = 'BRL') {
+function tierDiscount(qty) {
   const q = Number(qty) || 0;
   if (q < 2) return null;
   const perSeatCents = TIER_BASE_UNIT_CENTS - tierUnitCents(q);
   if (perSeatCents <= 0) return null;
+  // Currency_code do discount herda do currency_code da transaction
+  // (já passamos 'BRL' no txBody). Paddle rejeita se vier explicitamente aqui.
   return {
     type: 'flat_per_seat',
     amount: String(perSeatCents),
-    currency_code: currency,
     description: q >= 4
       ? 'Desconto por volume (4+ conexões)'
       : 'Desconto por volume (2-3 conexões)',
