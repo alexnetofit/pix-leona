@@ -592,16 +592,32 @@
                 html += renderLeonaSummary(activeProfile);
             }
 
-            // ===== Painel de renovacao (conta vencida + sem assinatura Paddle) =====
+            // ===== Decide qual painel mostrar =====
+            // - vencida + sem Paddle           → painel "Renovar"
+            // - ativa + sem Paddle + custom    → painel "Assinar via Paddle"
+            // - ativa + sem Paddle + outro gw  → aviso "fale com suporte"
+            // - ativa + com Paddle             → painel de gerenciamento (renderSubscription)
             const noPaddleSub = !paddle.subscriptions || paddle.subscriptions.length === 0;
-            const shouldShowRenewal = activeProfile && isExpired(activeProfile) && noPaddleSub;
+            const expired = activeProfile && isExpired(activeProfile);
+            const subType = String(activeProfile?.subscription_type || '').toLowerCase();
+            const hasOtherGateway = ['stripe', 'guru', 'guru_digital', 'guru-digital'].includes(subType);
+
+            const shouldShowRenewal = activeProfile && expired && noPaddleSub;
+            const shouldShowSubscribe = activeProfile && !expired && noPaddleSub && !hasOtherGateway;
+            const shouldShowOtherGw = activeProfile && !expired && noPaddleSub && hasOtherGateway;
+            const shouldRunPreview = shouldShowRenewal || shouldShowSubscribe;
+
             if (shouldShowRenewal) {
-                html += renderRenewalPanel(activeProfile, products, config);
+                html += renderRenewalPanel(activeProfile, products, config, 'renew');
+            } else if (shouldShowSubscribe) {
+                html += renderRenewalPanel(activeProfile, products, config, 'subscribe');
+            } else if (shouldShowOtherGw) {
+                html += renderOtherGatewayPanel(activeProfile);
             }
 
             // ===== Sem cliente Paddle =====
             if (!paddle.found) {
-                if (!shouldShowRenewal) {
+                if (!shouldShowRenewal && !shouldShowSubscribe && !shouldShowOtherGw) {
                     html += `
                         <div class="empty-state">
                             <div class="icon">🔍</div>
@@ -613,13 +629,13 @@
                     }
                 }
                 content.innerHTML = html;
-                if (shouldShowRenewal) renewPreview();
+                if (shouldRunPreview) renewPreview();
                 return;
             }
 
             // ===== Sem subs =====
             if (noPaddleSub) {
-                if (!shouldShowRenewal) {
+                if (!shouldShowRenewal && !shouldShowSubscribe && !shouldShowOtherGw) {
                     html += `
                         <div class="card">
                             <h3 class="paddle-tone">Cliente Paddle encontrado</h3>
@@ -633,7 +649,7 @@
                     }
                 }
                 content.innerHTML = html;
-                if (shouldShowRenewal) renewPreview();
+                if (shouldRunPreview) renewPreview();
                 return;
             }
 
@@ -643,7 +659,7 @@
             }
 
             content.innerHTML = html;
-            if (shouldShowRenewal) renewPreview();
+            if (shouldRunPreview) renewPreview();
         }
 
         // ============================================
@@ -657,15 +673,19 @@
             return starter?.prices?.[0]?.id || null;
         }
 
-        function renderRenewalPanel(bp, products, config) {
+        function renderRenewalPanel(bp, products, config, mode = 'renew') {
             const priceId = findStarterPriceId(products, config);
+            const isSubscribe = mode === 'subscribe';
+            const title = isSubscribe ? 'Assinar via Paddle' : 'Renovar assinatura';
+            const buttonLabel = isSubscribe ? 'Assinar via Paddle' : 'Pagar e renovar';
+
             if (!priceId) {
                 return `
                     <div class="card">
-                        <h3 class="paddle-tone">Renovar assinatura</h3>
+                        <h3 class="paddle-tone">${title}</h3>
                         <div class="alert alert-warning" style="margin-top:10px;">
-                            Plano de renovacao ainda nao esta disponivel. Fale com o suporte
-                            para concluir sua renovacao manualmente.
+                            Plano ainda nao esta disponivel. Fale com o suporte
+                            para concluir manualmente.
                         </div>
                     </div>
                 `;
@@ -675,14 +695,31 @@
             const accountId = bp.account_id;
             const venceuEm = bp.current_period_end ? fmtDate(bp.current_period_end) : null;
 
+            const intro = isSubscribe
+                ? `Sua conta tem <strong>${initialQty} ${initialQty === 1 ? 'conexão' : 'conexões'}</strong>${
+                        venceuEm ? ` e vence em <strong>${venceuEm}</strong>` : ''
+                    }. Ative cobrança automática mensal via cartão e mantenha seu plano sem se preocupar.`
+                : `${venceuEm
+                        ? `Sua conta venceu em <strong>${venceuEm}</strong>.`
+                        : 'Sua conta esta inativa.'} Escolha quantas conexoes voce quer ativar e pague com cartao via Paddle.`;
+
+            const footer = isSubscribe
+                ? 'Apos o pagamento, sua assinatura passa a ser cobrada mensalmente via cartao automaticamente.'
+                : 'Apos o pagamento, sua conta Leona é reativada automaticamente.';
+
+            const dupWarning = isSubscribe
+                ? `<div class="alert alert-warning" style="margin-top: 12px; font-size: 0.82rem;">
+                        Se voce ja paga sua assinatura por outro meio (Pix recorrente, boleto, outro gateway),
+                        <a href="https://wa.me/5511947209231" target="_blank" rel="noopener" style="color: var(--warning); text-decoration: underline;">fale com o suporte</a>
+                        antes de continuar para evitar cobranca duplicada.
+                    </div>`
+                : '';
+
             return `
                 <div class="card card-paddle">
-                    <h3 class="paddle-tone">Renovar assinatura</h3>
+                    <h3 class="paddle-tone">${title}</h3>
                     <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 12px;">
-                        ${venceuEm
-                            ? `Sua conta venceu em <strong>${venceuEm}</strong>.`
-                            : 'Sua conta esta inativa.'}
-                        Escolha quantas conexoes voce quer ativar e pague com cartao via Paddle.
+                        ${intro}
                     </p>
 
                     <div class="qty-control">
@@ -696,14 +733,39 @@
                         Calculando...
                     </div>
 
+                    ${dupWarning}
+
                     <button class="btn btn-paddle" id="renew-btn" style="width: 100%; margin-top: 14px;"
                             onclick="renewCheckout('${escapeHtml(priceId)}', ${accountId})" disabled>
-                        Pagar e renovar
+                        ${buttonLabel}
                     </button>
 
                     <p style="color: var(--text-muted); font-size: 0.75rem; margin-top: 10px; text-align: center;">
-                        Apos o pagamento, sua conta Leona é reativada automaticamente.
+                        ${footer}
                     </p>
+                </div>
+            `;
+        }
+
+        function renderOtherGatewayPanel(bp) {
+            const gateway = (bp.subscription_type || '').toString();
+            const venceuEm = bp.current_period_end ? fmtDate(bp.current_period_end) : null;
+            const gwLabel = /stripe/i.test(gateway) ? 'Stripe'
+                          : /guru/i.test(gateway) ? 'Guru'
+                          : gateway || 'outro gateway';
+
+            return `
+                <div class="card">
+                    <h3 class="paddle-tone">Sua assinatura é gerenciada via ${escapeHtml(gwLabel)}</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 8px;">
+                        Voce esta com o plano ativo${venceuEm ? `, com vencimento em <strong>${venceuEm}</strong>` : ''}.
+                        Para ajustar quantidade, mudar de plano ou migrar a cobranca para Paddle, fale com o suporte.
+                    </p>
+                    <a class="btn btn-secondary" style="margin-top: 14px; width: 100%;"
+                       href="https://wa.me/5511947209231?text=${encodeURIComponent('Olá, gostaria de ajustar minha assinatura.')}"
+                       target="_blank" rel="noopener">
+                        Falar no WhatsApp
+                    </a>
                 </div>
             `;
         }

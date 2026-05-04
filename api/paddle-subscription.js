@@ -242,15 +242,24 @@ export default async function handler(req, res) {
       if (!subscription_id || !items) {
         return res.status(400).json({ error: 'subscription_id e items são obrigatórios' });
       }
+      const totalQty = sumInstances(items);
+      const tierDisc = tierDiscount(totalQty);
+      const body = {
+        items,
+        proration_billing_mode: proration_billing_mode || 'prorated_immediately',
+        // Paddle aceita `discount: null` pra limpar discount existente quando
+        // o cliente faz downgrade pra um tier sem desconto (qty=1)
+        discount: tierDisc || null
+      };
       const r = await fetch(`${PADDLE_BASE}/subscriptions/${subscription_id}/preview`, {
         method: 'PATCH',
         headers,
-        body: JSON.stringify({
-          items,
-          proration_billing_mode: proration_billing_mode || 'prorated_immediately'
-        })
+        body: JSON.stringify(body)
       });
       const data = await r.json();
+      if (r.ok) {
+        data.tier = buildTierSummary(totalQty);
+      }
       return res.status(r.ok ? 200 : r.status).json(data);
     }
 
@@ -258,13 +267,17 @@ export default async function handler(req, res) {
       if (!subscription_id || !items) {
         return res.status(400).json({ error: 'subscription_id e items são obrigatórios' });
       }
+      const totalQty = sumInstances(items);
+      const tierDisc = tierDiscount(totalQty);
+      const body = {
+        items,
+        proration_billing_mode: proration_billing_mode || 'prorated_immediately',
+        discount: tierDisc || null
+      };
       const r = await fetch(`${PADDLE_BASE}/subscriptions/${subscription_id}`, {
         method: 'PATCH',
         headers,
-        body: JSON.stringify({
-          items,
-          proration_billing_mode: proration_billing_mode || 'prorated_immediately'
-        })
+        body: JSON.stringify(body)
       });
       const data = await r.json();
       if (!r.ok) return res.status(r.status).json(data);
