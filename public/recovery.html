@@ -93,41 +93,110 @@
             color: var(--text-secondary);
             opacity: 0.7;
         }
+        .checkout-state { display: none; }
+        .checkout-state.active { display: block; }
+        .static-state.hidden { display: none; }
+        .spinner {
+            width: 36px;
+            height: 36px;
+            border: 3px solid rgba(139, 92, 246, 0.2);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            margin: 0 auto 16px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
     <main>
         <img src="/logo-leona.png" alt="Leona" class="logo">
-        <h1>Recuperação de pagamento</h1>
-        <p class="subtitle">Página oficial Leona para suporte a cobranças.</p>
 
-        <div class="info">
-            Se você recebeu um e-mail da Paddle informando que sua cobrança falhou,
-            clique no link enviado para concluir o pagamento com segurança. Esta
-            página existe para validar a integração de recuperação automática.
+        <div class="checkout-state" id="checkout-state">
+            <h1>Abrindo pagamento</h1>
+            <p class="subtitle">Carregando checkout seguro da Paddle...</p>
+            <div class="spinner"></div>
+            <p style="font-size: 0.85rem;">Se a janela de pagamento não abrir em alguns segundos,
+                <a href="#" id="retry-checkout" style="color: var(--accent);">clique aqui</a>.
+            </p>
         </div>
 
-        <p>Precisa de ajuda? Fale com o nosso time.</p>
+        <div class="static-state" id="static-state">
+            <h1>Recuperação de pagamento</h1>
+            <p class="subtitle">Página oficial Leona para suporte a cobranças.</p>
 
-        <div class="actions">
-            <a class="btn btn-secondary" href="https://api.whatsapp.com/send/?phone=5512982971974&text=Ol%C3%A1%2C%20preciso%20de%20ajuda%20com%20uma%20cobran%C3%A7a">
-                Falar no WhatsApp
-            </a>
-            <a class="btn btn-primary" href="/paddle">Ir para minha assinatura</a>
+            <div class="info">
+                Se você recebeu um e-mail da Paddle informando que sua cobrança falhou,
+                clique no link enviado para concluir o pagamento com segurança. Esta
+                página existe para validar a integração de recuperação automática.
+            </div>
+
+            <p>Precisa de ajuda? Fale com o nosso time.</p>
+
+            <div class="actions">
+                <a class="btn btn-secondary" href="https://api.whatsapp.com/send/?phone=5512982971974&text=Ol%C3%A1%2C%20preciso%20de%20ajuda%20com%20uma%20cobran%C3%A7a">
+                    Falar no WhatsApp
+                </a>
+                <a class="btn btn-primary" href="/paddle">Ir para minha assinatura</a>
+            </div>
+
+            <p class="footer-note">© Leona — leonaflow.com</p>
         </div>
-
-        <p class="footer-note">© Leona — leonaflow.com</p>
     </main>
 
     <script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
     <script>
-        // Inicializa Paddle.js com o client-side token vindo do servidor.
-        // Sem token configurado a página ainda renderiza, só não inicializa
-        // o Paddle.js (logamos um aviso para facilitar diagnostico).
+        // Esta página tem 2 papéis:
+        //  1. Sem ?_ptxn= ela mostra a versão estática (info pra cliente que
+        //     veio do e-mail da Paddle por curiosidade ou suporte manual).
+        //  2. Com ?_ptxn= ela é o "default payment link" da Paddle: abre
+        //     automaticamente o overlay de checkout pra concluir o pagamento.
+        const params = new URLSearchParams(window.location.search);
+        const ptxn = params.get('_ptxn');
+
+        const staticState = document.getElementById('static-state');
+        const checkoutState = document.getElementById('checkout-state');
+        const retryLink = document.getElementById('retry-checkout');
+
+        function openCheckout(transactionId) {
+            if (!window.Paddle || !window.Paddle.Checkout) {
+                console.warn('[recovery] Paddle.js indisponivel para abrir checkout.');
+                return;
+            }
+            try {
+                Paddle.Checkout.open({
+                    transactionId,
+                    settings: {
+                        displayMode: 'overlay',
+                        theme: 'dark',
+                        locale: 'pt-BR',
+                        successUrl: 'https://client.leonaflow.com/paddle'
+                    }
+                });
+            } catch (e) {
+                console.error('[recovery] falha ao abrir checkout:', e);
+            }
+        }
+
+        if (retryLink) {
+            retryLink.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                if (ptxn) openCheckout(ptxn);
+            });
+        }
+
         (async () => {
             try {
+                if (ptxn) {
+                    staticState.classList.add('hidden');
+                    checkoutState.classList.add('active');
+                }
+
                 const r = await fetch('/api/paddle-config');
                 const cfg = await r.json();
+
                 if (!window.Paddle) {
                     console.warn('[recovery] Paddle.js nao carregado (cdn bloqueado?).');
                     return;
@@ -141,6 +210,10 @@
                 }
                 Paddle.Initialize({ token: cfg.client_token });
                 console.log('[recovery] Paddle.js inicializado em', cfg.environment);
+
+                if (ptxn) {
+                    setTimeout(() => openCheckout(ptxn), 100);
+                }
             } catch (e) {
                 console.warn('[recovery] erro ao inicializar Paddle.js:', e);
             }
