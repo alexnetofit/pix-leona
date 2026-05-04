@@ -205,6 +205,7 @@ export default async function handler(req, res) {
 
       const qtyInt = Number(quantity);
       const discount = tierDiscount(qtyInt);
+      const unitCents = tierUnitCents(qtyInt);
 
       const txBody = {
         items: [{ price_id, quantity: qtyInt }],
@@ -212,7 +213,9 @@ export default async function handler(req, res) {
         currency_code: 'BRL',
         custom_data: {
           leona_account_id: account_id != null ? String(account_id) : null,
-          source: 'leona-renewal-page'
+          source: 'leona-renewal-page',
+          quantity: qtyInt,
+          tier_label: `${qtyInt} ${qtyInt === 1 ? 'conexão' : 'conexões'} (R$ ${(unitCents / 100).toFixed(2).replace('.', ',')}/ea)`
         },
         ...(discount ? { discount } : {}),
         ...(customerId
