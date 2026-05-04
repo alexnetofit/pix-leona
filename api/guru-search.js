@@ -113,7 +113,7 @@ export default async function handler(req, res) {
         const subDetails = await Promise.all(
           leonaSubs.map(async (s) => {
             let currentInvoice = null;
-            if (s.last_status === 'active') {
+            if (s.last_status === 'active' || s.last_status === 'past_due') {
               try {
                 const detailRes = await fetch(`${GURU_BASE}/subscriptions/${s.id}`, { headers });
                 if (detailRes.ok) {
@@ -192,6 +192,19 @@ export default async function handler(req, res) {
               }
             }
             guru.invoices = Array.from(invoiceMap.values());
+
+            const paymentUrlByInvoiceId = new Map();
+            for (const sd of subDetails) {
+              if (sd.current_invoice && sd.current_invoice.id && sd.current_invoice.payment_url) {
+                paymentUrlByInvoiceId.set(sd.current_invoice.id, sd.current_invoice.payment_url);
+              }
+            }
+            if (paymentUrlByInvoiceId.size > 0) {
+              guru.invoices = guru.invoices.map(inv => ({
+                ...inv,
+                payment_url: inv.payment_url || paymentUrlByInvoiceId.get(inv.id) || null
+              }));
+            }
           }
         }
       }
