@@ -21,8 +21,10 @@ export default async function handler(req, res) {
 
   if (!paddleToken) return res.status(500).json({ error: 'PADDLE_API_KEY não configurado' });
 
-  const { email } = req.body || {};
+  const { email, account_id } = req.body || {};
   if (!email || !email.trim()) return res.status(400).json({ error: 'Informe um e-mail' });
+
+  const wantedAccountId = account_id != null ? parseInt(account_id, 10) : null;
 
   const emailClean = email.trim().toLowerCase();
   const headers = paddleHeaders(paddleToken);
@@ -179,7 +181,20 @@ export default async function handler(req, res) {
       }
     }
 
-    return res.status(200).json({ paddle, leona, products });
+    // Filtro server-side por account_id (defesa em profundidade) — quando o link
+    // veio de https://client.leonaflow.com/paddle?email=...&account_id=...
+    if (Number.isFinite(wantedAccountId) && Array.isArray(leona.billing_profiles)) {
+      const match = leona.billing_profiles.find(p => p.account_id === wantedAccountId);
+      leona = match
+        ? { found: true, billing_profile: match, billing_profiles: [match], error: null }
+        : { found: false, billing_profile: null, billing_profiles: [], error: `account_id ${wantedAccountId} não pertence a este e-mail` };
+    }
+
+    const config = {
+      starter_price_id: process.env.PADDLE_STARTER_PRICE_ID || null
+    };
+
+    return res.status(200).json({ paddle, leona, products, config });
 
   } catch (error) {
     console.error('paddle-search error:', error);

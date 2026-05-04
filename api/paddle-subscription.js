@@ -1,5 +1,6 @@
+import { findLeonaAccountByEmail, updateLeonaBillingProfile } from '../lib/leona.js';
+
 const PADDLE_BASE = 'https://api.paddle.com';
-const LEONA_BASE = 'https://apiaws.leonasolutions.io/api/v1/integration';
 
 function paddleHeaders(token) {
   return {
@@ -7,84 +8,6 @@ function paddleHeaders(token) {
     'Accept': 'application/json',
     'Content-Type': 'application/json'
   };
-}
-
-function leonaHeaders(token) {
-  return {
-    'Authorization': `Bearer ${token}`,
-    'Accept': 'application/json',
-    'Content-Type': 'application/json'
-  };
-}
-
-/**
- * Procura uma conta Leona pelo email. Devolve { account_id, profile } ou null.
- * Usa a mesma lógica de unicidade do webhook-guru: se houver conflito (409),
- * só sincroniza se uma única conta for encontrada e estiver ativa.
- */
-async function findLeonaAccountByEmail(email, leonaToken) {
-  if (!email || !leonaToken) return null;
-  const headers = leonaHeaders(leonaToken);
-
-  try {
-    const r = await fetch(
-      `${LEONA_BASE}/accounts/billing_profile?email=${encodeURIComponent(email.trim().toLowerCase())}`,
-      { headers }
-    );
-
-    if (r.ok) {
-      const profile = await r.json();
-      return { account_id: profile.account_id, profile };
-    }
-
-    if (r.status === 409) {
-      const conflict = await r.json().catch(() => ({}));
-      const ids = Array.isArray(conflict.account_ids) ? conflict.account_ids : [];
-      if (ids.length === 0) return null;
-
-      const profiles = await Promise.all(ids.map(async (id) => {
-        try {
-          const pr = await fetch(`${LEONA_BASE}/accounts/${id}/billing_profile`, { headers });
-          if (pr.ok) return await pr.json();
-        } catch (_) {}
-        return null;
-      }));
-
-      const valid = profiles.filter(Boolean);
-      const active = valid.filter(p =>
-        p.subscription_status === 'active' &&
-        p.current_period_end &&
-        new Date(p.current_period_end) > new Date()
-      );
-
-      if (active.length === 1) return { account_id: active[0].account_id, profile: active[0] };
-      return null;
-    }
-  } catch (e) {
-    console.error('paddle-subscription: erro ao buscar Leona:', e.message);
-  }
-  return null;
-}
-
-/**
- * Atualiza o billing_profile no Leona. Aceita campos parciais.
- * Retorna { ok, body } da resposta da Leona.
- */
-async function updateLeonaBillingProfile(accountId, payload, leonaToken) {
-  if (!accountId || !leonaToken) return { ok: false, error: 'sem accountId/token' };
-
-  const headers = leonaHeaders(leonaToken);
-  try {
-    const r = await fetch(`${LEONA_BASE}/accounts/${accountId}/billing_profile`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload)
-    });
-    const body = await r.json().catch(() => ({}));
-    return { ok: r.ok, status: r.status, body };
-  } catch (e) {
-    return { ok: false, error: e.message };
-  }
 }
 
 /**
@@ -157,12 +80,90 @@ export default async function handler(req, res) {
     refund_reason,
     account_id,
     email,
-    sync_leona = true
+    sync_leona = true,
+    price_id,
+    quantity,
+    name
   } = req.body || {};
 
   const headers = paddleHeaders(paddleToken);
 
   try {
+    // ----------------------------------------------------------------
+    // pricing_preview — usado pelo simulador ao vivo na tela de renovação.
+    // Recebe { price_id, quantity } e devolve totals já com tier aplicado.
+    // ----------------------------------------------------------------
+    if (action === 'pricing_preview') {
+      if (!price_id || !quantity) {
+        return res.status(400).json({ error: 'price_id e quantity são obrigatórios' });
+      }
+      const r = await fetch(`${PADDLE_BASE}/pricing-preview`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          items: [{ price_id, quantity: Number(quantity) }],
+          currency_code: 'BRL',
+          address: { country_code: 'BR' }
+        })
+      });
+      const data = await r.json();
+      return res.status(r.ok ? 200 : r.status).json(data);
+    }
+
+    // ----------------------------------------------------------------
+    // create_renewal_checkout — gera link de checkout hosted da Paddle.
+    // Reaproveita customer existente quando possível, e injeta o
+    // leona_account_id em custom_data para o webhook reativar a conta
+    // certinha após o pagamento.
+    // ----------------------------------------------------------------
+    if (action === 'create_renewal_checkout') {
+      if (!price_id || !quantity || !email) {
+        return res.status(400).json({ error: 'price_id, quantity e email são obrigatórios' });
+      }
+
+      let customerId = null;
+      try {
+        const cusRes = await fetch(
+          `${PADDLE_BASE}/customers?email=${encodeURIComponent(email)}`,
+          { headers }
+        );
+        if (cusRes.ok) {
+          const cusBody = await cusRes.json();
+          const match = (cusBody.data || []).find(
+            c => c.email?.toLowerCase() === email.toLowerCase()
+          );
+          customerId = match?.id || null;
+        }
+      } catch (_) {}
+
+      const txBody = {
+        items: [{ price_id, quantity: Number(quantity) }],
+        collection_mode: 'automatic',
+        currency_code: 'BRL',
+        custom_data: {
+          leona_account_id: account_id != null ? String(account_id) : null,
+          source: 'leona-renewal-page'
+        },
+        ...(customerId
+          ? { customer_id: customerId }
+          : { customer: { email, ...(name ? { name } : {}) } })
+      };
+
+      const r = await fetch(`${PADDLE_BASE}/transactions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(txBody)
+      });
+      const data = await r.json();
+      if (!r.ok) return res.status(r.status).json(data);
+
+      return res.status(200).json({
+        checkout_url: data.data?.checkout?.url || null,
+        transaction_id: data.data?.id || null,
+        customer_id: data.data?.customer_id || null
+      });
+    }
+
     if (action === 'preview') {
       if (!subscription_id || !items) {
         return res.status(400).json({ error: 'subscription_id e items são obrigatórios' });
@@ -366,7 +367,7 @@ export default async function handler(req, res) {
     }
 
     return res.status(400).json({
-      error: 'action inválida. Use: preview, update, get, cancel, pause, resume, list_transactions, get_transaction, refund'
+      error: 'action inválida. Use: pricing_preview, create_renewal_checkout, preview, update, get, cancel, pause, resume, list_transactions, get_transaction, refund'
     });
 
   } catch (error) {

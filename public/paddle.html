@@ -450,6 +450,19 @@
             return (params.get('email') || '').trim().toLowerCase();
         }
 
+        function getAccountIdFromUrl() {
+            const v = new URLSearchParams(window.location.search).get('account_id');
+            const n = v ? parseInt(v, 10) : null;
+            return Number.isFinite(n) ? n : null;
+        }
+
+        function isExpired(bp) {
+            if (!bp) return false;
+            if (bp.subscription_status !== 'active') return true;
+            if (!bp.current_period_end) return false;
+            return new Date(bp.current_period_end) <= new Date();
+        }
+
         function fmtCurrency(amount, currency = 'BRL') {
             const n = typeof amount === 'string' ? parseFloat(amount) : amount;
             if (isNaN(n)) return '—';
@@ -522,11 +535,13 @@
             const content = document.getElementById('content');
             content.innerHTML = `<div class="loading-state"><div class="spinner"></div><p style="color: var(--text-secondary); margin-top: 14px;">Carregando dados...</p></div>`;
 
+            const wantedAccountId = getAccountIdFromUrl();
+
             try {
                 const res = await fetch('/api/paddle-search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email })
+                    body: JSON.stringify({ email, account_id: wantedAccountId })
                 });
                 const data = await res.json();
 
@@ -547,47 +562,78 @@
 
         function renderProfile(data, email) {
             const content = document.getElementById('content');
-            const { paddle, leona, products } = data;
+            const { paddle, leona, products, config } = data;
 
             let html = '';
 
-            // ===== Card Leona resumo =====
+            // ===== Match com account_id da URL =====
+            const wantedId = getAccountIdFromUrl();
             const profiles = leona.billing_profiles || (leona.billing_profile ? [leona.billing_profile] : []);
-            const activeProfile = profiles.find(p => p.subscription_status === 'active') || profiles[0];
+            let activeProfile = null;
 
+            if (wantedId) {
+                activeProfile = profiles.find(p => p.account_id === wantedId) || null;
+                if (!activeProfile) {
+                    content.innerHTML = `
+                        <div class="alert alert-error" style="margin-bottom:14px;">
+                            <strong>Conta nao encontrada</strong>
+                            Nao localizamos a conta <strong>#${wantedId}</strong> para o e-mail <strong>${escapeHtml(email)}</strong>.
+                            Confira se o link recebido esta correto ou fale com o suporte.
+                        </div>
+                    `;
+                    return;
+                }
+            } else {
+                activeProfile = profiles.find(p => p.subscription_status === 'active') || profiles[0] || null;
+            }
+
+            // ===== Card Leona resumo =====
             if (activeProfile) {
                 html += renderLeonaSummary(activeProfile);
             }
 
+            // ===== Painel de renovacao (conta vencida + sem assinatura Paddle) =====
+            const noPaddleSub = !paddle.subscriptions || paddle.subscriptions.length === 0;
+            const shouldShowRenewal = activeProfile && isExpired(activeProfile) && noPaddleSub;
+            if (shouldShowRenewal) {
+                html += renderRenewalPanel(activeProfile, products, config);
+            }
+
             // ===== Sem cliente Paddle =====
             if (!paddle.found) {
-                html += `
-                    <div class="empty-state">
-                        <div class="icon">🔍</div>
-                        <p>Nenhuma assinatura Paddle encontrada para <strong>${escapeHtml(email)}</strong>.</p>
-                    </div>
-                `;
-                if (products && products.length > 0) {
-                    html += renderProductCatalog(products);
+                if (!shouldShowRenewal) {
+                    html += `
+                        <div class="empty-state">
+                            <div class="icon">🔍</div>
+                            <p>Nenhuma assinatura Paddle encontrada para <strong>${escapeHtml(email)}</strong>.</p>
+                        </div>
+                    `;
+                    if (products && products.length > 0) {
+                        html += renderProductCatalog(products);
+                    }
                 }
                 content.innerHTML = html;
+                if (shouldShowRenewal) renewPreview();
                 return;
             }
 
             // ===== Sem subs =====
-            if (!paddle.subscriptions || paddle.subscriptions.length === 0) {
-                html += `
-                    <div class="card">
-                        <h3 class="paddle-tone">Cliente Paddle encontrado</h3>
-                        <div class="info-row"><span class="info-label">E-mail</span><span class="info-value">${escapeHtml(paddle.customer.email)}</span></div>
-                        ${paddle.customer.name ? `<div class="info-row"><span class="info-label">Nome</span><span class="info-value">${escapeHtml(paddle.customer.name)}</span></div>` : ''}
-                        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 12px;">Você não tem nenhuma assinatura ativa.</p>
-                    </div>
-                `;
-                if (products && products.length > 0) {
-                    html += renderProductCatalog(products);
+            if (noPaddleSub) {
+                if (!shouldShowRenewal) {
+                    html += `
+                        <div class="card">
+                            <h3 class="paddle-tone">Cliente Paddle encontrado</h3>
+                            <div class="info-row"><span class="info-label">E-mail</span><span class="info-value">${escapeHtml(paddle.customer.email)}</span></div>
+                            ${paddle.customer.name ? `<div class="info-row"><span class="info-label">Nome</span><span class="info-value">${escapeHtml(paddle.customer.name)}</span></div>` : ''}
+                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 12px;">Você não tem nenhuma assinatura ativa.</p>
+                        </div>
+                    `;
+                    if (products && products.length > 0) {
+                        html += renderProductCatalog(products);
+                    }
                 }
                 content.innerHTML = html;
+                if (shouldShowRenewal) renewPreview();
                 return;
             }
 
@@ -597,6 +643,165 @@
             }
 
             content.innerHTML = html;
+            if (shouldShowRenewal) renewPreview();
+        }
+
+        // ============================================
+        // Renovacao via Paddle (checkout hosted)
+        // ============================================
+        function findStarterPriceId(products, config) {
+            // 1. preferencia: env PADDLE_STARTER_PRICE_ID injetada pelo backend
+            if (config?.starter_price_id) return config.starter_price_id;
+            // 2. fallback: procura por produto cujo nome contenha "starter"
+            const starter = (products || []).find(p => /starter/i.test(p.name || ''));
+            return starter?.prices?.[0]?.id || null;
+        }
+
+        function renderRenewalPanel(bp, products, config) {
+            const priceId = findStarterPriceId(products, config);
+            if (!priceId) {
+                return `
+                    <div class="card">
+                        <h3 class="paddle-tone">Renovar assinatura</h3>
+                        <div class="alert alert-warning" style="margin-top:10px;">
+                            Plano de renovacao ainda nao esta disponivel. Fale com o suporte
+                            para concluir sua renovacao manualmente.
+                        </div>
+                    </div>
+                `;
+            }
+
+            const initialQty = Number(bp.starter_instances) || 1;
+            const accountId = bp.account_id;
+            const venceuEm = bp.current_period_end ? fmtDate(bp.current_period_end) : null;
+
+            return `
+                <div class="card card-paddle">
+                    <h3 class="paddle-tone">Renovar assinatura</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 12px;">
+                        ${venceuEm
+                            ? `Sua conta venceu em <strong>${venceuEm}</strong>.`
+                            : 'Sua conta esta inativa.'}
+                        Escolha quantas conexoes voce quer ativar e pague com cartao via Paddle.
+                    </p>
+
+                    <div class="qty-control">
+                        <button onclick="renewAdjust(-1)">−</button>
+                        <input type="number" id="renew-qty" value="${initialQty}" min="1"
+                               oninput="renewPreview()" data-price-id="${escapeHtml(priceId)}">
+                        <button onclick="renewAdjust(1)">+</button>
+                    </div>
+
+                    <div id="renew-preview" style="margin-top: 12px; text-align: center; color: var(--text-secondary); font-size: 0.9rem; min-height: 48px;">
+                        Calculando...
+                    </div>
+
+                    <button class="btn btn-paddle" id="renew-btn" style="width: 100%; margin-top: 14px;"
+                            onclick="renewCheckout('${escapeHtml(priceId)}', ${accountId})" disabled>
+                        Pagar e renovar
+                    </button>
+
+                    <p style="color: var(--text-muted); font-size: 0.75rem; margin-top: 10px; text-align: center;">
+                        Apos o pagamento, sua conta Leona é reativada automaticamente.
+                    </p>
+                </div>
+            `;
+        }
+
+        let _renewTimer = null;
+        function renewAdjust(d) {
+            const el = document.getElementById('renew-qty');
+            if (!el) return;
+            el.value = Math.max(1, (parseInt(el.value, 10) || 1) + d);
+            renewPreview();
+        }
+
+        function renewPreview() {
+            clearTimeout(_renewTimer);
+            const btn = document.getElementById('renew-btn');
+            const preview = document.getElementById('renew-preview');
+            if (!btn || !preview) return;
+            btn.disabled = true;
+            preview.textContent = 'Calculando...';
+
+            _renewTimer = setTimeout(async () => {
+                const el = document.getElementById('renew-qty');
+                if (!el) return;
+                const price_id = el.dataset.priceId;
+                const quantity = parseInt(el.value, 10) || 1;
+
+                try {
+                    const r = await fetch('/api/paddle-subscription', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'pricing_preview', price_id, quantity })
+                    });
+                    const data = await r.json();
+                    if (!r.ok) {
+                        preview.innerHTML = `<span style="color: var(--error);">Erro ao calcular: ${escapeHtml(data.error?.detail || data.error || 'tente novamente')}</span>`;
+                        return;
+                    }
+
+                    const li = data.data?.details?.line_items?.[0];
+                    const unit = li?.unit_totals?.total ?? li?.formatted_unit_totals?.total;
+                    const total = li?.totals?.total ?? li?.formatted_totals?.total;
+                    const cur = data.data?.currency_code || 'BRL';
+
+                    if (unit == null || total == null) {
+                        preview.innerHTML = `<span style="color: var(--warning);">Resposta inesperada do simulador.</span>`;
+                        return;
+                    }
+
+                    preview.innerHTML = `
+                        <div>Valor por conexao: <strong>${fmtCurrency(unit, cur)}</strong></div>
+                        <div style="font-size: 1.15rem; margin-top: 4px;">
+                            Total: <strong style="color: var(--paddle);">${fmtCurrency(total, cur)} / mes</strong>
+                        </div>
+                    `;
+                    btn.disabled = false;
+                } catch (err) {
+                    preview.innerHTML = `<span style="color: var(--error);">Erro de conexao: ${escapeHtml(err.message)}</span>`;
+                }
+            }, 350);
+        }
+
+        async function renewCheckout(price_id, account_id) {
+            const el = document.getElementById('renew-qty');
+            const btn = document.getElementById('renew-btn');
+            if (!el || !btn) return;
+            const quantity = parseInt(el.value, 10) || 1;
+            const originalLabel = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'Gerando link...';
+
+            try {
+                const r = await fetch('/api/paddle-subscription', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'create_renewal_checkout',
+                        price_id,
+                        quantity,
+                        account_id,
+                        email: _email,
+                        name: _data?.leona?.billing_profile?.user?.name || null
+                    })
+                });
+                const data = await r.json();
+                if (!r.ok || !data.checkout_url) {
+                    btn.disabled = false;
+                    btn.textContent = originalLabel;
+                    alert('Nao consegui gerar o link agora. Tente novamente em instantes ou fale com o suporte.');
+                    console.error('renewCheckout falhou:', data);
+                    return;
+                }
+                window.location.href = data.checkout_url;
+            } catch (err) {
+                btn.disabled = false;
+                btn.textContent = originalLabel;
+                alert('Erro de conexao. Verifique sua internet e tente novamente.');
+                console.error(err);
+            }
         }
 
         function renderLeonaSummary(bp) {
