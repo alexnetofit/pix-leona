@@ -742,21 +742,30 @@
                         return;
                     }
 
-                    const li = data.data?.details?.line_items?.[0];
-                    const unit = li?.unit_totals?.total ?? li?.formatted_unit_totals?.total;
-                    const total = li?.totals?.total ?? li?.formatted_totals?.total;
-                    const cur = data.data?.currency_code || 'BRL';
-
-                    if (unit == null || total == null) {
+                    // Backend devolve `tier` ja com desconto por volume aplicado.
+                    const tier = data.tier;
+                    if (!tier) {
                         preview.innerHTML = `<span style="color: var(--warning);">Resposta inesperada do simulador.</span>`;
                         return;
                     }
 
+                    const savedCents = parseInt(tier.savings_amount, 10) || 0;
+                    const showSavings = savedCents > 0;
+
                     preview.innerHTML = `
-                        <div>Valor por conexao: <strong>${fmtCurrency(unit, cur)}</strong></div>
+                        <div>Valor por conexao: <strong>${tier.formatted_unit}</strong>${
+                            tier.quantity > 1
+                                ? ` <span style="color: var(--text-muted); font-size: 0.85rem;">(de ${tier.formatted_base_unit})</span>`
+                                : ''
+                        }</div>
                         <div style="font-size: 1.15rem; margin-top: 4px;">
-                            Total: <strong style="color: var(--paddle);">${fmtCurrency(total, cur)} / mes</strong>
+                            Total: <strong style="color: var(--paddle);">${tier.formatted_total} / mes</strong>
                         </div>
+                        ${showSavings
+                            ? `<div style="color: var(--success); font-size: 0.85rem; margin-top: 6px;">
+                                  Voce economiza ${tier.formatted_savings} / mes
+                               </div>`
+                            : ''}
                     `;
                     btn.disabled = false;
                 } catch (err) {

@@ -56,6 +56,68 @@ function sumInstances(items) {
   return items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
 }
 
+/**
+ * Tabela de tiers da Leona Flow.
+ *
+ * Paddle Billing não tem tiered pricing nativo num price único, então a gente
+ * mantém o unit_price em R$127 e aplica um non-catalog discount do tipo
+ * `flat_per_seat` (centavos por seat) que renova junto com a subscription
+ * (recur=true, sem teto). A tabela:
+ *
+ *   1    conexão  → R$127/ea (sem desconto)
+ *   2-3  conexões → R$ 99/ea (desconto R$28 por seat)
+ *   4+   conexões → R$ 79/ea (desconto R$48 por seat)
+ *
+ * Mudou regra de tier? Mexer aqui (preço unit_price em centavos):
+ */
+const TIER_BASE_UNIT_CENTS = 12700;
+function tierUnitCents(qty) {
+  const q = Number(qty) || 0;
+  if (q >= 4) return 7900;
+  if (q >= 2) return 9900;
+  return TIER_BASE_UNIT_CENTS;
+}
+function tierDiscount(qty, currency = 'BRL') {
+  const q = Number(qty) || 0;
+  if (q < 2) return null;
+  const perSeatCents = TIER_BASE_UNIT_CENTS - tierUnitCents(q);
+  if (perSeatCents <= 0) return null;
+  return {
+    type: 'flat_per_seat',
+    amount: String(perSeatCents),
+    currency_code: currency,
+    description: q >= 4
+      ? 'Desconto por volume (4+ conexões)'
+      : 'Desconto por volume (2-3 conexões)',
+    recur: true,
+    maximum_recurring_intervals: null
+  };
+}
+function fmtBRL(centavos) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+    .format((Number(centavos) || 0) / 100);
+}
+function buildTierSummary(qty) {
+  const q = Number(qty) || 0;
+  const unit = tierUnitCents(q);
+  const total = unit * q;
+  const baseTotal = TIER_BASE_UNIT_CENTS * q;
+  const savings = baseTotal - total;
+  return {
+    quantity: q,
+    unit_amount: String(unit),
+    total_amount: String(total),
+    base_unit_amount: String(TIER_BASE_UNIT_CENTS),
+    base_total_amount: String(baseTotal),
+    savings_amount: String(savings),
+    formatted_unit: fmtBRL(unit),
+    formatted_total: fmtBRL(total),
+    formatted_base_unit: fmtBRL(TIER_BASE_UNIT_CENTS),
+    formatted_savings: fmtBRL(savings),
+    discount: tierDiscount(q)
+  };
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -107,6 +169,10 @@ export default async function handler(req, res) {
         })
       });
       const data = await r.json();
+      if (r.ok) {
+        // Augmenta com nosso tier (Paddle não tem tiered pricing nativo num price único)
+        data.tier = buildTierSummary(Number(quantity));
+      }
       return res.status(r.ok ? 200 : r.status).json(data);
     }
 
@@ -136,14 +202,18 @@ export default async function handler(req, res) {
         }
       } catch (_) {}
 
+      const qtyInt = Number(quantity);
+      const discount = tierDiscount(qtyInt);
+
       const txBody = {
-        items: [{ price_id, quantity: Number(quantity) }],
+        items: [{ price_id, quantity: qtyInt }],
         collection_mode: 'automatic',
         currency_code: 'BRL',
         custom_data: {
           leona_account_id: account_id != null ? String(account_id) : null,
           source: 'leona-renewal-page'
         },
+        ...(discount ? { discount } : {}),
         ...(customerId
           ? { customer_id: customerId }
           : { customer: { email, ...(name ? { name } : {}) } })
