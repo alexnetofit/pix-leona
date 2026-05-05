@@ -374,6 +374,17 @@
 
         .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border); }
         .footer-logo { height: 26px; opacity: 0.4; }
+        .about-section { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--border); text-align: left; color: var(--text-secondary); font-size: 0.85rem; line-height: 1.55; }
+        .about-section h2 { font-size: 1rem; color: var(--text); margin: 0 0 10px 0; font-weight: 600; }
+        .about-section p { margin: 0 0 10px 0; }
+        .about-section strong { color: var(--text); }
+        .legal-links { display: flex; flex-wrap: wrap; gap: 14px; margin: 14px 0 10px 0; }
+        .legal-links a { color: var(--accent); text-decoration: none; font-size: 0.85rem; }
+        .legal-links a:hover { text-decoration: underline; }
+        .contact-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 0.85rem; color: var(--text-secondary); }
+        .contact-row a { color: var(--accent); text-decoration: none; }
+        .contact-row a:hover { text-decoration: underline; }
+        .footer-note { margin-top: 18px; font-size: 0.75rem; color: var(--text-secondary); text-align: center; }
 
         .wpp-section { margin-top: 24px; }
         .wpp-btn {
@@ -433,6 +444,35 @@
 
         <div class="footer">
             <img src="/logo-leona.png" alt="Leona" class="footer-logo">
+
+            <section class="about-section">
+                <h2>Sobre o Leona Flow</h2>
+                <p>
+                    Leona Flow é uma plataforma SaaS de automação para WhatsApp. Nossos clientes
+                    contratam assinaturas mensais para conectar instâncias do WhatsApp, criar
+                    fluxos automatizados e usar recursos de inteligência artificial no atendimento.
+                    O serviço é 100% digital, sem produtos físicos.
+                </p>
+                <p>
+                    Operado por <strong>AN DIGITAL SOLUTIONS LLC</strong>. Pagamentos processados
+                    com segurança pela Paddle (Merchant of Record).
+                </p>
+
+                <div class="legal-links">
+                    <a href="https://leonaflow.com" target="_blank" rel="noopener">leonaflow.com</a>
+                    <a href="https://leonaflow.com/termos/" target="_blank" rel="noopener">Termos de uso</a>
+                    <a href="https://leonaflow.com/privacidade/" target="_blank" rel="noopener">Política de privacidade</a>
+                    <a href="https://leonaflow.com/reembolso/" target="_blank" rel="noopener">Política de reembolso</a>
+                </div>
+
+                <div class="contact-row">
+                    <a href="https://wa.me/5511947209231" target="_blank" rel="noopener">Suporte WhatsApp</a>
+                    <span aria-hidden="true">·</span>
+                    <a href="https://leonaflow.com" target="_blank" rel="noopener">Site oficial</a>
+                </div>
+            </section>
+
+            <p class="footer-note">© Leona Flow — operado por AN DIGITAL SOLUTIONS LLC</p>
         </div>
     </div>
 
