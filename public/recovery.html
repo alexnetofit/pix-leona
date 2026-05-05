@@ -228,10 +228,20 @@
         //     automaticamente o overlay de checkout pra concluir o pagamento.
         const params = new URLSearchParams(window.location.search);
         const ptxn = params.get('_ptxn');
+        // Paddle nao preserva query strings que nao conhece em redirects internos,
+        // entao recebemos o account_id do Leona como `aid` (anexado pelo
+        // create_renewal_checkout) e usamos pra montar o successUrl de volta
+        // pro portal sem o cliente precisar redigitar nada.
+        const aid = params.get('aid');
 
         const staticState = document.getElementById('static-state');
         const checkoutState = document.getElementById('checkout-state');
         const retryLink = document.getElementById('retry-checkout');
+
+        function buildSuccessUrl() {
+            const base = 'https://client.leonaflow.com/';
+            return aid ? `${base}?account_id=${encodeURIComponent(aid)}` : base;
+        }
 
         function openCheckout(transactionId) {
             if (!window.Paddle || !window.Paddle.Checkout) {
@@ -243,9 +253,9 @@
                     transactionId,
                     settings: {
                         displayMode: 'overlay',
-                        theme: 'dark',
+                        theme: 'light',
                         locale: 'pt-BR',
-                        successUrl: 'https://client.leonaflow.com/paddle'
+                        successUrl: buildSuccessUrl()
                     }
                 });
             } catch (e) {

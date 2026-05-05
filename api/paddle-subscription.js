@@ -267,8 +267,16 @@ export default async function handler(req, res) {
       const data = await r.json();
       if (!r.ok) return res.status(r.status).json(data);
 
+      // Anexa &aid=N a URL do checkout pra que /recovery possa preservar
+      // o contexto de qual conta Leona retornar apos pagar (successUrl).
+      let checkoutUrl = data.data?.checkout?.url || null;
+      if (checkoutUrl && account_id != null) {
+        const sep = checkoutUrl.includes('?') ? '&' : '?';
+        checkoutUrl = `${checkoutUrl}${sep}aid=${encodeURIComponent(account_id)}`;
+      }
+
       return res.status(200).json({
-        checkout_url: data.data?.checkout?.url || null,
+        checkout_url: checkoutUrl,
         transaction_id: data.data?.id || null,
         customer_id: data.data?.customer_id || null
       });

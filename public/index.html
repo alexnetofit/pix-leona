@@ -564,39 +564,52 @@
         });
 
         async function loadProfile() {
+            const wantedAccountId = getAccountIdFromUrl();
             let email = getEmailFromUrl();
-            if (!email) {
+
+            // Se nao temos email mas temos account_id, deixa o backend resolver.
+            // Caso contrario tenta puxar do input.
+            if (!email && !wantedAccountId) {
                 const input = document.getElementById('emailInput');
-                email = (input.value || '').trim().toLowerCase();
+                email = (input?.value || '').trim().toLowerCase();
             }
-            if (!email) return;
-            _email = email;
+
+            if (!email && !wantedAccountId) return;
 
             const content = document.getElementById('content');
             content.innerHTML = `<div class="loading-state"><div class="spinner"></div><p style="color: var(--text-secondary); margin-top: 14px;">Carregando dados...</p></div>`;
 
-            const wantedAccountId = getAccountIdFromUrl();
+            const payload = {};
+            if (email) payload.email = email;
+            if (wantedAccountId) payload.account_id = wantedAccountId;
 
             try {
                 const res = await fetch('/api/paddle-search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, account_id: wantedAccountId })
+                    body: JSON.stringify(payload)
                 });
                 const data = await res.json();
 
                 if (!res.ok) {
                     content.innerHTML = `<div class="alert alert-error">${data.error || 'Erro ao buscar dados'}</div>`;
-                    showWhatsapp(email);
+                    if (email) showWhatsapp(email);
                     return;
                 }
 
+                // O backend retorna o email resolvido (importante quando entramos
+                // so com account_id na URL). Atualiza variaveis globais.
+                const resolvedEmail = data.resolved_email
+                    || data?.leona?.billing_profile?.user?.email
+                    || email
+                    || '';
+                _email = resolvedEmail;
                 _data = data;
-                renderProfile(data, email);
-                showWhatsapp(email);
+                renderProfile(data, resolvedEmail);
+                if (resolvedEmail) showWhatsapp(resolvedEmail);
             } catch (err) {
                 content.innerHTML = `<div class="alert alert-error">Erro de conexão: ${err.message}</div>`;
-                showWhatsapp(email);
+                if (email) showWhatsapp(email);
             }
         }
 
@@ -1729,7 +1742,10 @@
         // Init
         // ============================================
         const emailParam = getEmailFromUrl();
-        if (emailParam) {
+        const accountIdParam = getAccountIdFromUrl();
+        // Auto-load quando temos email OU account_id na URL.
+        // Caso contrario, exibe o formulario manual de busca por email.
+        if (emailParam || accountIdParam) {
             loadProfile();
         } else {
             document.getElementById('searchSection').style.display = 'flex';

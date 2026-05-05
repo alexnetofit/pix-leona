@@ -1,4 +1,5 @@
 import { findGuruActiveSubscriptionsByEmail } from '../lib/guru.js';
+import { getLeonaBillingProfile } from '../lib/leona.js';
 
 const PADDLE_BASE = 'https://api.paddle.com';
 
@@ -25,11 +26,30 @@ export default async function handler(req, res) {
   if (!paddleToken) return res.status(500).json({ error: 'PADDLE_API_KEY não configurado' });
 
   const { email, account_id } = req.body || {};
-  if (!email || !email.trim()) return res.status(400).json({ error: 'Informe um e-mail' });
-
   const wantedAccountId = account_id != null ? parseInt(account_id, 10) : null;
 
-  const emailClean = email.trim().toLowerCase();
+  // Resolução do email:
+  // - Caso o front envie email, segue como sempre.
+  // - Caso o front envie só account_id (link compartilhado pelo Leona), busca
+  //   o billing_profile direto pelo ID e usa o email do dono da conta.
+  let emailClean = (email || '').trim().toLowerCase();
+
+  if (!emailClean && Number.isFinite(wantedAccountId)) {
+    if (!leonaToken) {
+      return res.status(400).json({ error: 'LEONA_BILLING_TOKEN não configurado para resolver account_id' });
+    }
+    const profile = await getLeonaBillingProfile(wantedAccountId, leonaToken);
+    const resolved = profile?.user?.email;
+    if (!resolved) {
+      return res.status(404).json({ error: `Não foi possível resolver email para account_id ${wantedAccountId}` });
+    }
+    emailClean = resolved.trim().toLowerCase();
+  }
+
+  if (!emailClean) {
+    return res.status(400).json({ error: 'Informe um e-mail ou account_id' });
+  }
+
   const headers = paddleHeaders(paddleToken);
 
   try {
@@ -209,7 +229,14 @@ export default async function handler(req, res) {
       starter_price_id: process.env.PADDLE_STARTER_PRICE_ID || null
     };
 
-    return res.status(200).json({ paddle, leona, guru, products, config });
+    return res.status(200).json({
+      resolved_email: emailClean,
+      paddle,
+      leona,
+      guru,
+      products,
+      config
+    });
 
   } catch (error) {
     console.error('paddle-search error:', error);
