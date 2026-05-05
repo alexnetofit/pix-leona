@@ -7,14 +7,6 @@
       "dest": "/api/$1"
     },
     {
-      "src": "/",
-      "dest": "/public/paddle.html"
-    },
-    {
-      "src": "/portal",
-      "dest": "/public/index.html"
-    },
-    {
       "src": "/(.*)",
       "dest": "/public/$1"
     }

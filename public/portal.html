@@ -1,0 +1,3157 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de PIX - Leona</title>
+    <style>
+        :root {
+            --bg-primary: #0f0f0f;
+            --bg-secondary: #1a1a1a;
+            --bg-card: #242424;
+            --accent: #00d4aa;
+            --accent-hover: #00b894;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --error: #ff6b6b;
+            --success: #00d4aa;
+            --warning: #ffc107;
+            --border: #333333;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        @font-face {
+            font-family: 'Geist';
+            src: local('Geist'), local('SF Pro Display');
+        }
+
+        body {
+            font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .logo {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent) 0%, #00ff88 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1rem;
+        }
+
+        .search-section {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 1px solid var(--border);
+        }
+
+        .search-section h2 {
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 12px;
+        }
+
+        input[type="email"], input[type="text"] {
+            flex: 1;
+            padding: 16px 20px;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px rgba(0, 212, 170, 0.1);
+        }
+
+        input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        button {
+            padding: 16px 32px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: var(--bg-primary);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 2px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .btn-success {
+            background: #2ecc71;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #27ae60;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 0.85rem;
+        }
+
+        /* Seção de resultados */
+        .results-section {
+            display: none;
+        }
+
+        .results-section.active {
+            display: block;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .section-header h2 {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .customer-info {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .totals-info {
+            display: flex;
+            gap: 20px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .totals-info span {
+            background: var(--bg-secondary);
+            padding: 6px 12px;
+            border-radius: 6px;
+        }
+
+        /* Assinatura */
+        .subscription-group {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+
+        .subscription-header {
+            background: var(--bg-secondary);
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .subscription-header:hover {
+            background: #252525;
+        }
+
+        .subscription-name {
+            font-weight: 600;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .subscription-badge {
+            font-size: 0.75rem;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+
+        .subscription-toggle {
+            color: var(--text-secondary);
+            font-size: 1.2rem;
+            transition: transform 0.3s;
+        }
+
+        .subscription-group.collapsed .subscription-toggle {
+            transform: rotate(-90deg);
+        }
+
+        .subscription-group.collapsed .invoices-container {
+            display: none;
+        }
+
+        .invoices-container {
+            padding: 16px;
+        }
+
+        /* Fatura */
+        .invoice-card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .invoice-card:last-child {
+            margin-bottom: 0;
+        }
+
+        .invoice-card:hover {
+            border-color: var(--accent);
+        }
+
+        .invoice-card.disabled {
+            opacity: 0.6;
+        }
+
+        .invoice-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .invoice-id {
+            font-family: 'SF Mono', 'Monaco', monospace;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            background: var(--bg-secondary);
+            padding: 4px 10px;
+            border-radius: 6px;
+        }
+
+        .invoice-status {
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+
+        .invoice-amount {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .invoice-date {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .invoice-details {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .customer-details {
+            background: var(--bg-secondary);
+            padding: 16px;
+            border-radius: 10px;
+            margin: 16px 0;
+        }
+
+        .invoice-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+
+        .invoice-actions button {
+            padding: 10px 20px;
+        }
+
+        /* PIX Section */
+        .pix-section {
+            display: none;
+            background: var(--bg-secondary);
+            border: 2px solid var(--accent);
+            border-radius: 12px;
+            padding: 24px;
+            margin-top: 16px;
+            text-align: center;
+        }
+
+        .pix-section.active {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .pix-title {
+            font-size: 1.1rem;
+            margin-bottom: 16px;
+            color: var(--accent);
+        }
+
+        .qr-code-container {
+            background: white;
+            padding: 16px;
+            border-radius: 10px;
+            display: inline-block;
+            margin-bottom: 16px;
+        }
+
+        .qr-code-container img {
+            max-width: 180px;
+            height: auto;
+        }
+
+        .pix-code {
+            background: var(--bg-primary);
+            padding: 14px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            word-break: break-all;
+            font-family: 'SF Mono', 'Monaco', monospace;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            max-height: 80px;
+            overflow-y: auto;
+        }
+
+        .copy-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            margin-bottom: 16px;
+        }
+
+        .copy-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* Messages */
+        .message {
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .message.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .message.error {
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid var(--error);
+            color: var(--error);
+        }
+
+        .message.success {
+            background: rgba(0, 212, 170, 0.1);
+            border: 1px solid var(--success);
+            color: var(--success);
+        }
+
+        /* Loading */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Tabs */
+        .tabs-container {
+            display: flex;
+            gap: 4px;
+            background: var(--bg-secondary);
+            padding: 4px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            background: transparent;
+            color: var(--text-secondary);
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn.active {
+            background: var(--accent);
+            color: var(--bg-primary);
+        }
+
+        .tab-btn:not(.active):hover {
+            color: var(--text-primary);
+            background: var(--bg-card);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* AbacatePay payment cards */
+        .abacate-payment-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .abacate-payment-card:hover {
+            border-color: var(--accent);
+        }
+
+        .abacate-badge {
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .abacate-badge.paid { background: rgba(0, 212, 170, 0.2); color: var(--success); }
+        .abacate-badge.pending { background: rgba(255, 193, 7, 0.2); color: var(--warning); }
+        .abacate-badge.expired { background: rgba(160, 160, 160, 0.2); color: var(--text-secondary); }
+        .abacate-badge.cancelled { background: rgba(255, 107, 107, 0.2); color: var(--error); }
+        .abacate-badge.refunded { background: rgba(156, 39, 176, 0.2); color: #ce93d8; }
+
+        .abacate-type-badge {
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+            background: rgba(0, 212, 170, 0.1);
+            color: var(--accent);
+        }
+
+        .refund-form {
+            display: none;
+            background: var(--bg-secondary);
+            border: 2px solid var(--warning);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 16px;
+            animation: slideDown 0.3s ease;
+        }
+
+        .refund-form.active {
+            display: block;
+        }
+
+        .refund-form label {
+            display: block;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            margin-bottom: 6px;
+            margin-top: 12px;
+        }
+
+        .refund-form label:first-child {
+            margin-top: 0;
+        }
+
+        .refund-form input,
+        .refund-form select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 0.95rem;
+        }
+
+        .refund-form select {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23a0a0a0' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 32px;
+        }
+
+        .abacate-summary {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .abacate-summary-item {
+            background: var(--bg-card);
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+
+        /* Pagamento 2.0 */
+        .guru-sub-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 12px;
+            transition: border-color 0.3s;
+        }
+
+        .guru-sub-card:hover {
+            border-color: var(--accent);
+        }
+
+        .guru-status {
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .guru-status.active { background: rgba(0, 212, 170, 0.2); color: var(--success); }
+        .guru-status.trial { background: rgba(33, 150, 243, 0.2); color: #64b5f6; }
+        .guru-status.canceled { background: rgba(255, 107, 107, 0.2); color: var(--error); }
+        .guru-status.pastdue { background: rgba(255, 193, 7, 0.2); color: var(--warning); }
+        .guru-status.inactive { background: rgba(160, 160, 160, 0.2); color: var(--text-secondary); }
+
+        .guru-tx-card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 10px;
+        }
+
+        .guru-invoice-status {
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .guru-invoice-status.paid { background: rgba(0, 212, 170, 0.2); color: var(--success); }
+        .guru-invoice-status.pending, .guru-invoice-status.waiting { background: rgba(255, 193, 7, 0.2); color: var(--warning); }
+        .guru-invoice-status.refunded { background: rgba(156, 39, 176, 0.2); color: #ce93d8; }
+
+        .offer-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 12px;
+        }
+
+        .offer-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            transition: border-color 0.3s;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .offer-card:hover {
+            border-color: var(--accent);
+        }
+
+        .offer-value {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .btn-copy {
+            background: transparent;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+            margin-top: 12px;
+        }
+
+        .btn-copy:hover {
+            background: var(--accent);
+            color: var(--bg-primary);
+        }
+
+        .btn-copy.copied {
+            background: var(--success);
+            border-color: var(--success);
+            color: var(--bg-primary);
+        }
+
+        .leona-profile {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .leona-profile h3 {
+            font-size: 1rem;
+            color: var(--accent);
+            margin-bottom: 12px;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .input-group {
+                flex-direction: column;
+            }
+            
+            .invoice-header {
+                flex-direction: column;
+            }
+            
+            .invoice-actions {
+                flex-direction: column;
+            }
+
+            .invoice-actions button {
+                width: 100%;
+            }
+
+            .section-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .tabs-container {
+                flex-direction: column;
+            }
+
+            .abacate-summary {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Tela de bloqueio -->
+    <div id="lockScreen" style="position: fixed; inset: 0; background: var(--bg-primary); z-index: 9999; display: flex; align-items: center; justify-content: center;">
+        <div style="width: 100%; max-width: 380px; padding: 20px; text-align: center;">
+            <h1 class="logo" style="margin-bottom: 8px;">Leona PIX</h1>
+            <p style="color: var(--text-secondary); margin-bottom: 32px; font-size: 0.9rem;">Acesso restrito</p>
+            <div style="display: flex; gap: 10px;">
+                <input type="password" id="tokenInput" placeholder="Token de acesso" style="flex: 1; padding: 14px 16px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 10px; color: var(--text-primary); font-size: 1rem; outline: none;" onkeydown="if(event.key==='Enter')validateToken()">
+                <button onclick="validateToken()" style="padding: 14px 24px; background: var(--accent); color: #000; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 1rem;">Entrar</button>
+            </div>
+            <div id="lockError" style="color: var(--error); margin-top: 12px; font-size: 0.85rem; display: none;">Token inválido</div>
+        </div>
+    </div>
+
+    <div class="container" id="appContent" style="display: none;">
+        <header>
+            <h1 class="logo">Leona PIX</h1>
+            <p class="subtitle">Gerenciador de Pagamentos</p>
+        </header>
+
+        <!-- Mensagem de feedback -->
+        <div id="message" class="message"></div>
+
+        <!-- Abas ocultas (Stripe/AbacatePay mantidos no backend) -->
+        <div class="tabs-container" style="display: none;">
+            <button class="tab-btn" onclick="switchTab('stripe')">Stripe</button>
+            <button class="tab-btn" onclick="switchTab('abacatepay')">AbacatePay</button>
+            <button class="tab-btn active" onclick="switchTab('pagamento20')">Pagamento 2.0</button>
+        </div>
+
+        <!-- ========== ABA STRIPE (oculta) ========== -->
+        <div class="tab-content" id="tab-stripe">
+            <!-- Seção de busca -->
+            <section class="search-section">
+                <h2>Buscar cliente por e-mail</h2>
+                <div class="input-group">
+                    <input 
+                        type="email" 
+                        id="emailInput" 
+                        placeholder="cliente@exemplo.com"
+                        autocomplete="email"
+                    >
+                    <button class="btn-primary" id="searchBtn" onclick="searchInvoices()">
+                        Buscar
+                    </button>
+                </div>
+            </section>
+
+            <!-- Seção de resultados -->
+            <section class="results-section" id="resultsSection">
+                <div class="section-header">
+                    <div>
+                        <h2>Faturas</h2>
+                        <span class="customer-info" id="customerInfo"></span>
+                    </div>
+                    <div class="totals-info" id="totalsInfo"></div>
+                </div>
+                <div id="subscriptionsList"></div>
+            </section>
+
+            <!-- Seção para criar assinatura -->
+            <section class="search-section" id="createSubscriptionSection" style="display: none;">
+                <h2 id="createSubTitle">Criar Nova Assinatura</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 20px;" id="createSubDescription"></p>
+                
+                <div id="productInfo" style="background: var(--bg-secondary); padding: 16px; border-radius: 10px; margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="color: var(--text-secondary); font-size: 0.8rem;">Produto</div>
+                            <div style="color: var(--accent); font-weight: 600; font-size: 1.1rem;" id="productName"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Campo Nome (só aparece se não tem customer) -->
+                <div id="nameFieldContainer" style="margin-bottom: 16px; display: none;">
+                    <label style="display: block; color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 6px;">
+                        Nome do Cliente <span style="color: var(--error);">*</span>
+                    </label>
+                    <input 
+                        type="text" 
+                        id="customerNameInput" 
+                        placeholder="Nome completo"
+                        style="width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); font-size: 1rem;"
+                    >
+                </div>
+
+                <!-- Campo Quantidade -->
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 6px;">
+                        Quantidade
+                    </label>
+                    <input 
+                        type="number" 
+                        id="quantityInput" 
+                        value="1"
+                        min="1"
+                        style="width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); font-size: 1rem;"
+                    >
+                </div>
+
+                <button class="btn-primary" id="createSubBtn" onclick="createSubscription()" style="width: 100%;">
+                    Criar Assinatura
+                </button>
+            </section>
+        </div>
+
+        <!-- ========== ABA ABACATEPAY ========== -->
+        <div class="tab-content" id="tab-abacatepay">
+            <section class="search-section">
+                <h2>Buscar pagamentos por e-mail ou CPF</h2>
+                <div class="input-group">
+                    <input 
+                        type="text" 
+                        id="abacateSearchInput" 
+                        placeholder="cliente@exemplo.com ou 000.000.000-00"
+                    >
+                    <button class="btn-primary" id="abacateSearchBtn" onclick="searchAbacatePayments()">
+                        Buscar
+                    </button>
+                </div>
+            </section>
+
+            <section class="results-section" id="abacateResultsSection">
+                <div class="section-header">
+                    <div>
+                        <h2>Pagamentos AbacatePay</h2>
+                        <span class="customer-info" id="abacateCustomerInfo"></span>
+                    </div>
+                </div>
+                <div class="abacate-summary" id="abacateSummary"></div>
+                <div id="abacatePaymentsList"></div>
+            </section>
+        </div>
+
+        <!-- ========== ABA PAGAMENTO 2.0 (ativa por padrão) ========== -->
+        <div class="tab-content active" id="tab-pagamento20">
+            <section class="search-section">
+                <h2>Buscar cliente por e-mail</h2>
+                <div class="input-group">
+                    <input 
+                        type="email" 
+                        id="guruEmailInput" 
+                        placeholder="cliente@exemplo.com"
+                        autocomplete="email"
+                    >
+                    <button class="btn-primary" id="guruSearchBtn" onclick="searchGuru()">
+                        Buscar
+                    </button>
+                </div>
+            </section>
+
+            <section class="results-section" id="guruResultsSection">
+                <div id="guruLeonaProfile"></div>
+                <div id="guruSubscriptions"></div>
+                <div id="guruTransactions"></div>
+                <div id="guruOffersSection"></div>
+                <div id="guruStripeInfo"></div>
+            </section>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // AUTH
+        // ============================================
+        function getStoredToken() { return localStorage.getItem('leona_token'); }
+
+        async function validateToken() {
+            const input = document.getElementById('tokenInput');
+            const errEl = document.getElementById('lockError');
+            const token = input.value.trim();
+            if (!token) { errEl.style.display = 'block'; return; }
+            try {
+                const res = await fetch('/api/auth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token })
+                });
+                if (res.ok) {
+                    localStorage.setItem('leona_token', token);
+                    document.getElementById('lockScreen').style.display = 'none';
+                    document.getElementById('appContent').style.display = 'block';
+                } else {
+                    errEl.style.display = 'block';
+                    input.value = '';
+                    input.focus();
+                }
+            } catch (_) { errEl.style.display = 'block'; }
+        }
+
+        (function checkAuth() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlToken = (urlParams.get('token') || '').trim();
+            const saved = getStoredToken();
+            const candidate = urlToken || saved;
+
+            console.log('[auth] urlToken?', !!urlToken, 'saved?', !!saved);
+
+            if (!candidate) return;
+
+            fetch('/api/auth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: candidate })
+            }).then(async r => {
+                console.log('[auth] /api/auth status =', r.status);
+                if (r.ok) {
+                    localStorage.setItem('leona_token', candidate);
+                    document.getElementById('lockScreen').style.display = 'none';
+                    document.getElementById('appContent').style.display = 'block';
+                    if (urlToken) {
+                        urlParams.delete('token');
+                        const newQuery = urlParams.toString();
+                        const newUrl = window.location.pathname + (newQuery ? `?${newQuery}` : '') + window.location.hash;
+                        window.history.replaceState({}, document.title, newUrl);
+                    }
+                } else {
+                    localStorage.removeItem('leona_token');
+                    if (urlToken) {
+                        const errEl = document.getElementById('lockError');
+                        if (errEl) {
+                            errEl.textContent = 'Token da URL inválido';
+                            errEl.style.display = 'block';
+                        }
+                    }
+                }
+            }).catch(e => console.error('[auth] erro', e));
+        })();
+
+        // ============================================
+        // VARIÁVEIS GLOBAIS
+        // ============================================
+        let currentCustomer = null;
+        let currentEmail = null;
+        let availableProduct = null;
+
+        // ============================================
+        // FUNÇÕES UTILITÁRIAS
+        // ============================================
+        
+        function formatCurrency(cents) {
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL'
+            }).format(cents / 100);
+        }
+
+        function formatDate(timestamp) {
+            if (!timestamp) return '';
+            return new Date(timestamp * 1000).toLocaleDateString('pt-BR');
+        }
+
+        function showMessage(text, type = 'error') {
+            const msgEl = document.getElementById('message');
+            // Garante que text seja sempre uma string
+            let message = text;
+            if (typeof text === 'object') {
+                message = text.message || text.error || JSON.stringify(text);
+            }
+            msgEl.textContent = message;
+            msgEl.className = `message ${type} active`;
+            setTimeout(() => msgEl.classList.remove('active'), 5000);
+        }
+
+        function setButtonLoading(btn, loading, originalText = 'Buscar') {
+            if (loading) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="loading"></span>Aguarde...`;
+            } else {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+
+        // ============================================
+        // BUSCAR FATURAS
+        // ============================================
+        
+        async function searchInvoices() {
+            const email = document.getElementById('emailInput').value.trim().toLowerCase();
+            const btn = document.getElementById('searchBtn');
+            
+            if (!email) {
+                showMessage('Por favor, digite um e-mail válido.');
+                return;
+            }
+            
+            currentEmail = email;
+            setButtonLoading(btn, true, 'Buscar');
+            
+            // Esconde seções
+            document.getElementById('resultsSection').classList.remove('active');
+            document.getElementById('createSubscriptionSection').style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/stripe', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                
+                let data;
+                try {
+                    data = await response.json();
+                } catch (parseError) {
+                    throw new Error(`Erro no servidor (${response.status})`);
+                }
+                
+                if (!response.ok) {
+                    const errorMsg = typeof data.error === 'string' ? data.error : 'Erro ao buscar faturas';
+                    throw new Error(errorMsg);
+                }
+                
+                // Salva produto disponível
+                availableProduct = data.available_product;
+                
+                // Caso 1: Cliente não existe
+                if (!data.customer_exists) {
+                    showCreateSubscriptionForm(true, data.available_product);
+                    showMessage('Cliente não encontrado. Preencha os dados para criar uma assinatura.', 'error');
+                    return;
+                }
+                
+                currentCustomer = data.customer;
+                
+                // Caso 2: Cliente existe mas sem nenhuma assinatura
+                if (!data.has_subscriptions && data.available_product) {
+                    showCreateSubscriptionForm(false, data.available_product);
+                    showMessage('Cliente encontrado, mas sem assinatura. Deseja criar uma?', 'error');
+                    return;
+                }
+                
+                // Caso 3: Cliente com assinaturas - mostra faturas
+                if (!data.subscriptions || data.subscriptions.length === 0) {
+                    showMessage('Nenhuma fatura encontrada para este cliente.', 'error');
+                    return;
+                }
+                
+                renderResults(data);
+                
+                // Caso 3b: tem assinaturas mas todas canceladas - mostra lista + formulário de criar nova
+                if (!data.has_actionable_subscription && data.available_product) {
+                    showCreateSubscriptionForm(false, data.available_product);
+                    showMessage('Cliente encontrado. Assinaturas anteriores exibidas abaixo. Deseja criar uma nova?', 'error');
+                } else {
+                    showMessage(`${data.totals.total_invoices} fatura(s) encontrada(s)!`, 'success');
+                }
+                
+            } catch (error) {
+                showMessage(error.message);
+            } finally {
+                setButtonLoading(btn, false, 'Buscar');
+            }
+        }
+        
+        // ============================================
+        // MOSTRAR FORM CRIAR ASSINATURA
+        // ============================================
+        
+        function showCreateSubscriptionForm(needsName, product) {
+            const section = document.getElementById('createSubscriptionSection');
+            const nameField = document.getElementById('nameFieldContainer');
+            const productName = document.getElementById('productName');
+            const description = document.getElementById('createSubDescription');
+            const title = document.getElementById('createSubTitle');
+            
+            if (product) {
+                productName.textContent = product.name;
+            }
+            
+            if (needsName) {
+                title.textContent = 'Criar Novo Cliente e Assinatura';
+                description.textContent = `O e-mail "${currentEmail}" não foi encontrado. Preencha os dados abaixo para criar o cliente e sua assinatura.`;
+                nameField.style.display = 'block';
+            } else {
+                title.textContent = 'Criar Nova Assinatura';
+                description.textContent = `O cliente existe mas não possui assinatura ativa. Deseja criar uma assinatura do produto abaixo?`;
+                nameField.style.display = 'none';
+            }
+            
+            // Limpa campos
+            document.getElementById('customerNameInput').value = '';
+            document.getElementById('quantityInput').value = '1';
+            
+            section.style.display = 'block';
+            section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        
+        // ============================================
+        // CRIAR ASSINATURA
+        // ============================================
+        
+        async function createSubscription() {
+            const btn = document.getElementById('createSubBtn');
+            const nameField = document.getElementById('nameFieldContainer');
+            const needsName = nameField.style.display !== 'none';
+            
+            const name = document.getElementById('customerNameInput').value.trim();
+            const quantity = parseInt(document.getElementById('quantityInput').value) || 1;
+            
+            // Validações
+            if (needsName && !name) {
+                showMessage('Por favor, informe o nome do cliente.');
+                document.getElementById('customerNameInput').focus();
+                return;
+            }
+            
+            if (quantity < 1) {
+                showMessage('A quantidade deve ser pelo menos 1.');
+                return;
+            }
+            
+            setButtonLoading(btn, true, 'Criar Assinatura');
+            
+            try {
+                const payload = {
+                    email: currentEmail,
+                    quantity: quantity
+                };
+                
+                if (needsName) {
+                    payload.name = name;
+                } else {
+                    payload.customer_id = currentCustomer?.id;
+                }
+                
+                const response = await fetch('/api/subscription', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Erro ao criar assinatura');
+                }
+                
+                // Sucesso! Esconde o form e busca novamente
+                document.getElementById('createSubscriptionSection').style.display = 'none';
+                showMessage('Assinatura criada com sucesso! Buscando faturas...', 'success');
+                
+                // Busca novamente para mostrar as faturas
+                setTimeout(() => {
+                    searchInvoices();
+                }, 1000);
+                
+            } catch (error) {
+                showMessage(error.message);
+            } finally {
+                setButtonLoading(btn, false, 'Criar Assinatura');
+            }
+        }
+
+        // ============================================
+        // RENDERIZAR RESULTADOS
+        // ============================================
+        
+        function renderResults(data) {
+            const section = document.getElementById('resultsSection');
+            const list = document.getElementById('subscriptionsList');
+            const info = document.getElementById('customerInfo');
+            const totals = document.getElementById('totalsInfo');
+            
+            info.textContent = `${data.customer.name || ''} (${data.customer.email})`;
+            totals.innerHTML = `
+                <span>📋 Total: ${data.totals.total_invoices}</span>
+                <span style="color: var(--warning);">⏳ Em aberto: ${data.totals.open_invoices}</span>
+            `;
+            
+            list.innerHTML = '';
+            
+            data.subscriptions.forEach((subscription, subIndex) => {
+                // Mostra assinaturas ativas mesmo sem faturas (para upgrade/downgrade)
+                const isActiveSubscription = ['active', 'trialing', 'past_due', 'incomplete'].includes(subscription.status);
+                if (subscription.invoices.length === 0 && !isActiveSubscription) return;
+                
+                const subGroup = document.createElement('div');
+                subGroup.className = 'subscription-group';
+                subGroup.id = `sub-${subIndex}`;
+                
+                const openCount = subscription.invoices.filter(i => i.status === 'open').length;
+                
+                const isRealSubscription = subscription.id !== 'no_subscription' && subscription.subscription_item_id;
+                // isActiveSubscription já foi definido acima
+                
+                subGroup.innerHTML = `
+                    <div class="subscription-header" onclick="toggleSubscription(${subIndex})">
+                        <div class="subscription-name">
+                            📦 ${subscription.product_name}
+                            ${isRealSubscription ? `<span style="color: var(--text-secondary); font-size: 0.85rem; font-weight: 400;">(${subscription.current_quantity || 1} unidade${(subscription.current_quantity || 1) > 1 ? 's' : ''})</span>` : ''}
+                            <span class="subscription-badge" style="background: ${openCount > 0 ? 'var(--warning)' : 'var(--success)'}; color: #000;">
+                                ${subscription.invoices.length} fatura(s)${openCount > 0 ? ` • ${openCount} em aberto` : ''}
+                            </span>
+                            ${isRealSubscription ? `<div style="font-size: 0.7rem; color: var(--text-secondary); font-family: monospace; margin-top: 2px;">${subscription.id}</div>` : ''}
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            ${isRealSubscription && isActiveSubscription ? `
+                                <button class="btn-secondary btn-small" onclick="event.stopPropagation(); showUpdateQuantityForm('${subscription.id}', '${subscription.subscription_item_id}', ${subscription.current_quantity || 1}, '${subscription.product_name}')" style="padding: 6px 12px; font-size: 0.75rem;">
+                                    Alterar Qtd
+                                </button>
+                            ` : ''}
+                            <span class="subscription-toggle">▼</span>
+                        </div>
+                    </div>
+                    ${isRealSubscription && isActiveSubscription ? `
+                        <div id="updateQtyForm-${subscription.id}" style="display: none; padding: 20px; background: var(--bg-secondary); border-bottom: 1px solid var(--border);">
+                            <div style="display: grid; gap: 16px;">
+                                <!-- Input Nova Quantidade + Botão Simular -->
+                                <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+                                    <div>
+                                        <label style="color: var(--text-secondary); font-size: 0.85rem;">Nova quantidade:</label>
+                                        <input type="number" id="newQty-${subscription.id}" value="${subscription.current_quantity || 1}" min="1" 
+                                            style="width: 100px; padding: 10px 14px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 1.1rem; margin-left: 8px; font-weight: 600;">
+                                    </div>
+                                    <button class="btn-primary" onclick="simulateUpgrade('${subscription.id}')" style="padding: 10px 24px;">
+                                        🔍 Simular
+                                    </button>
+                                    <button class="btn-secondary" onclick="hideUpdateQuantityForm('${subscription.id}')" style="padding: 10px 20px;">
+                                        Cancelar
+                                    </button>
+                                </div>
+                                
+                                <!-- Resultado da Simulação -->
+                                <div id="simulationResult-${subscription.id}" style="display: none;">
+                                </div>
+                            </div>
+                        </div>
+                    ` : ''}
+                    <div class="invoices-container" id="invoices-${subIndex}">
+                        ${subscription.invoices.length > 0 
+                            ? subscription.invoices.map(invoice => renderInvoiceCard(invoice)).join('')
+                            : `<div style="padding: 20px; text-align: center; color: var(--text-secondary);">
+                                Nenhuma fatura nesta assinatura. Use "Alterar Qtd" acima para fazer upgrade/downgrade.
+                               </div>`
+                        }
+                    </div>
+                `;
+                
+                list.appendChild(subGroup);
+            });
+            
+            section.classList.add('active');
+        }
+
+        function renderInvoiceCard(invoice) {
+            const canGeneratePix = invoice.can_generate_pix;
+            const hasExistingPix = invoice.abacate_pix_id;
+            
+            return `
+                <div class="invoice-card ${!canGeneratePix ? 'disabled' : ''}" id="invoice-${invoice.invoice_id}">
+                    <div class="invoice-header">
+                        <div>
+                            <span class="invoice-id">${invoice.invoice_id}</span>
+                            <span class="invoice-status" style="background: ${invoice.status_color}20; color: ${invoice.status_color}; margin-left: 8px;">
+                                ${invoice.status_label}
+                            </span>
+                            ${invoice.subscription_id ? `
+                                <div style="margin-top: 4px;">
+                                    <span style="color: var(--text-secondary); font-size: 0.75rem;">Assinatura: </span>
+                                    <span style="color: var(--text-secondary); font-size: 0.75rem; font-family: monospace;">${invoice.subscription_id}</span>
+                                </div>
+                            ` : ''}
+                            ${hasExistingPix ? `
+                                <span class="invoice-status" style="background: rgba(0, 212, 170, 0.2); color: var(--accent); margin-left: 8px;">
+                                    PIX Gerado
+                                </span>
+                            ` : ''}
+                        </div>
+                        <div style="text-align: right;">
+                            <div class="invoice-amount">${formatCurrency(invoice.amount_due)}</div>
+                            <div class="invoice-date">Criada em: ${formatDate(invoice.created)}</div>
+                        </div>
+                    </div>
+                    
+                    ${canGeneratePix ? `
+                        ${hasExistingPix ? `
+                            <div style="background: rgba(0, 212, 170, 0.1); border: 1px solid var(--accent); padding: 16px; border-radius: 10px; margin: 16px 0;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                                    <div>
+                                        <div style="color: var(--accent); font-weight: 600; font-size: 0.9rem;">✓ PIX já foi gerado para esta fatura</div>
+                                        <div style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 4px;">
+                                            Criado em: ${invoice.abacate_pix_created ? new Date(invoice.abacate_pix_created).toLocaleString('pt-BR') : 'N/A'}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="invoice-actions">
+                                <button class="btn-primary" onclick="loadExistingPix('${invoice.invoice_id}', '${invoice.abacate_pix_id}', this)">
+                                    Ver PIX Gerado
+                                </button>
+                                <button class="btn-secondary btn-small" onclick="showNewPixForm('${invoice.invoice_id}')">
+                                    Gerar Novo PIX
+                                </button>
+                                ${invoice.invoice_url ? `
+                                    <button class="btn-secondary btn-small" onclick="window.open('${invoice.invoice_url}', '_blank')">
+                                        Ver fatura
+                                    </button>
+                                ` : ''}
+                            </div>
+                            <div id="newPixForm-${invoice.invoice_id}" style="display: none;">
+                                <div class="customer-details">
+                                    <h4 style="color: var(--accent); margin-bottom: 12px; font-size: 0.9rem;">📋 Dados do Cliente</h4>
+                                    <div style="display: grid; gap: 8px; font-size: 0.9rem;">
+                                        <div style="display: flex; justify-content: space-between;">
+                                            <span style="color: var(--text-secondary);">Nome:</span>
+                                            <span style="color: var(--text-primary);">${currentCustomer?.name || 'Não informado'}</span>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between;">
+                                            <span style="color: var(--text-secondary);">Email:</span>
+                                            <span style="color: var(--text-primary);">${currentCustomer?.email || 'Não informado'}</span>
+                                        </div>
+                                    </div>
+                                    <div style="margin-top: 16px;">
+                                        <label style="display: block; color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 6px;">
+                                            CPF <span style="color: var(--error);">*</span> (obrigatório para PIX)
+                                        </label>
+                                        <input 
+                                            type="text" 
+                                            id="cpf-${invoice.invoice_id}"
+                                            placeholder="000.000.000-00"
+                                            maxlength="14"
+                                            oninput="formatCPF(this)"
+                                            style="width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 1rem;"
+                                        >
+                                    </div>
+                                </div>
+                                <div class="invoice-actions">
+                                    <button class="btn-primary" onclick="generatePix('${invoice.invoice_id}', this)">
+                                        Gerar Novo PIX
+                                    </button>
+                                </div>
+                            </div>
+                        ` : `
+                            <div class="customer-details">
+                                <h4 style="color: var(--accent); margin-bottom: 12px; font-size: 0.9rem;">📋 Dados do Cliente</h4>
+                                <div style="display: grid; gap: 8px; font-size: 0.9rem;">
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <span style="color: var(--text-secondary);">Nome:</span>
+                                        <span style="color: var(--text-primary);">${currentCustomer?.name || 'Não informado'}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <span style="color: var(--text-secondary);">Email:</span>
+                                        <span style="color: var(--text-primary);">${currentCustomer?.email || 'Não informado'}</span>
+                                    </div>
+                                </div>
+                                <div style="margin-top: 16px;">
+                                    <label style="display: block; color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 6px;">
+                                        CPF <span style="color: var(--error);">*</span> (obrigatório para PIX)
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        id="cpf-${invoice.invoice_id}"
+                                        placeholder="000.000.000-00"
+                                        maxlength="14"
+                                        oninput="formatCPF(this)"
+                                        style="width: 100%; padding: 12px 16px; border: 2px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 1rem;"
+                                    >
+                                </div>
+                            </div>
+                            <div class="invoice-actions">
+                                <button class="btn-primary" onclick="generatePix('${invoice.invoice_id}', this)">
+                                    Gerar PIX
+                                </button>
+                                ${invoice.invoice_url ? `
+                                    <button class="btn-secondary btn-small" onclick="window.open('${invoice.invoice_url}', '_blank')">
+                                        Ver fatura
+                                    </button>
+                                ` : ''}
+                            </div>
+                        `}
+                    ` : `
+                        <div style="text-align: center; padding: 10px; color: var(--text-secondary); font-size: 0.9rem;">
+                            ${invoice.status === 'paid' ? '✅ Fatura já paga' : '⚠️ Não é possível gerar PIX para esta fatura'}
+                        </div>
+                    `}
+                    <div class="pix-section" id="pix-${invoice.invoice_id}"></div>
+                </div>
+            `;
+        }
+        
+        // ============================================
+        // MOSTRAR FORMULÁRIO NOVO PIX
+        // ============================================
+        
+        function showNewPixForm(invoiceId) {
+            const form = document.getElementById(`newPixForm-${invoiceId}`);
+            if (form) {
+                form.style.display = form.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+
+        // ============================================
+        // TOGGLE ASSINATURA
+        // ============================================
+        
+        function toggleSubscription(index) {
+            const group = document.getElementById(`sub-${index}`);
+            group.classList.toggle('collapsed');
+        }
+
+        // ============================================
+        // ALTERAR QUANTIDADE DA ASSINATURA
+        // ============================================
+        
+        function showUpdateQuantityForm(subscriptionId, itemId, currentQty, productName) {
+            const form = document.getElementById(`updateQtyForm-${subscriptionId}`);
+            if (form) {
+                form.style.display = 'block';
+                document.getElementById(`newQty-${subscriptionId}`).value = currentQty;
+                document.getElementById(`newQty-${subscriptionId}`).focus();
+                
+                // Reseta a simulação
+                const simResult = document.getElementById(`simulationResult-${subscriptionId}`);
+                if (simResult) {
+                    simResult.style.display = 'none';
+                    simResult.innerHTML = '';
+                }
+            }
+        }
+        
+        function hideUpdateQuantityForm(subscriptionId) {
+            const form = document.getElementById(`updateQtyForm-${subscriptionId}`);
+            if (form) {
+                form.style.display = 'none';
+            }
+        }
+        
+        // Armazena dados da última simulação
+        let lastSimulation = null;
+        
+        async function simulateUpgrade(subscriptionId) {
+            const input = document.getElementById(`newQty-${subscriptionId}`);
+            const simResult = document.getElementById(`simulationResult-${subscriptionId}`);
+            const newQty = parseInt(input.value);
+            
+            if (!newQty || newQty < 1) {
+                showMessage('A quantidade deve ser pelo menos 1.');
+                return;
+            }
+            
+            simResult.style.display = 'block';
+            simResult.innerHTML = `
+                <div style="text-align: center; padding: 20px; color: var(--text-secondary);">
+                    <div class="spinner"></div>
+                    <div style="margin-top: 10px;">Buscando dados na Stripe...</div>
+                </div>
+            `;
+            
+            try {
+                const response = await fetch('/api/simulate-upgrade', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        subscription_id: subscriptionId,
+                        new_quantity: newQty
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    simResult.innerHTML = `
+                        <div style="background: rgba(255, 82, 82, 0.1); padding: 16px; border-radius: 10px; border: 1px solid var(--error); text-align: center;">
+                            <div style="color: var(--error);">${data.error || 'Erro ao simular'}</div>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                lastSimulation = data.simulation;
+                const sim = data.simulation;
+                
+                // Renderiza a simulação baseada nos dados da Stripe
+                const borderColor = sim.is_upgrade ? 'var(--success)' : 'var(--warning)';
+                const typeLabel = sim.is_upgrade 
+                    ? `⬆️ UPGRADE (+${sim.difference} unidade${sim.difference > 1 ? 's' : ''})`
+                    : `⬇️ DOWNGRADE (-${sim.difference} unidade${sim.difference > 1 ? 's' : ''})`;
+                const typeColor = sim.is_upgrade ? 'var(--success)' : 'var(--warning)';
+                
+                simResult.innerHTML = `
+                    <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid ${borderColor};">
+                        <div style="display: grid; gap: 14px;">
+                            <!-- Cabeçalho -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 14px; border-bottom: 1px solid var(--border);">
+                                <span style="color: var(--text-secondary); font-size: 1rem;">Tipo de alteração:</span>
+                                <span style="color: ${typeColor}; font-weight: 700; font-size: 1.1rem;">${typeLabel}</span>
+                            </div>
+                            
+                            <!-- Quantidade -->
+                            <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="color: var(--text-secondary);">Quantidade:</span>
+                                    <span style="color: var(--text-primary); font-weight: 600; font-size: 1.2rem;">${sim.current_quantity} → ${sim.new_quantity}</span>
+                                </div>
+                            </div>
+                            
+                            ${sim.is_upgrade ? `
+                                ${sim.has_discount ? `
+                                    <div style="background: rgba(156, 39, 176, 0.1); padding: 10px 12px; border-radius: 8px; display: flex; align-items: center; gap: 8px;">
+                                        <span style="color: #9c27b0;">🏷️</span>
+                                        <span style="color: #9c27b0; font-weight: 500;">Desconto de ${sim.discount_percent}% aplicado</span>
+                                    </div>
+                                ` : ''}
+                                
+                                <!-- Detalhes do cálculo da Stripe (apenas upgrade) -->
+                                ${sim.proration_lines && sim.proration_lines.length > 0 ? `
+                                    <div style="background: var(--bg-secondary); padding: 14px; border-radius: 8px;">
+                                        <div style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 10px; font-weight: 500;">Cálculo da Stripe:</div>
+                                        ${sim.proration_lines.map(line => `
+                                            <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid var(--border);">
+                                                <span style="color: var(--text-secondary); max-width: 65%; line-height: 1.3;">${line.description}</span>
+                                                <span style="color: ${line.amount >= 0 ? 'var(--success)' : 'var(--error)'}; font-weight: 600; white-space: nowrap;">
+                                                    ${line.amount >= 0 ? '+' : ''}${formatCurrency(line.amount)}
+                                                </span>
+                                            </div>
+                                        `).join('')}
+                                        <div style="display: flex; justify-content: space-between; font-size: 1rem; padding-top: 10px; margin-top: 4px;">
+                                            <span style="color: var(--text-primary); font-weight: 600;">Total:</span>
+                                            <span style="color: ${sim.preview_total >= 0 ? 'var(--text-primary)' : 'var(--success)'}; font-weight: 700;">
+                                                ${formatCurrency(sim.preview_total)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ` : ''}
+                                
+                                <!-- Resultado final upgrade -->
+                                ${sim.pro_rata_amount > 0 ? `
+                                    <div style="background: rgba(0, 212, 170, 0.15); padding: 16px; border-radius: 10px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <span style="color: var(--accent); font-weight: 600; font-size: 1rem;">💰 Cobrança agora:</span>
+                                            <span style="color: var(--accent); font-weight: 700; font-size: 1.4rem;">${formatCurrency(sim.pro_rata_amount)}</span>
+                                        </div>
+                                        <div style="color: var(--text-secondary); font-size: 0.8rem; text-align: center; margin-top: 10px;">
+                                            Fatura será gerada e enviada por email
+                                        </div>
+                                    </div>
+                                ` : `
+                                    <div style="background: rgba(255, 193, 7, 0.15); padding: 16px; border-radius: 10px;">
+                                        <div style="text-align: center;">
+                                            <div style="color: var(--warning); font-weight: 600;">Sem cobrança adicional</div>
+                                            <div style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 4px;">
+                                                A alteração entra em vigor imediatamente
+                                            </div>
+                                        </div>
+                                    </div>
+                                `}
+                                
+                                ${sim.open_invoices_count > 0 ? `
+                                    <div style="background: rgba(255, 193, 7, 0.1); padding: 12px; border-radius: 8px; color: var(--warning); font-size: 0.85rem;">
+                                        ⚠️ ${sim.open_invoices_count} fatura(s) em aberto serão anuladas
+                                    </div>
+                                ` : ''}
+                            ` : `
+                                <!-- Resultado downgrade: sem pro-rata -->
+                                <div style="background: rgba(255, 193, 7, 0.15); padding: 16px; border-radius: 10px;">
+                                    <div style="text-align: center;">
+                                        <div style="color: var(--warning); font-weight: 600;">Sem cobrança ou reembolso</div>
+                                        <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">
+                                            A redução será aplicada no próximo vencimento da assinatura. Nenhum valor será cobrado ou devolvido agora.
+                                        </div>
+                                    </div>
+                                </div>
+                            `}
+                            
+                            <!-- Botões -->
+                            <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 8px;">
+                                <button class="btn-secondary" onclick="hideUpdateQuantityForm('${subscriptionId}')" style="padding: 12px 24px;">
+                                    Cancelar
+                                </button>
+                                <button class="btn-primary" onclick="executeUpgrade('${subscriptionId}')" style="padding: 12px 28px; font-weight: 600;">
+                                    ✓ Efetivar Alteração
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                
+            } catch (error) {
+                console.error('Simulation error:', error);
+                simResult.innerHTML = `
+                    <div style="background: rgba(255, 82, 82, 0.1); padding: 16px; border-radius: 10px; border: 1px solid var(--error); text-align: center;">
+                        <div style="color: var(--error);">Erro de conexão: ${error.message}</div>
+                    </div>
+                `;
+            }
+        }
+        
+        async function executeUpgrade(subscriptionId) {
+            if (!lastSimulation) {
+                showMessage('Faça a simulação primeiro.');
+                return;
+            }
+            
+            const sim = lastSimulation;
+            const simResult = document.getElementById(`simulationResult-${subscriptionId}`);
+            
+            simResult.innerHTML = `
+                <div style="text-align: center; padding: 20px; color: var(--text-secondary);">
+                    <div class="spinner"></div>
+                    <div style="margin-top: 10px;">Efetuando alteração...</div>
+                </div>
+            `;
+            
+            try {
+                const response = await fetch('/api/update-subscription', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        subscription_id: sim.subscription_id,
+                        subscription_item_id: sim.subscription_item_id,
+                        new_quantity: sim.new_quantity
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Erro ao atualizar');
+                }
+                
+                showMessage(`Assinatura alterada de ${sim.current_quantity} para ${sim.new_quantity} unidade(s)!`, 'success');
+                hideUpdateQuantityForm(subscriptionId);
+                lastSimulation = null;
+                
+                // Recarrega os dados
+                if (currentEmail) {
+                    searchInvoices();
+                }
+                
+            } catch (error) {
+                console.error('Execute error:', error);
+                simResult.innerHTML = `
+                    <div style="background: rgba(255, 82, 82, 0.1); padding: 16px; border-radius: 10px; border: 1px solid var(--error); text-align: center;">
+                        <div style="color: var(--error);">Erro: ${error.message}</div>
+                        <button class="btn-secondary" onclick="hideUpdateQuantityForm('${subscriptionId}')" style="margin-top: 12px; padding: 10px 20px;">
+                            Fechar
+                        </button>
+                    </div>
+                `;
+            }
+        }
+        
+
+        // ============================================
+        // FORMATAÇÃO CPF
+        // ============================================
+        
+        function formatCPF(input) {
+            let value = input.value.replace(/\D/g, '');
+            if (value.length > 11) value = value.slice(0, 11);
+            
+            if (value.length > 9) {
+                value = value.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+            } else if (value.length > 6) {
+                value = value.replace(/(\d{3})(\d{3})(\d{3})/, '$1.$2.$3');
+            } else if (value.length > 3) {
+                value = value.replace(/(\d{3})(\d{3})/, '$1.$2');
+            }
+            
+            input.value = value;
+        }
+        
+        function validateCPF(cpf) {
+            cpf = cpf.replace(/\D/g, '');
+            return cpf.length === 11;
+        }
+
+        // ============================================
+        // GERAR PIX
+        // ============================================
+        
+        async function generatePix(invoiceId, btn) {
+            const cpfInput = document.getElementById(`cpf-${invoiceId}`);
+            const cpf = cpfInput.value.trim();
+            
+            if (!cpf) {
+                showMessage('Por favor, informe o CPF do cliente.');
+                cpfInput.focus();
+                cpfInput.style.borderColor = 'var(--error)';
+                return;
+            }
+            
+            if (!validateCPF(cpf)) {
+                showMessage('CPF inválido. Digite os 11 dígitos.');
+                cpfInput.focus();
+                cpfInput.style.borderColor = 'var(--error)';
+                return;
+            }
+            
+            cpfInput.style.borderColor = 'var(--border)';
+            setButtonLoading(btn, true, 'Gerar PIX');
+            
+            try {
+                const response = await fetch('/api/pix', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        invoice_id: invoiceId,
+                        cpf: cpf.replace(/\D/g, ''),
+                        customer_name: currentCustomer?.name || '',
+                        customer_email: currentCustomer?.email || ''
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Erro ao gerar PIX');
+                }
+                
+                renderPix(invoiceId, data);
+                showMessage('PIX gerado com sucesso!', 'success');
+                
+            } catch (error) {
+                showMessage(error.message);
+            } finally {
+                setButtonLoading(btn, false, 'Gerar PIX');
+            }
+        }
+
+        // ============================================
+        // RENDERIZAR PIX
+        // ============================================
+        
+        function renderPix(invoiceId, pixData) {
+            const pixSection = document.getElementById(`pix-${invoiceId}`);
+            
+            const qrCodeUrl = pixData.qr_code_url || '';
+            const pixCode = pixData.pix_code || '';
+            const amount = pixData.amount_formatted || '';
+            const customerName = pixData.customer?.name || '';
+            const customerCpf = pixData.customer?.cpf || '';
+            
+            let qrCodeHtml = '';
+            if (qrCodeUrl) {
+                qrCodeHtml = `<div class="qr-code-container"><img src="${qrCodeUrl}" alt="QR Code PIX"></div>`;
+            } else if (pixCode) {
+                qrCodeHtml = `<div class="qr-code-container"><img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(pixCode)}" alt="QR Code PIX"></div>`;
+            }
+            
+            pixSection.innerHTML = `
+                <h3 class="pix-title">✓ PIX Gerado com Sucesso!</h3>
+                
+                <div style="background: var(--bg-primary); padding: 14px; border-radius: 10px; margin-bottom: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="text-align: left;">
+                            <div style="color: var(--text-secondary); font-size: 0.8rem;">Cliente</div>
+                            <div style="color: var(--text-primary); font-weight: 600;">${customerName}</div>
+                            <div style="color: var(--text-secondary); font-size: 0.75rem;">${customerCpf}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="color: var(--text-secondary); font-size: 0.8rem;">Valor</div>
+                            <div style="font-size: 1.3rem; color: var(--accent); font-weight: 700;">${amount}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                ${qrCodeHtml}
+                
+                ${pixCode ? `
+                    <p style="margin-bottom: 8px; color: var(--text-secondary); font-size: 0.85rem;">
+                        📋 Código PIX Copia e Cola:
+                    </p>
+                    <div class="pix-code" id="pixCode-${invoiceId}">${pixCode}</div>
+                    <button class="copy-btn" onclick="copyPixCode('${invoiceId}')">
+                        📋 Copiar código PIX
+                    </button>
+                ` : ''}
+                
+                <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+                    <p style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 10px;">
+                        Clique para verificar se o PIX foi pago:
+                    </p>
+                    <button class="btn-primary btn-small" onclick="checkPayment('${invoiceId}', '${pixData.pix_id || ''}', this)">
+                        🔍 Verificar Pagamento
+                    </button>
+                    <div id="paymentStatus-${invoiceId}" style="margin-top: 10px;"></div>
+                </div>
+            `;
+            
+            pixSection.classList.add('active');
+            pixSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // ============================================
+        // COPIAR CÓDIGO PIX
+        // ============================================
+        
+        function copyPixCode(invoiceId) {
+            const codeEl = document.getElementById(`pixCode-${invoiceId}`);
+            const code = codeEl.textContent;
+            
+            navigator.clipboard.writeText(code).then(() => {
+                showMessage('Código PIX copiado!', 'success');
+            }).catch(() => {
+                const textarea = document.createElement('textarea');
+                textarea.value = code;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                showMessage('Código PIX copiado!', 'success');
+            });
+        }
+
+        // ============================================
+        // CARREGAR PIX EXISTENTE
+        // ============================================
+        
+        async function loadExistingPix(invoiceId, pixId, btn) {
+            setButtonLoading(btn, true, 'Ver PIX');
+            
+            try {
+                // Busca o status do PIX existente
+                const response = await fetch('/api/check', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ invoice_id: invoiceId, pix_id: pixId })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Erro ao buscar PIX');
+                }
+                
+                const pixSection = document.getElementById(`pix-${invoiceId}`);
+                const pixData = data.pix_data || {};
+                const status = (data.status || 'PENDING').toUpperCase();
+                
+                // Lista de status que indicam pagamento
+                const paidStatuses = ['PAID', 'COMPLETED', 'CONFIRMED', 'APPROVED', 'RECEIVED', 'SETTLED', 'SUCCESS'];
+                const isPaidStatus = paidStatuses.includes(status);
+                
+                // Verifica se o PIX está pago (pela flag ou pelo status)
+                if (data.paid || isPaidStatus) {
+                    pixSection.innerHTML = `
+                        <div style="background: rgba(0, 212, 170, 0.1); border: 1px solid var(--success); padding: 24px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 2rem; margin-bottom: 10px;">✅</div>
+                            <div style="color: var(--success); font-weight: 600; font-size: 1.1rem;">Pagamento Confirmado!</div>
+                            <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">
+                                ${data.invoice_updated ? 'Fatura marcada como paga na Stripe' : 'O pagamento foi confirmado'}
+                            </div>
+                            <div style="color: var(--text-secondary); font-size: 0.75rem; margin-top: 4px;">
+                                Status: ${status}
+                            </div>
+                        </div>
+                    `;
+                    pixSection.classList.add('active');
+                    showMessage('Pagamento já foi confirmado!', 'success');
+                    return;
+                }
+                
+                // Extrai dados do PIX
+                const qrCodeUrl = pixData.qrCode?.image || pixData.qrCodeImage || '';
+                const pixCode = pixData.qrCode?.payload || pixData.brCode || pixData.payload || '';
+                
+                // Verifica se o PIX expirou (apenas pelo status explícito)
+                const isExpired = status === 'EXPIRED';
+                
+                if (isExpired) {
+                    pixSection.innerHTML = `
+                        <div style="background: rgba(255, 193, 7, 0.1); border: 1px solid var(--warning); padding: 24px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 2rem; margin-bottom: 10px;">⏰</div>
+                            <div style="color: var(--warning); font-weight: 600; font-size: 1.1rem;">PIX Expirado</div>
+                            <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">
+                                Este PIX não está mais disponível. Gere um novo PIX clicando no botão abaixo.
+                            </div>
+                            <button class="btn-primary" style="margin-top: 16px;" onclick="showNewPixForm('${invoiceId}')">
+                                Gerar Novo PIX
+                            </button>
+                        </div>
+                    `;
+                    pixSection.classList.add('active');
+                    showMessage('PIX expirado. Gere um novo.', 'error');
+                    return;
+                }
+                
+                // Se não tem QR Code mas não está expirado, mostra status com opção de verificar
+                if (!qrCodeUrl && !pixCode) {
+                    pixSection.innerHTML = `
+                        <div style="background: var(--bg-primary); padding: 24px; border-radius: 8px; text-align: center;">
+                            <div style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">
+                                Status do PIX: <strong style="color: var(--accent);">${status}</strong>
+                            </div>
+                            <button class="btn-primary" onclick="checkPayment('${invoiceId}', '${pixId}', this)">
+                                🔍 Verificar Pagamento
+                            </button>
+                            <div style="margin-top: 16px;">
+                                <button class="btn-secondary btn-small" onclick="showNewPixForm('${invoiceId}')">
+                                    Gerar Novo PIX
+                                </button>
+                            </div>
+                            <div id="paymentStatus-${invoiceId}" style="margin-top: 10px;"></div>
+                        </div>
+                    `;
+                    pixSection.classList.add('active');
+                    return;
+                }
+                
+                // Mostra o QR Code e código PIX
+                let qrCodeHtml = '';
+                if (qrCodeUrl) {
+                    qrCodeHtml = `<div class="qr-code-container"><img src="${qrCodeUrl}" alt="QR Code PIX"></div>`;
+                } else if (pixCode) {
+                    qrCodeHtml = `<div class="qr-code-container"><img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(pixCode)}" alt="QR Code PIX"></div>`;
+                }
+                
+                pixSection.innerHTML = `
+                    <h3 class="pix-title">📱 PIX Disponível</h3>
+                    
+                    <div style="background: var(--bg-primary); padding: 14px; border-radius: 10px; margin-bottom: 16px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div style="text-align: left;">
+                                <div style="color: var(--text-secondary); font-size: 0.8rem;">Status</div>
+                                <div style="color: var(--warning); font-weight: 600;">⏳ Aguardando pagamento</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="color: var(--text-secondary); font-size: 0.8rem;">Valor</div>
+                                <div style="font-size: 1.3rem; color: var(--accent); font-weight: 700;">${formatCurrency(pixData.amount || 0)}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    ${qrCodeHtml}
+                    
+                    ${pixCode ? `
+                        <p style="margin-bottom: 8px; color: var(--text-secondary); font-size: 0.85rem;">
+                            📋 Código PIX Copia e Cola:
+                        </p>
+                        <div class="pix-code" id="pixCode-${invoiceId}">${pixCode}</div>
+                        <button class="copy-btn" onclick="copyPixCode('${invoiceId}')">
+                            📋 Copiar código PIX
+                        </button>
+                    ` : ''}
+                    
+                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+                        <p style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 10px;">
+                            Clique para verificar se o PIX foi pago:
+                        </p>
+                        <button class="btn-primary btn-small" onclick="checkPayment('${invoiceId}', '${pixId}', this)">
+                            🔍 Verificar Pagamento
+                        </button>
+                        <div id="paymentStatus-${invoiceId}" style="margin-top: 10px;"></div>
+                    </div>
+                `;
+                
+                pixSection.classList.add('active');
+                pixSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                showMessage('PIX carregado com sucesso!', 'success');
+                
+            } catch (error) {
+                showMessage(error.message);
+                // Se der erro, mostra opção de gerar novo PIX
+                const pixSection = document.getElementById(`pix-${invoiceId}`);
+                pixSection.innerHTML = `
+                    <div style="background: rgba(255, 107, 107, 0.1); border: 1px solid var(--error); padding: 24px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 2rem; margin-bottom: 10px;">❌</div>
+                        <div style="color: var(--error); font-weight: 600; font-size: 1.1rem;">Erro ao carregar PIX</div>
+                        <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">
+                            ${error.message}
+                        </div>
+                        <button class="btn-primary" style="margin-top: 16px;" onclick="showNewPixForm('${invoiceId}')">
+                            Gerar Novo PIX
+                        </button>
+                    </div>
+                `;
+                pixSection.classList.add('active');
+            } finally {
+                setButtonLoading(btn, false, 'Ver PIX Gerado');
+            }
+        }
+
+        // ============================================
+        // VERIFICAR PAGAMENTO
+        // ============================================
+        
+        async function checkPayment(invoiceId, pixId, btn) {
+            setButtonLoading(btn, true, 'Verificar');
+            const statusDiv = document.getElementById(`paymentStatus-${invoiceId}`);
+            
+            try {
+                const response = await fetch('/api/check', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ invoice_id: invoiceId, pix_id: pixId })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Erro ao verificar pagamento');
+                }
+                
+                if (data.paid) {
+                    statusDiv.innerHTML = `
+                        <div style="background: rgba(0, 212, 170, 0.1); border: 1px solid var(--success); padding: 14px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 1.5rem; margin-bottom: 6px;">✅</div>
+                            <div style="color: var(--success); font-weight: 600;">Pagamento Confirmado!</div>
+                            <div style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 4px;">
+                                Fatura marcada como paga na Stripe
+                            </div>
+                        </div>
+                    `;
+                    btn.style.display = 'none';
+                    showMessage('🎉 Pagamento confirmado!', 'success');
+                } else {
+                    statusDiv.innerHTML = `
+                        <div style="background: rgba(255, 193, 7, 0.1); border: 1px solid var(--warning); padding: 10px; border-radius: 8px; text-align: center;">
+                            <span style="color: var(--warning);">⏳ Aguardando pagamento...</span>
+                            <div style="color: var(--text-secondary); font-size: 0.75rem; margin-top: 4px;">
+                                Status: ${data.status || 'PENDING'}
+                            </div>
+                        </div>
+                    `;
+                    showMessage('Pagamento ainda não confirmado.', 'error');
+                }
+                
+            } catch (error) {
+                statusDiv.innerHTML = `<div style="color: var(--error); font-size: 0.85rem;">❌ ${error.message}</div>`;
+                showMessage(error.message);
+            } finally {
+                setButtonLoading(btn, false, '🔍 Verificar');
+                btn.innerHTML = '🔍 Verificar Pagamento';
+            }
+        }
+
+        // ============================================
+        // TROCA DE ABAS
+        // ============================================
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            const buttons = document.querySelectorAll('.tab-btn');
+            const tabMap = { stripe: 0, abacatepay: 1, pagamento20: 2 };
+            const idx = tabMap[tabName] ?? 0;
+            if (buttons[idx]) buttons[idx].classList.add('active');
+        }
+
+        // ============================================
+        // ABACATEPAY - BUSCA DE PAGAMENTOS
+        // ============================================
+
+        let abacatePayments = [];
+
+        async function searchAbacatePayments() {
+            const search = document.getElementById('abacateSearchInput').value.trim();
+            const btn = document.getElementById('abacateSearchBtn');
+
+            if (!search) {
+                showMessage('Por favor, informe um e-mail ou CPF.');
+                return;
+            }
+
+            setButtonLoading(btn, true, 'Buscar');
+            document.getElementById('abacateResultsSection').classList.remove('active');
+
+            try {
+                const response = await fetch('/api/abacatepay-search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ search })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Erro ao buscar pagamentos');
+                }
+
+                abacatePayments = data.payments || [];
+
+                const dbg = data.debug || {};
+                console.log(`AbacatePay: ${dbg.transparents_total} transparentes, ${dbg.checkouts_total} checkouts`);
+
+                if (abacatePayments.length === 0) {
+                    showMessage('Nenhum pagamento encontrado na AbacatePay para esse e-mail/CPF.', 'error');
+                    return;
+                }
+
+                renderAbacateResults(data);
+                showMessage(`${data.summary.total} pagamento(s) encontrado(s)!`, 'success');
+
+            } catch (error) {
+                showMessage(error.message);
+            } finally {
+                setButtonLoading(btn, false, 'Buscar');
+            }
+        }
+
+        function getStatusBadgeClass(status) {
+            const map = {
+                'PAID': 'paid',
+                'PENDING': 'pending',
+                'EXPIRED': 'expired',
+                'CANCELLED': 'cancelled',
+                'REFUNDED': 'refunded'
+            };
+            return map[status] || 'pending';
+        }
+
+        function getStatusLabel(status) {
+            const map = {
+                'PAID': 'Pago',
+                'PENDING': 'Pendente',
+                'EXPIRED': 'Expirado',
+                'CANCELLED': 'Cancelado',
+                'REFUNDED': 'Reembolsado'
+            };
+            return map[status] || status;
+        }
+
+        function formatAbacateDate(dateStr) {
+            if (!dateStr) return '';
+            return new Date(dateStr).toLocaleString('pt-BR');
+        }
+
+        function renderAbacateResults(data) {
+            const section = document.getElementById('abacateResultsSection');
+            const info = document.getElementById('abacateCustomerInfo');
+            const summary = document.getElementById('abacateSummary');
+            const list = document.getElementById('abacatePaymentsList');
+
+            info.textContent = `Busca: ${data.search_term} (${data.search_type === 'cpf' ? 'CPF' : 'E-mail'})`;
+
+            const s = data.summary;
+            summary.innerHTML = `
+                <span class="abacate-summary-item">Total: ${s.total}</span>
+                ${s.paid > 0 ? `<span class="abacate-summary-item" style="color: var(--success);">Pagos: ${s.paid}</span>` : ''}
+                ${s.pending > 0 ? `<span class="abacate-summary-item" style="color: var(--warning);">Pendentes: ${s.pending}</span>` : ''}
+                ${s.expired > 0 ? `<span class="abacate-summary-item">Expirados: ${s.expired}</span>` : ''}
+                ${s.refunded > 0 ? `<span class="abacate-summary-item" style="color: #ce93d8;">Reembolsados: ${s.refunded}</span>` : ''}
+                ${s.cancelled > 0 ? `<span class="abacate-summary-item" style="color: var(--error);">Cancelados: ${s.cancelled}</span>` : ''}
+            `;
+
+            list.innerHTML = data.payments.map((p, idx) => renderAbacateCard(p, idx)).join('');
+            section.classList.add('active');
+        }
+
+        function renderAbacateCard(payment, index) {
+            const isPaid = payment.status === 'PAID';
+            const paidAmount = payment.paid_amount ? formatCurrency(payment.paid_amount) : null;
+            const refundAmount = payment.paid_amount || payment.amount || 0;
+
+            return `
+                <div class="abacate-payment-card" id="abacate-card-${index}">
+                    <div class="invoice-header">
+                        <div>
+                            <span class="invoice-id">${payment.id}</span>
+                            <span class="abacate-badge ${getStatusBadgeClass(payment.status)}" style="margin-left: 8px;">
+                                ${getStatusLabel(payment.status)}
+                            </span>
+                            <span class="abacate-type-badge" style="margin-left: 8px;">
+                                ${payment.type_label}
+                            </span>
+                        </div>
+                        <div style="text-align: right;">
+                            <div class="invoice-amount">${formatCurrency(payment.amount)}</div>
+                            ${paidAmount ? `<div style="color: var(--success); font-size: 0.85rem;">Pago: ${paidAmount}</div>` : ''}
+                            <div class="invoice-date">${formatAbacateDate(payment.created_at)}</div>
+                        </div>
+                    </div>
+
+                    <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px; margin-top: 12px;">
+                        <div style="display: grid; gap: 6px; font-size: 0.85rem;">
+                            ${payment.customer?.name ? `
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: var(--text-secondary);">Cliente:</span>
+                                    <span>${payment.customer.name}</span>
+                                </div>
+                            ` : ''}
+                            ${payment.customer?.email ? `
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: var(--text-secondary);">Email:</span>
+                                    <span>${payment.customer.email}</span>
+                                </div>
+                            ` : ''}
+                            ${payment.customer?.taxId ? `
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: var(--text-secondary);">CPF/CNPJ:</span>
+                                    <span>${payment.customer.taxId}</span>
+                                </div>
+                            ` : ''}
+                            ${payment.external_id ? `
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: var(--text-secondary);">ID externo:</span>
+                                    <span style="font-family: monospace; font-size: 0.8rem;">${payment.external_id}</span>
+                                </div>
+                            ` : ''}
+                            ${payment.metadata?.externalId ? `
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: var(--text-secondary);">Fatura Stripe:</span>
+                                    <span style="font-family: monospace; font-size: 0.8rem;">${payment.metadata.externalId}</span>
+                                </div>
+                            ` : ''}
+                            ${payment.expires_at ? `
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: var(--text-secondary);">Expira em:</span>
+                                    <span>${formatAbacateDate(payment.expires_at)}</span>
+                                </div>
+                            ` : ''}
+                            ${payment.receipt_url ? `
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: var(--text-secondary);">Comprovante:</span>
+                                    <a href="${payment.receipt_url}" target="_blank" style="color: var(--accent);">Ver comprovante</a>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+
+                    ${isPaid ? `
+                        <div class="invoice-actions">
+                            <button class="btn-secondary btn-small" onclick="toggleRefundForm(${index})" style="color: var(--warning); border-color: var(--warning);">
+                                Reembolsar
+                            </button>
+                            ${payment.url ? `
+                                <button class="btn-secondary btn-small" onclick="window.open('${payment.url}', '_blank')">
+                                    Ver checkout
+                                </button>
+                            ` : ''}
+                        </div>
+                        <div class="refund-form" id="refund-form-${index}">
+                            <h4 style="color: var(--warning); margin-bottom: 4px; font-size: 0.95rem;">Reembolso via Saque PIX</h4>
+                            <p style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 8px;">
+                                O valor será enviado para a chave PIX informada.
+                            </p>
+
+                            <label>Valor (centavos)</label>
+                            <input type="number" id="refund-amount-${index}" value="${refundAmount}" min="350">
+
+                            <label>Tipo de Chave PIX</label>
+                            <select id="refund-keytype-${index}">
+                                <option value="CPF">CPF</option>
+                                <option value="CNPJ">CNPJ</option>
+                                <option value="EMAIL">E-mail</option>
+                                <option value="PHONE">Telefone</option>
+                                <option value="RANDOM">Chave Aleatória</option>
+                                <option value="BR_CODE">BR Code</option>
+                            </select>
+
+                            <label>Chave PIX</label>
+                            <input type="text" id="refund-key-${index}" placeholder="Informe a chave PIX do cliente">
+
+                            <div style="display: flex; gap: 12px; margin-top: 16px;">
+                                <button class="btn-primary" onclick="executeRefund(${index}, '${payment.id}')" style="background: var(--warning); flex: 1;">
+                                    Confirmar Reembolso
+                                </button>
+                                <button class="btn-secondary btn-small" onclick="toggleRefundForm(${index})">
+                                    Cancelar
+                                </button>
+                            </div>
+                            <div id="refund-status-${index}" style="margin-top: 12px;"></div>
+                        </div>
+                    ` : `
+                        ${payment.url ? `
+                            <div class="invoice-actions">
+                                <button class="btn-secondary btn-small" onclick="window.open('${payment.url}', '_blank')">
+                                    Ver checkout
+                                </button>
+                            </div>
+                        ` : ''}
+                    `}
+                </div>
+            `;
+        }
+
+        // ============================================
+        // ABACATEPAY - REEMBOLSO
+        // ============================================
+
+        function toggleRefundForm(index) {
+            const form = document.getElementById(`refund-form-${index}`);
+            form.classList.toggle('active');
+        }
+
+        async function executeRefund(index, paymentId) {
+            const amount = parseInt(document.getElementById(`refund-amount-${index}`).value);
+            const keyType = document.getElementById(`refund-keytype-${index}`).value;
+            const key = document.getElementById(`refund-key-${index}`).value.trim();
+            const statusDiv = document.getElementById(`refund-status-${index}`);
+
+            if (!amount || amount < 350) {
+                showMessage('Valor mínimo para reembolso é R$ 3,50 (350 centavos).');
+                return;
+            }
+
+            if (!key) {
+                showMessage('Informe a chave PIX do cliente.');
+                return;
+            }
+
+            statusDiv.innerHTML = `
+                <div style="text-align: center; padding: 10px; color: var(--text-secondary);">
+                    <span class="loading"></span> Processando reembolso...
+                </div>
+            `;
+
+            try {
+                const response = await fetch('/api/abacatepay-refund', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        amount,
+                        pix_key: key,
+                        pix_key_type: keyType,
+                        description: `Reembolso ${paymentId}`,
+                        external_id: `refund-${paymentId}-${Date.now()}`
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Erro ao processar reembolso');
+                }
+
+                statusDiv.innerHTML = `
+                    <div style="background: rgba(0, 212, 170, 0.1); border: 1px solid var(--success); padding: 14px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 1.3rem; margin-bottom: 6px;">&#10003;</div>
+                        <div style="color: var(--success); font-weight: 600;">Reembolso Criado!</div>
+                        <div style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 4px;">
+                            ID: ${data.transaction?.id || 'N/A'} | Status: ${data.transaction?.status || 'PENDING'}
+                        </div>
+                        ${data.transaction?.receipt_url ? `
+                            <a href="${data.transaction.receipt_url}" target="_blank" style="color: var(--accent); font-size: 0.8rem; margin-top: 6px; display: inline-block;">
+                                Ver comprovante
+                            </a>
+                        ` : ''}
+                    </div>
+                `;
+
+                showMessage(`Reembolso de ${formatCurrency(amount)} criado com sucesso!`, 'success');
+
+            } catch (error) {
+                statusDiv.innerHTML = `
+                    <div style="background: rgba(255, 107, 107, 0.1); border: 1px solid var(--error); padding: 12px; border-radius: 8px; text-align: center;">
+                        <div style="color: var(--error);">${error.message}</div>
+                    </div>
+                `;
+                showMessage(error.message);
+            }
+        }
+
+        // ============================================
+        // PAGAMENTO 2.0 - GURU + LEONA
+        // ============================================
+
+        async function searchGuru() {
+            const email = document.getElementById('guruEmailInput').value.trim().toLowerCase();
+            const btn = document.getElementById('guruSearchBtn');
+
+            if (!email) {
+                showMessage('Por favor, digite um e-mail válido.');
+                return;
+            }
+
+            setButtonLoading(btn, true, 'Buscar');
+            document.getElementById('guruResultsSection').classList.remove('active');
+
+            try {
+                const [guruRes, stripeRes] = await Promise.all([
+                    fetch('/api/guru-search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email })
+                    }),
+                    fetch('/api/stripe', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email })
+                    }).catch(() => null)
+                ]);
+
+                const data = await guruRes.json();
+                if (!guruRes.ok) throw new Error(data.error || 'Erro ao buscar');
+
+                let stripeData = null;
+                if (stripeRes && stripeRes.ok) {
+                    stripeData = await stripeRes.json();
+                }
+
+                renderGuruResults(data, email, stripeData);
+
+            } catch (error) {
+                showMessage(error.message);
+            } finally {
+                setButtonLoading(btn, false, 'Buscar');
+            }
+        }
+
+        function formatGuruCurrency(value) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+        }
+
+        function formatGuruDate(dateStr) {
+            if (!dateStr) return '—';
+            if (typeof dateStr === 'number') return new Date(dateStr * 1000).toLocaleDateString('pt-BR');
+            return new Date(dateStr).toLocaleDateString('pt-BR');
+        }
+
+        function getGuruStatusClass(status) {
+            const map = { active: 'active', trial: 'trial', canceled: 'canceled', pastdue: 'pastdue' };
+            return map[status] || 'inactive';
+        }
+
+        function getGuruStatusLabel(status) {
+            const map = { active: 'Ativa', trial: 'Trial', canceled: 'Cancelada', pastdue: 'Em atraso', inactive: 'Inativa' };
+            return map[status] || status;
+        }
+
+        function getInvoiceStatusClass(status) {
+            if (status === 'paid') return 'paid';
+            if (status === 'refunded') return 'refunded';
+            return 'pending';
+        }
+
+        function getInvoiceStatusLabel(status) {
+            const map = { paid: 'Pago', pending: 'Pendente', waiting: 'Aguardando', refunded: 'Reembolsado', overdue: 'Em atraso' };
+            return map[status] || status;
+        }
+
+        function copyGuruLink(text, btnId) {
+            const btn = document.getElementById(btnId);
+            navigator.clipboard.writeText(text).then(() => {
+                btn.textContent = '✓ Copiado!';
+                btn.classList.add('copied');
+                showMessage('Link copiado!', 'success');
+                setTimeout(() => { btn.textContent = 'Copiar Link'; btn.classList.remove('copied'); }, 2000);
+            }).catch(() => {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                btn.textContent = '✓ Copiado!';
+                btn.classList.add('copied');
+                showMessage('Link copiado!', 'success');
+                setTimeout(() => { btn.textContent = 'Copiar Link'; btn.classList.remove('copied'); }, 2000);
+            });
+        }
+
+        let _lastGuruData = null;
+        let _lastGuruEmail = null;
+
+        function getOfferForQty(offers, qty) {
+            if (!offers) return null;
+            for (const o of offers) {
+                const m = o.name.match(/(\d+)\s*conex/i);
+                if (m && parseInt(m[1]) === qty) return o;
+            }
+            return null;
+        }
+
+        function calcProRata(currentValue, newValue, periodEndStr) {
+            const now = new Date();
+            const periodEnd = new Date(periodEndStr);
+            const diffMs = periodEnd.getTime() - now.getTime();
+            const diasRestantes = Math.max(0, Math.ceil(diffMs / 86400000));
+            const diasNoCiclo = 30;
+            const proRata = (newValue - currentValue) * diasRestantes / diasNoCiclo;
+            return { proRata: Math.round(proRata * 100) / 100, diasRestantes, diasNoCiclo };
+        }
+
+        function showSimulationPanel(bpIdx, direction) {
+            const panel = document.getElementById(`leona-sim-panel-${bpIdx}`);
+            const label = document.getElementById(`leona-sim-label-${bpIdx}`);
+            const dirInput = document.getElementById(`leona-direction-${bpIdx}`);
+            const qtyInput = document.getElementById(`leona-new-qty-${bpIdx}`);
+            if (panel) panel.style.display = 'block';
+            if (dirInput) dirInput.value = direction || 'add';
+            if (qtyInput) qtyInput.value = '1';
+            if (label) label.textContent = direction === 'remove' ? 'Quantas instâncias reduzir?' : 'Quantas instâncias adicionar?';
+            const result = document.getElementById(`leona-sim-result-${bpIdx}`);
+            if (result) { result.style.display = 'none'; result.innerHTML = ''; }
+        }
+
+        function hideSimulationPanel(bpIdx) {
+            const panel = document.getElementById(`leona-sim-panel-${bpIdx}`);
+            const result = document.getElementById(`leona-sim-result-${bpIdx}`);
+            if (panel) panel.style.display = 'none';
+            if (result) { result.style.display = 'none'; result.innerHTML = ''; }
+        }
+
+        async function simulateLeona(bpIdx) {
+            const data = _lastGuruData;
+            const email = _lastGuruEmail;
+            if (!data) return;
+
+            const profiles = data.leona.billing_profiles || (data.leona.billing_profile ? [data.leona.billing_profile] : []);
+            const bp = profiles[bpIdx];
+            if (!bp) return;
+
+            const input = document.getElementById(`leona-new-qty-${bpIdx}`);
+            const dirInput = document.getElementById(`leona-direction-${bpIdx}`);
+            const resultDiv = document.getElementById(`leona-sim-result-${bpIdx}`);
+            const delta = parseInt(input.value);
+            const direction = dirInput ? dirInput.value : 'add';
+            const currentQty = bp.starter_instances || 0;
+            const newQty = direction === 'remove' ? currentQty - delta : currentQty + delta;
+
+            if (!delta || delta < 1) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); text-align: center; color: var(--error);">Informe pelo menos 1.</div>`;
+                return;
+            }
+            if (newQty < 1) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); text-align: center; color: var(--error);">Não é possível reduzir para menos de 1 instância (atual: ${currentQty}).</div>`;
+                return;
+            }
+            if (newQty === currentQty) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<div style="background: rgba(255,82,82,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--error); text-align: center; color: var(--error);">A quantidade resultante é igual à atual (${currentQty}).</div>`;
+                return;
+            }
+
+            const periodEnd = bp.current_period_end;
+            if (!periodEnd || new Date(periodEnd) <= new Date()) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<div style="background: rgba(255,193,7,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--warning); text-align: center; color: var(--warning);">Ciclo vencido. Não é possível calcular pro rata.</div>`;
+                return;
+            }
+
+            const offers = data.offers || [];
+            const currentOffer = getOfferForQty(offers, currentQty);
+            const newOffer = getOfferForQty(offers, newQty);
+
+            if (!newOffer) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<div style="background: rgba(255,193,7,0.1); padding: 14px; border-radius: 10px; border: 1px solid var(--warning); text-align: center; color: var(--warning);">Não existe oferta configurada para ${newQty} conexão(ões).</div>`;
+                return;
+            }
+
+            const currentValue = currentOffer ? currentOffer.value : 0;
+            const newValue = newOffer.value;
+            const isUpgrade = newQty > currentQty;
+            const diff = Math.abs(newQty - currentQty);
+            const hasGuru = data.guru.found && data.guru.subscriptions.length > 0;
+
+            resultDiv.style.display = 'block';
+
+            if (!isUpgrade) {
+                resultDiv.innerHTML = `
+                    <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--warning);">
+                        <div style="display: grid; gap: 14px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 14px; border-bottom: 1px solid var(--border);">
+                                <span style="color: var(--text-secondary);">Tipo de alteração:</span>
+                                <span style="color: var(--warning); font-weight: 700; font-size: 1.1rem;">⬇️ DOWNGRADE (-${diff} instância${diff > 1 ? 's' : ''})</span>
+                            </div>
+                            <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="color: var(--text-secondary);">Instâncias:</span>
+                                    <span style="color: var(--text-primary); font-weight: 600; font-size: 1.2rem;">${currentQty} → ${newQty}</span>
+                                </div>
+                            </div>
+                            <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="color: var(--text-secondary);">Valor mensal:</span>
+                                    <span style="color: var(--text-primary); font-weight: 600;">${formatGuruCurrency(currentValue)} → ${formatGuruCurrency(newValue)}</span>
+                                </div>
+                            </div>
+                            <div style="background: rgba(255,193,7,0.15); padding: 16px; border-radius: 10px; text-align: center;">
+                                <div style="color: var(--warning); font-weight: 600;">Sem cobrança ou reembolso</div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">
+                                    A redução será aplicada na renovação. A assinatura na Guru (se existir) será atualizada, e o número de instâncias no Leona será ajustado.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            if (hasGuru) {
+                const activeSub = data.guru.subscriptions.find(s => s.status === 'active') || data.guru.subscriptions[0];
+                const subId = activeSub?.id;
+                const { proRata, diasRestantes, diasNoCiclo } = calcProRata(currentValue, newValue, periodEnd);
+
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `
+                    <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--success);">
+                        <div style="display: grid; gap: 14px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 14px; border-bottom: 1px solid var(--border);">
+                                <span style="color: var(--text-secondary);">Tipo de alteração:</span>
+                                <span style="color: var(--success); font-weight: 700; font-size: 1.1rem;">⬆️ UPGRADE (+${diff} instância${diff > 1 ? 's' : ''})</span>
+                            </div>
+                            <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="color: var(--text-secondary);">Instâncias:</span>
+                                    <span style="color: var(--text-primary); font-weight: 600; font-size: 1.2rem;">${currentQty} → ${newQty}</span>
+                                </div>
+                            </div>
+                            <div style="background: var(--bg-secondary); padding: 14px; border-radius: 8px;">
+                                <div style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 10px; font-weight: 500;">Estimativa pro rata:</div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid var(--border);">
+                                    <span style="color: var(--text-secondary);">Crédito não utilizado (${currentQty}x Starter, ${diasRestantes} dias)</span>
+                                    <span style="color: var(--error); font-weight: 600;">-${formatGuruCurrency(currentValue * diasRestantes / diasNoCiclo)}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid var(--border);">
+                                    <span style="color: var(--text-secondary);">Cobrança proporcional (${newQty}x Starter, ${diasRestantes} dias)</span>
+                                    <span style="color: var(--success); font-weight: 600;">+${formatGuruCurrency(newValue * diasRestantes / diasNoCiclo)}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 1rem; padding-top: 10px; margin-top: 4px;">
+                                    <span style="color: var(--text-primary); font-weight: 600;">Pro rata estimado:</span>
+                                    <span style="color: var(--accent); font-weight: 700; font-size: 1.2rem;">${formatGuruCurrency(proRata)}</span>
+                                </div>
+                                <div style="color: var(--text-secondary); font-size: 0.75rem; margin-top: 8px; font-style: italic;">O valor exato será calculado pela Guru no momento da execução.</div>
+                            </div>
+                            <button class="btn-primary" id="exec-upgrade-${bpIdx}" onclick="executeGuruUpgrade('${subId}', '${newOffer.id}', ${bpIdx})" style="width: 100%; padding: 14px; font-size: 1rem;">
+                                Executar Upgrade para ${newOffer.name}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                const { proRata, diasRestantes, diasNoCiclo } = calcProRata(currentValue, newValue, periodEnd);
+                const discountPct = newValue > 0 ? (1 - proRata / newValue) * 100 : 0;
+                let couponPct = Math.round(discountPct / 5) * 5;
+                couponPct = Math.max(5, Math.min(95, couponPct));
+                const couponCode = `up-leona-${couponPct}`;
+                const couponDiscount = newValue * couponPct / 100;
+
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `
+                    <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--success);">
+                        <div style="display: grid; gap: 14px;">
+                            <div style="text-align: center; padding: 16px; color: var(--text-secondary);">
+                                <div class="spinner"></div>
+                                <div style="margin-top: 10px;">Preparando cupom pro rata...</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                let couponOk = false;
+                try {
+                    const addEmailRes = await fetch('/api/guru-coupons', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'add_email', coupon_code: couponCode, email })
+                    });
+                    const addEmailData = await addEmailRes.json();
+                    couponOk = addEmailData.success;
+                } catch (_) {}
+
+                const baseUrl = newOffer.checkout_url || '';
+                const checkoutUrl = baseUrl
+                    ? baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'coupon=' + couponCode + '&email=' + email
+                    : '';
+
+                resultDiv.innerHTML = `
+                    <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--success);">
+                        <div style="display: grid; gap: 14px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 14px; border-bottom: 1px solid var(--border);">
+                                <span style="color: var(--text-secondary);">Tipo de alteração:</span>
+                                <span style="color: var(--success); font-weight: 700; font-size: 1.1rem;">⬆️ UPGRADE (+${diff} instância${diff > 1 ? 's' : ''})</span>
+                            </div>
+                            <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="color: var(--text-secondary);">Instâncias:</span>
+                                    <span style="color: var(--text-primary); font-weight: 600; font-size: 1.2rem;">${currentQty} → ${newQty}</span>
+                                </div>
+                            </div>
+                            <div style="background: var(--bg-secondary); padding: 14px; border-radius: 8px;">
+                                <div style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 10px; font-weight: 500;">Cálculo pro rata:</div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid var(--border);">
+                                    <span style="color: var(--text-secondary);">Crédito não utilizado (${currentQty}x Starter, ${diasRestantes} dias)</span>
+                                    <span style="color: var(--error); font-weight: 600;">-${formatGuruCurrency(currentValue * diasRestantes / diasNoCiclo)}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid var(--border);">
+                                    <span style="color: var(--text-secondary);">Cobrança proporcional (${newQty}x Starter, ${diasRestantes} dias)</span>
+                                    <span style="color: var(--success); font-weight: 600;">+${formatGuruCurrency(newValue * diasRestantes / diasNoCiclo)}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 1rem; padding-top: 10px; margin-top: 4px;">
+                                    <span style="color: var(--text-primary); font-weight: 600;">Pro rata exato:</span>
+                                    <span style="color: var(--accent); font-weight: 700; font-size: 1.2rem;">${formatGuruCurrency(proRata)}</span>
+                                </div>
+                            </div>
+                            <div style="background: rgba(156,39,176,0.1); padding: 12px; border-radius: 8px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="color: #9c27b0; font-weight: 500;">Cupom: <strong>${couponCode}</strong> (${couponPct}% off)</span>
+                                    <span style="color: #9c27b0; font-weight: 600;">Desconto: ${formatGuruCurrency(couponDiscount)}</span>
+                                </div>
+                                <div style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 6px;">
+                                    Cliente pagará: ${formatGuruCurrency(newValue - couponDiscount)} na 1ª fatura, depois ${formatGuruCurrency(newValue)}/mês
+                                </div>
+                            </div>
+                            ${checkoutUrl ? `
+                                <div style="background: rgba(0,212,170,0.1); padding: 14px; border-radius: 10px;">
+                                    <div style="color: var(--accent); font-weight: 600; margin-bottom: 8px;">Link de checkout com cupom</div>
+                                    <div style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 10px;">Envie para o cliente assinar <strong>${newOffer.name}</strong> com desconto pro rata na 1ª fatura:</div>
+                                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                        <button class="btn-copy" id="copy-upgrade-${bpIdx}" onclick="copyGuruLink('${checkoutUrl}', 'copy-upgrade-${bpIdx}')" style="width: auto; white-space: nowrap;">
+                                            Copiar Link
+                                        </button>
+                                        <span style="font-size: 0.75rem; color: var(--text-secondary); font-family: monospace; word-break: break-all;">${checkoutUrl}</span>
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        async function executeGuruUpgrade(subscriptionId, offerId, bpIdx) {
+            const resultDiv = document.getElementById(`leona-sim-result-${bpIdx}`);
+            const btn = document.getElementById(`exec-upgrade-${bpIdx}`);
+            if (btn) { btn.disabled = true; btn.textContent = 'Executando upgrade...'; }
+
+            try {
+                const res = await fetch('/api/guru-upgrade', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ subscription_id: subscriptionId, offer_id: offerId })
+                });
+                const data = await res.json();
+
+                if (!data.success) {
+                    const errMsg = data.error || 'Erro desconhecido';
+                    const isNotConfigured = errMsg.toLowerCase().includes('offer') || errMsg.toLowerCase().includes('upgrade') || res.status === 422 || res.status === 400;
+                    resultDiv.innerHTML = `
+                        <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--warning);">
+                            <div style="display: grid; gap: 14px;">
+                                <div style="color: var(--warning); font-weight: 700; font-size: 1.1rem;">⚠️ Upgrade não disponível</div>
+                                <div style="background: rgba(255,193,7,0.1); padding: 14px; border-radius: 8px;">
+                                    <div style="color: var(--text-secondary); font-size: 0.9rem;">
+                                        ${isNotConfigured
+                                            ? 'O plano atual não tem upgrade configurado para este destino na Guru. Configure o upgrade/downgrade na oferta do produto dentro do painel da Guru.'
+                                            : errMsg}
+                                    </div>
+                                </div>
+                                ${data.details ? `<details style="color: var(--text-secondary); font-size: 0.75rem;"><summary>Detalhes técnicos</summary><pre style="white-space: pre-wrap; margin-top: 8px;">${JSON.stringify(data.details, null, 2)}</pre></details>` : ''}
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const inv = data.invoice;
+                resultDiv.innerHTML = `
+                    <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--success);">
+                        <div style="display: grid; gap: 14px;">
+                            <div style="color: var(--success); font-weight: 700; font-size: 1.1rem;">✅ Upgrade realizado com sucesso!</div>
+                            ${inv ? `
+                                <div style="background: var(--bg-secondary); padding: 14px; border-radius: 8px;">
+                                    <div style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 10px; font-weight: 500;">Fatura de upgrade gerada:</div>
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid var(--border);">
+                                        <span style="color: var(--text-secondary);">Invoice</span>
+                                        <span style="font-family: monospace; color: var(--text-primary);">${inv.id}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid var(--border);">
+                                        <span style="color: var(--text-secondary);">Valor (pro rata)</span>
+                                        <span style="color: var(--accent); font-weight: 700; font-size: 1.1rem;">${formatGuruCurrency(inv.value)}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0;">
+                                        <span style="color: var(--text-secondary);">Status</span>
+                                        <span style="color: var(--warning);">${inv.status}</span>
+                                    </div>
+                                    ${inv.payment_url ? `
+                                        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
+                                            <span style="color: var(--text-secondary); font-size: 0.8rem; display: block; margin-bottom: 8px;">Link de pagamento:</span>
+                                            <div style="display: flex; gap: 8px;">
+                                                <input type="text" value="${inv.payment_url}" readonly
+                                                    style="flex: 1; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; color: var(--text-primary); font-size: 0.8rem; font-family: monospace;"
+                                                    onclick="this.select()">
+                                                <button class="btn-primary" style="padding: 10px 16px; font-size: 0.85rem; white-space: nowrap;"
+                                                    onclick="navigator.clipboard.writeText('${inv.payment_url}').then(() => { this.textContent = 'Copiado!'; setTimeout(() => this.textContent = 'Copiar', 2000); })">
+                                                    Copiar
+                                                </button>
+                                            </div>
+                                            <a href="${inv.payment_url}" target="_blank" style="display: inline-block; margin-top: 8px; color: var(--accent); font-size: 0.85rem; text-decoration: none;">Abrir link de pagamento →</a>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            ` : `
+                                <div style="color: var(--text-secondary); font-size: 0.85rem;">Upgrade executado. A Guru processará a cobrança pro rata.</div>
+                            `}
+                            <div style="color: var(--text-secondary); font-size: 0.8rem;">O webhook da Guru atualizará as instâncias no Leona automaticamente quando o pagamento for confirmado.</div>
+                        </div>
+                    </div>
+                `;
+
+                showMessage('Upgrade realizado com sucesso na Guru!', 'success');
+
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div style="background: var(--bg-primary); padding: 20px; border-radius: 10px; border: 2px solid var(--error);">
+                        <div style="color: var(--error); font-weight: 600;">Erro ao executar upgrade: ${error.message}</div>
+                    </div>
+                `;
+            }
+        }
+
+        function copyPixMsg(bpIdx) {
+            const msgEl = document.getElementById(`pix-msg-${bpIdx}`);
+            const btn = document.getElementById(`copy-pix-msg-${bpIdx}`);
+            const text = msgEl.textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                btn.textContent = '✓ Copiado!';
+                btn.classList.add('copied');
+                showMessage('Mensagem copiada!', 'success');
+                setTimeout(() => { btn.textContent = 'Copiar Mensagem'; btn.classList.remove('copied'); }, 2000);
+            }).catch(() => {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                btn.textContent = '✓ Copiado!';
+                btn.classList.add('copied');
+                showMessage('Mensagem copiada!', 'success');
+                setTimeout(() => { btn.textContent = 'Copiar Mensagem'; btn.classList.remove('copied'); }, 2000);
+            });
+        }
+
+        function renderGuruResults(data, email, stripeData) {
+            _lastGuruData = data;
+            _lastGuruEmail = email;
+
+            const section = document.getElementById('guruResultsSection');
+            const leonaDiv = document.getElementById('guruLeonaProfile');
+            const stripeDiv = document.getElementById('guruStripeInfo');
+            const subsDiv = document.getElementById('guruSubscriptions');
+            const txDiv = document.getElementById('guruTransactions');
+            const offersDiv = document.getElementById('guruOffersSection');
+
+            leonaDiv.innerHTML = '';
+            stripeDiv.innerHTML = '';
+            subsDiv.innerHTML = '';
+            txDiv.innerHTML = '';
+            offersDiv.innerHTML = '';
+
+            const { guru, leona, offers } = data;
+
+            // Leona billing profiles
+            const profiles = leona.billing_profiles || (leona.billing_profile ? [leona.billing_profile] : []);
+            if (profiles.length > 0) {
+                const isActive = (bp) => bp.subscription_status === 'active' && bp.current_period_end && new Date(bp.current_period_end) > new Date();
+
+                leonaDiv.innerHTML = profiles.map((bp, bpIdx) => `
+                    <div class="leona-profile">
+                        <h3>Leona — Perfil de Cobrança${profiles.length > 1 ? ` #${bpIdx + 1}` : ''}${bp.account_id ? ` <span style="font-size: 0.75rem; font-weight: 400; color: var(--text-secondary);">(ID: ${bp.account_id})</span>` : ''}</h3>
+                        <div style="display: grid; gap: 8px; font-size: 0.9rem;">
+                            ${bp.user?.name ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Nome:</span><span>${bp.user.name}</span></div>` : ''}
+                            ${bp.user?.email ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Email:</span><span>${bp.user.email}</span></div>` : ''}
+                            ${bp.user?.phone ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Telefone:</span><span>${bp.user.phone}</span></div>` : ''}
+                            ${bp.plan_summary ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Plano:</span><span>${bp.plan_summary}</span></div>` : ''}
+                            ${bp.starter_instances != null ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Instâncias Starter:</span><span style="font-weight: 600;">${bp.starter_instances}</span></div>` : ''}
+                            ${bp.pro_instances != null ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Instâncias Pro:</span><span style="font-weight: 600;">${bp.pro_instances}</span></div>` : ''}
+                            ${bp.subscription_status ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Status:</span><span class="guru-status ${getGuruStatusClass(bp.subscription_status)}">${bp.subscription_status}</span></div>` : ''}
+                            ${bp.current_period_end ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Fim do período:</span><span>${formatGuruDate(bp.current_period_end)}</span></div>` : ''}
+                            ${bp.subscription_type ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Tipo:</span><span>${bp.subscription_type}</span></div>` : ''}
+                            ${bp.guru_account_id ? `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Guru Account ID:</span><span style="font-family: monospace; font-size: 0.8rem;">${bp.guru_account_id}</span></div>` : ''}
+                        </div>
+                        ${isActive(bp) && bp.starter_instances != null ? `
+                            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+                                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                    <button class="btn-primary" onclick="showSimulationPanel(${bpIdx}, 'add')" style="padding: 10px 18px; font-size: 0.85rem;">
+                                        + Adicionar Instância
+                                    </button>
+                                    <button class="btn-secondary" onclick="showSimulationPanel(${bpIdx}, 'remove')" style="padding: 10px 18px; font-size: 0.85rem;">
+                                        - Reduzir Instância
+                                    </button>
+                                </div>
+                                <div id="leona-sim-panel-${bpIdx}" style="display: none; margin-top: 14px;">
+                                    <div style="background: var(--bg-secondary); padding: 16px; border-radius: 10px; border: 1px solid var(--border);">
+                                        <label id="leona-sim-label-${bpIdx}" style="color: var(--text-secondary); font-size: 0.85rem; display: block; margin-bottom: 8px;">Quantas instâncias adicionar?</label>
+                                        <div style="display: flex; gap: 10px; align-items: center;">
+                                            <input type="number" id="leona-new-qty-${bpIdx}" min="1" value="1" style="width: 80px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 1rem; text-align: center;">
+                                            <input type="hidden" id="leona-direction-${bpIdx}" value="add">
+                                            <button class="btn-primary" onclick="simulateLeona(${bpIdx})" style="padding: 10px 24px;">
+                                                Simular
+                                            </button>
+                                            <button class="btn-secondary" onclick="hideSimulationPanel(${bpIdx})" style="padding: 10px 20px;">
+                                                Cancelar
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="leona-sim-result-${bpIdx}" style="display: none; margin-top: 14px;"></div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `).join('');
+            } else if (leona.error) {
+                leonaDiv.innerHTML = `
+                    <div class="leona-profile" style="border-color: var(--warning);">
+                        <h3 style="color: var(--warning);">Leona — Aviso</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.9rem;">${leona.error}</p>
+                    </div>
+                `;
+            }
+
+            // Stripe info
+            if (stripeData && stripeData.customer_exists && stripeData.subscriptions && stripeData.subscriptions.length > 0) {
+                const stripeSubs = stripeData.subscriptions.filter(s => s.id !== 'no_subscription');
+                if (stripeSubs.length > 0) {
+                    const statusMap = { active: 'Ativa', trialing: 'Trial', past_due: 'Atrasada', canceled: 'Cancelada', incomplete: 'Incompleta', incomplete_expired: 'Expirada', unpaid: 'Não paga', paused: 'Pausada' };
+                    const statusColorMap = { active: 'var(--success)', trialing: '#2196F3', past_due: 'var(--warning)', canceled: 'var(--error)', incomplete: 'var(--warning)', unpaid: 'var(--error)' };
+
+                    stripeDiv.innerHTML = `
+                        <div class="leona-profile" style="border-color: #635BFF; opacity: 0.6;">
+                            <h3 style="color: #635BFF;">Stripe — Assinaturas (Não utilizado mais)</h3>
+                            ${stripeSubs.map(sub => {
+                                const statusLabel = statusMap[sub.status] || sub.status;
+                                const statusColor = statusColorMap[sub.status] || 'var(--text-secondary)';
+                                const lastInvoice = sub.invoices && sub.invoices.length > 0 ? sub.invoices[0] : null;
+                                const lastPaidInvoice = sub.invoices ? sub.invoices.find(i => i.status === 'paid') : null;
+                                const periodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
+                                const lastPayDate = lastPaidInvoice ? new Date(lastPaidInvoice.created * 1000) : null;
+
+                                return `<div style="background: var(--bg-secondary); padding: 14px; border-radius: 10px; border: 1px solid var(--border); margin-top: 12px;">
+                                    <div style="display: grid; gap: 8px; font-size: 0.9rem;">
+                                        <div style="display: flex; justify-content: space-between;">
+                                            <span style="color: var(--text-secondary);">Assinatura:</span>
+                                            <span style="font-weight: 600;">${sub.product_name || 'N/A'}</span>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between;">
+                                            <span style="color: var(--text-secondary);">Status:</span>
+                                            <span style="color: ${statusColor}; font-weight: 600;">${statusLabel}</span>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between;">
+                                            <span style="color: var(--text-secondary);">Instâncias:</span>
+                                            <span style="font-weight: 600;">${sub.current_quantity || 1}</span>
+                                        </div>
+                                        ${lastPayDate ? `<div style="display: flex; justify-content: space-between;">
+                                            <span style="color: var(--text-secondary);">Último pagamento:</span>
+                                            <span>${lastPayDate.toLocaleDateString('pt-BR')} — ${formatGuruCurrency((lastPaidInvoice.amount_paid || 0) / 100)}</span>
+                                        </div>` : ''}
+                                        ${periodEnd ? `<div style="display: flex; justify-content: space-between;">
+                                            <span style="color: var(--text-secondary);">Vencimento:</span>
+                                            <span>${periodEnd.toLocaleDateString('pt-BR')}</span>
+                                        </div>` : ''}
+                                    </div>
+                                    <div style="margin-top: 6px; font-size: 0.75rem; color: var(--text-secondary); font-family: monospace;">${sub.id}</div>
+                                </div>`;
+                            }).join('')}
+                        </div>
+                    `;
+                }
+            } else if (stripeData && !stripeData.customer_exists) {
+                stripeDiv.innerHTML = `
+                    <div class="leona-profile" style="border-color: var(--border); opacity: 0.7;">
+                        <h3 style="color: #635BFF;">Stripe</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.85rem;">Nenhum cliente encontrado na Stripe.</p>
+                    </div>
+                `;
+            }
+
+            // Guru subscriptions
+            if (guru.found && guru.subscriptions.length > 0) {
+                const contactInfo = guru.contact;
+                subsDiv.innerHTML = `
+                    <div style="margin-bottom: 20px;">
+                        <div class="section-header">
+                            <div>
+                                <h2>Assinaturas Guru</h2>
+                                <span class="customer-info">${contactInfo?.name || ''} (${contactInfo?.email || email})</span>
+                            </div>
+                        </div>
+                        ${guru.subscriptions.map(sub => `
+                            <div class="guru-sub-card">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+                                    <div>
+                                        <div style="font-weight: 600; font-size: 1.1rem; margin-bottom: 4px;">${sub.product_name}</div>
+                                        ${sub.product_group ? `<span style="color: var(--text-secondary); font-size: 0.8rem;">Grupo: ${sub.product_group}</span>` : ''}
+                                        <div style="margin-top: 8px;">
+                                            <span class="guru-status ${getGuruStatusClass(sub.status)}">${getGuruStatusLabel(sub.status)}</span>
+                                        </div>
+                                    </div>
+                                    <div style="text-align: right; font-size: 0.85rem; color: var(--text-secondary);">
+                                        <div>Ciclo: ${formatGuruDate(sub.cycle_start)} — ${formatGuruDate(sub.cycle_end)}</div>
+                                        <div>Próx. cobrança: ${formatGuruDate(sub.next_cycle)}</div>
+                                        <div>Cobranças: ${sub.charged_times}x</div>
+                                        ${sub.payment_method ? `<div>Pagamento: ${sub.payment_method}</div>` : ''}
+                                        ${sub.trial_end ? `<div>Trial até: ${formatGuruDate(sub.trial_end)}</div>` : ''}
+                                    </div>
+                                </div>
+                                <div style="margin-top: 8px; font-size: 0.75rem; color: var(--text-secondary); font-family: monospace;">
+                                    ${sub.subscription_code || sub.id}
+                                </div>
+                                ${sub.current_invoice && (sub.current_invoice.status === 'waiting_payment' || sub.current_invoice.status === 'pending') ? `
+                                    <div style="margin-top: 12px; padding: 14px; background: rgba(255,193,7,0.08); border: 1px solid var(--warning); border-radius: 8px;">
+                                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+                                            <span style="color: var(--warning); font-weight: 600; font-size: 0.9rem;">⚠️ Fatura ${sub.current_invoice.type === 'upgrade' ? 'de upgrade' : ''} pendente — ${formatGuruCurrency(sub.current_invoice.value)}</span>
+                                        </div>
+                                        ${sub.current_invoice.payment_url ? `
+                                            <div style="display: flex; gap: 8px;">
+                                                <input type="text" value="${sub.current_invoice.payment_url}" readonly
+                                                    style="flex: 1; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; color: var(--text-primary); font-size: 0.8rem; font-family: monospace;"
+                                                    onclick="this.select()">
+                                                <button class="btn-primary" style="padding: 8px 14px; font-size: 0.85rem; white-space: nowrap;"
+                                                    onclick="navigator.clipboard.writeText('${sub.current_invoice.payment_url}').then(() => { this.textContent = 'Copiado!'; setTimeout(() => this.textContent = 'Copiar', 2000); })">
+                                                    Copiar
+                                                </button>
+                                            </div>
+                                            <a href="${sub.current_invoice.payment_url}" target="_blank" style="display: inline-block; margin-top: 6px; color: var(--accent); font-size: 0.8rem; text-decoration: none;">Abrir link →</a>
+                                        ` : ''}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+
+                // Invoices
+                const invoices = guru.invoices || [];
+                if (invoices.length > 0) {
+                    txDiv.innerHTML = `
+                        <div style="margin-bottom: 20px;">
+                            <h2 style="font-size: 1.2rem; margin-bottom: 16px;">Faturas</h2>
+                            ${invoices.map(inv => {
+                                const isOpen = inv.status !== 'paid' && inv.status !== 'refunded';
+                                return `
+                                    <div class="guru-tx-card" ${isOpen ? 'style="border-color: var(--warning);"' : ''}>
+                                        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+                                            <div>
+                                                <span style="font-weight: 600;">${inv.offer_name || inv.product_name}</span>
+                                                <span class="guru-invoice-status ${getInvoiceStatusClass(inv.status)}" style="margin-left: 8px;">${getInvoiceStatusLabel(inv.status)}</span>
+                                                <div style="font-family: monospace; font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">${inv.id}</div>
+                                            </div>
+                                            <div style="text-align: right;">
+                                                <div style="font-size: 1.3rem; font-weight: 700; color: var(--accent);">${formatGuruCurrency(inv.value)}</div>
+                                                <div style="font-size: 0.8rem; color: var(--text-secondary);">Ciclo ${inv.cycle} | ${formatGuruDate(inv.period_start)} — ${formatGuruDate(inv.period_end)}</div>
+                                                ${inv.payment_method ? `<div style="font-size: 0.8rem; color: var(--text-secondary);">${inv.payment_method}</div>` : ''}
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `;
+                }
+
+                showMessage(`${guru.subscriptions.length} assinatura(s) encontrada(s)!`, 'success');
+
+            } else if (guru.found) {
+                subsDiv.innerHTML = `
+                    <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 20px; text-align: center;">
+                        <div style="font-size: 1.5rem; margin-bottom: 8px;">📋</div>
+                        <div style="color: var(--text-secondary);">Cliente <strong>${guru.contact?.name || email}</strong> encontrado na Guru, mas sem assinaturas.</div>
+                    </div>
+                `;
+                showMessage('Cliente encontrado, mas sem assinaturas. Veja os planos disponíveis abaixo.', 'success');
+            } else {
+                subsDiv.innerHTML = `
+                    <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 20px; text-align: center;">
+                        <div style="font-size: 1.5rem; margin-bottom: 8px;">🔍</div>
+                        <div style="color: var(--text-secondary);">Nenhum cliente encontrado na Guru para <strong>${email}</strong>.</div>
+                    </div>
+                `;
+            }
+
+            // Offers (só mostra se NÃO tem assinatura na Guru)
+            const hasGuruSub = guru.found && guru.subscriptions.length > 0;
+            if (offers && offers.length > 0 && !hasGuruSub) {
+                offersDiv.innerHTML = `
+                    <div style="margin-bottom: 20px;">
+                        <h2 style="font-size: 1.2rem; margin-bottom: 6px;">Planos Leona Flow</h2>
+                        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 16px;">
+                            Envie um dos links abaixo para o cliente assinar:
+                        </p>
+                        <div class="offer-grid">
+                            ${offers.map((o, idx) => `
+                                <div class="offer-card">
+                                    <div>
+                                        <div style="font-weight: 600; margin-bottom: 6px;">${o.name}</div>
+                                        <div class="offer-value">${formatGuruCurrency(o.value)}<span style="font-size: 0.8rem; font-weight: 400; color: var(--text-secondary);">/mês</span></div>
+                                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">
+                                            ${(o.payment_types || []).map(t => t === 'credit_card' ? 'Cartão' : t === 'pix' ? 'PIX' : t).join(' • ')}
+                                        </div>
+                                    </div>
+                                    <button class="btn-copy" id="copy-offer-${idx}" onclick="copyGuruLink('${o.checkout_url + (o.checkout_url.includes("?") ? "&" : "?") + "email=" + email}', 'copy-offer-${idx}')">
+                                        Copiar Link
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            section.classList.add('active');
+        }
+
+        // ============================================
+        // EVENT LISTENERS
+        // ============================================
+        
+        document.getElementById('emailInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') searchInvoices();
+        });
+
+        document.getElementById('abacateSearchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') searchAbacatePayments();
+        });
+
+        document.getElementById('guruEmailInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') searchGuru();
+        });
+    </script>
+</body>
+</html>
