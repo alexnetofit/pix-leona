@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finalizar pagamento - Leona Flow</title>
+    <link rel="icon" type="image/png" href="/logo-leona.png">
+    <style>
+        :root {
+            --bg-primary: #0c0a12;
+            --bg-secondary: #151120;
+            --bg-card: #1e1830;
+            --bg-elevated: #261f3a;
+            --accent: #8b5cf6;
+            --accent-hover: #7c3aed;
+            --accent-soft: rgba(139, 92, 246, 0.12);
+            --paddle: #3B82F6;
+            --text-primary: #f0ecf7;
+            --text-secondary: #9589ad;
+            --text-muted: #6b5f82;
+            --success: #10b981;
+            --error: #ef4444;
+            --border: #2a2240;
+            --border-light: #352d50;
+            --glow-purple: rgba(139, 92, 246, 0.25);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.55;
+        }
+        body::before {
+            content: '';
+            position: fixed; top: 0; left: 0; right: 0; height: 400px;
+            background: radial-gradient(ellipse at 50% -20%, rgba(139, 92, 246, 0.08) 0%, transparent 70%);
+            pointer-events: none; z-index: 0;
+        }
+        .page { max-width: 1080px; margin: 0 auto; padding: 36px 22px 60px; position: relative; z-index: 1; }
+
+        header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; flex-wrap: wrap; gap: 12px; }
+        .brand { display: flex; align-items: center; gap: 12px; }
+        .brand img { height: 40px; filter: drop-shadow(0 4px 20px var(--glow-purple)); }
+        .brand-name { font-weight: 600; font-size: 0.95rem; color: var(--text-primary); }
+        .brand-sub { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; }
+        .secure-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 0.72rem; color: var(--text-secondary); padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 999px; }
+        .secure-badge svg { width: 12px; height: 12px; }
+
+        .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 22px; align-items: start; }
+        @media (max-width: 880px) { .grid { grid-template-columns: 1fr; } }
+
+        .panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 22px; }
+        .panel h2 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-secondary); margin-bottom: 16px; font-weight: 600; }
+
+        .order-line { display: flex; align-items: flex-start; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+        .order-line:last-child { border-bottom: none; }
+        .order-line .icon { width: 38px; height: 38px; border-radius: 10px; background: var(--accent-soft); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .order-line .icon svg { width: 18px; height: 18px; color: var(--accent); }
+        .order-line .meta { flex: 1; min-width: 0; }
+        .order-line .name { font-weight: 600; font-size: 0.92rem; }
+        .order-line .desc { color: var(--text-secondary); font-size: 0.78rem; margin-top: 2px; }
+        .order-line .qty-badge { display: inline-block; margin-top: 6px; font-size: 0.72rem; padding: 2px 8px; background: var(--bg-elevated); border-radius: 6px; color: var(--text-secondary); }
+
+        .totals { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border-light); }
+        .totals .row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 0.86rem; color: var(--text-secondary); }
+        .totals .row .v { color: var(--text-primary); font-weight: 500; }
+        .totals .row.discount .v { color: var(--success); }
+        .totals .row.total { margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--border-light); font-size: 1.05rem; }
+        .totals .row.total .l { color: var(--text-primary); font-weight: 600; }
+        .totals .row.total .v { color: var(--accent); font-weight: 700; font-size: 1.2rem; }
+        .totals .row.next-bill { font-size: 0.72rem; color: var(--text-muted); padding-top: 8px; }
+
+        .recurrence-note { margin-top: 14px; padding: 10px 12px; background: var(--accent-soft); border: 1px solid var(--border-light); border-radius: 10px; font-size: 0.78rem; color: var(--text-secondary); display: flex; gap: 8px; align-items: flex-start; }
+        .recurrence-note svg { width: 14px; height: 14px; color: var(--accent); flex-shrink: 0; margin-top: 2px; }
+
+        .checkout-panel { padding: 14px 14px 18px 14px; min-height: 540px; }
+        .checkout-frame { min-height: 500px; }
+
+        .loader { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; gap: 12px; }
+        .spinner { width: 28px; height: 28px; border: 2px solid var(--border-light); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loader p { color: var(--text-secondary); font-size: 0.86rem; }
+
+        .error-box { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.35); color: #fca5a5; padding: 14px; border-radius: 10px; font-size: 0.86rem; }
+
+        footer { margin-top: 36px; padding-top: 22px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 0.74rem; color: var(--text-muted); }
+        footer .links a { color: var(--text-secondary); text-decoration: none; margin-right: 14px; }
+        footer .links a:hover { color: var(--accent); }
+        footer .powered { display: flex; align-items: center; gap: 6px; }
+        footer .powered b { color: var(--text-secondary); font-weight: 600; }
+
+        @media (max-width: 600px) {
+            .page { padding: 22px 14px 40px; }
+            .panel { padding: 16px; border-radius: 12px; }
+            .checkout-panel { padding: 10px; }
+            .brand img { height: 34px; }
+            .brand-name { font-size: 0.86rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <header>
+            <div class="brand">
+                <img src="/logo-leona.png" alt="Leona Flow">
+                <div>
+                    <div class="brand-name">Leona Flow</div>
+                    <div class="brand-sub">Finalizar pagamento</div>
+                </div>
+            </div>
+            <div class="secure-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 2 4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4z"/></svg>
+                Pagamento seguro pela Paddle
+            </div>
+        </header>
+
+        <div class="grid">
+            <section class="panel" aria-label="Resumo do pedido">
+                <h2>Resumo do pedido</h2>
+
+                <div id="orderItems">
+                    <div class="loader">
+                        <div class="spinner"></div>
+                        <p>Carregando dados do pedido...</p>
+                    </div>
+                </div>
+
+                <div id="orderTotals" class="totals" style="display: none;">
+                    <div class="row"><span class="l">Subtotal</span><span class="v" id="ttSubtotal">—</span></div>
+                    <div class="row discount" id="ttDiscountRow" style="display: none;"><span class="l" id="ttDiscountLabel">Desconto</span><span class="v" id="ttDiscount">—</span></div>
+                    <div class="row" id="ttTaxRow" style="display: none;"><span class="l">Imposto</span><span class="v" id="ttTax">—</span></div>
+                    <div class="row total"><span class="l">Total</span><span class="v" id="ttTotal">—</span></div>
+                    <div class="row next-bill" id="ttNextBill" style="display: none;"></div>
+                </div>
+
+                <div class="recurrence-note">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 1-15.36 6.36M3 12a9 9 0 0 1 15.36-6.36"/><path d="M21 4v5h-5M3 20v-5h5"/></svg>
+                    <span>Esta e uma assinatura mensal recorrente. O cartao sera cobrado automaticamente todo mes ate voce cancelar pelo portal.</span>
+                </div>
+            </section>
+
+            <section class="panel checkout-panel" aria-label="Formulario de pagamento">
+                <div id="checkoutContainer" class="checkout-frame">
+                    <div class="loader">
+                        <div class="spinner"></div>
+                        <p>Carregando formulario de pagamento...</p>
+                    </div>
+                </div>
+                <div id="checkoutError" class="error-box" style="display: none;"></div>
+            </section>
+        </div>
+
+        <footer>
+            <div class="powered">
+                Operado por <b>AN DIGITAL SOLUTIONS LLC</b> · Pagamentos processados pela Paddle (Merchant of Record)
+            </div>
+            <div class="links">
+                <a href="https://leonaflow.com/termos/" target="_blank" rel="noopener">Termos</a>
+                <a href="https://leonaflow.com/privacidade/" target="_blank" rel="noopener">Privacidade</a>
+                <a href="https://leonaflow.com/reembolso/" target="_blank" rel="noopener">Reembolso</a>
+                <a href="https://wa.me/5511947209231" target="_blank" rel="noopener">Suporte</a>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const ptxn = params.get('_ptxn');
+        const aid = params.get('aid');
+
+        function buildSuccessUrl() {
+            const base = 'https://client.leonaflow.com/';
+            return aid ? `${base}?account_id=${encodeURIComponent(aid)}` : base;
+        }
+
+        function fmtMoney(amountCents, currency = 'BRL') {
+            const n = typeof amountCents === 'string' ? parseFloat(amountCents) : amountCents;
+            if (!Number.isFinite(n)) return '—';
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency }).format(n / 100);
+        }
+
+        function fmtDate(d) {
+            if (!d) return '';
+            const date = new Date(d);
+            if (isNaN(date.getTime())) return '';
+            return date.toLocaleDateString('pt-BR');
+        }
+
+        function showError(msg) {
+            const box = document.getElementById('checkoutError');
+            box.textContent = msg;
+            box.style.display = 'block';
+        }
+
+        function renderItems(items, currency) {
+            const root = document.getElementById('orderItems');
+            if (!items || !items.length) {
+                root.innerHTML = `<p style="color: var(--text-secondary); font-size: 0.86rem;">Nenhum item neste pedido.</p>`;
+                return;
+            }
+            root.innerHTML = items.map(it => {
+                const name = it.product?.name || it.price?.name || 'Leona Flow';
+                const desc = it.price?.description || it.price?.name || '';
+                const qty = it.quantity || 1;
+                return `
+                    <div class="order-line">
+                        <div class="icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9 12 3l9 6v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>
+                        </div>
+                        <div class="meta">
+                            <div class="name">${escapeHtml(name)}</div>
+                            ${desc ? `<div class="desc">${escapeHtml(desc)}</div>` : ''}
+                            <span class="qty-badge">${qty} ${qty === 1 ? 'conexao' : 'conexoes'}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderTotals(totals, currency, nextBilledAt) {
+            if (!totals) return;
+            document.getElementById('orderTotals').style.display = 'block';
+
+            const subtotal = totals.subtotal ?? totals.subtotalRaw;
+            const discount = totals.discount ?? totals.discountRaw;
+            const tax = totals.tax ?? totals.taxRaw;
+            const total = totals.total ?? totals.totalRaw;
+
+            if (subtotal != null) document.getElementById('ttSubtotal').textContent = fmtMoney(subtotal, currency);
+            if (Number(discount) > 0) {
+                document.getElementById('ttDiscountRow').style.display = 'flex';
+                document.getElementById('ttDiscount').textContent = '-' + fmtMoney(discount, currency);
+            }
+            if (Number(tax) > 0) {
+                document.getElementById('ttTaxRow').style.display = 'flex';
+                document.getElementById('ttTax').textContent = fmtMoney(tax, currency);
+            }
+            if (total != null) document.getElementById('ttTotal').textContent = fmtMoney(total, currency);
+
+            if (nextBilledAt) {
+                const el = document.getElementById('ttNextBill');
+                el.style.display = 'flex';
+                el.innerHTML = `<span style="margin: 0 auto;">Proxima cobranca: ${fmtDate(nextBilledAt)}</span>`;
+            }
+        }
+
+        function escapeHtml(s) {
+            return String(s == null ? '' : s).replace(/[&<>"']/g, m => (
+                { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]
+            ));
+        }
+
+        function paddleEventCallback(ev) {
+            try {
+                if (!ev || !ev.name) return;
+                const data = ev.data || {};
+
+                if (ev.name === 'checkout.loaded' || ev.name === 'checkout.items.updated' || ev.name === 'checkout.totals.updated' || ev.name === 'checkout.customer.updated') {
+                    const items = data.items || data?.lineItems || [];
+                    const currency = data.currency_code || 'BRL';
+                    const totals = data.totals || data?.recurring_totals || data?.recurringTotals || data?.summary;
+
+                    if (items && items.length) renderItems(items, currency);
+                    if (totals) renderTotals(totals, currency, data.recurring_totals?.next_billed_at || data?.recurringTotals?.nextBilledAt || data?.nextBilledAt);
+                }
+
+                if (ev.name === 'checkout.completed') {
+                    setTimeout(() => { window.location.href = buildSuccessUrl(); }, 800);
+                }
+
+                if (ev.name === 'checkout.error') {
+                    console.error('[checkout] erro Paddle:', data);
+                    showError('Ocorreu um erro ao carregar o checkout. Tente recarregar a pagina ou fale com nosso suporte.');
+                }
+            } catch (e) {
+                console.error('[checkout] eventCallback erro:', e);
+            }
+        }
+
+        (async () => {
+            if (!ptxn) {
+                showError('Link de pagamento invalido. Volte ao portal e clique em "Pagar" novamente.');
+                document.getElementById('orderItems').innerHTML = '';
+                return;
+            }
+
+            try {
+                const r = await fetch('/api/paddle-config');
+                const cfg = await r.json();
+
+                if (!window.Paddle) {
+                    showError('Nao foi possivel carregar o sistema de pagamento. Verifique sua conexao e tente novamente.');
+                    return;
+                }
+                if (!cfg.client_token) {
+                    showError('Configuracao do checkout indisponivel. Fale com o suporte.');
+                    return;
+                }
+                if (cfg.environment === 'sandbox') {
+                    Paddle.Environment.set('sandbox');
+                }
+
+                Paddle.Initialize({
+                    token: cfg.client_token,
+                    eventCallback: paddleEventCallback
+                });
+
+                Paddle.Checkout.open({
+                    transactionId: ptxn,
+                    settings: {
+                        displayMode: 'inline',
+                        theme: 'dark',
+                        locale: 'pt-BR',
+                        frameTarget: 'checkoutContainer',
+                        frameInitialHeight: 500,
+                        frameStyle: 'width: 100%; min-height: 500px; border: 0; background: transparent;',
+                        successUrl: buildSuccessUrl(),
+                        showAddDiscounts: false,
+                        allowLogout: false
+                    }
+                });
+            } catch (e) {
+                console.error('[checkout] erro init:', e);
+                showError('Erro ao iniciar checkout: ' + (e?.message || 'desconhecido'));
+            }
+        })();
+    </script>
+</body>
+</html>

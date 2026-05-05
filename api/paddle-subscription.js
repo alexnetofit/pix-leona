@@ -267,17 +267,23 @@ export default async function handler(req, res) {
       const data = await r.json();
       if (!r.ok) return res.status(r.status).json(data);
 
-      // Anexa &aid=N a URL do checkout pra que /recovery possa preservar
-      // o contexto de qual conta Leona retornar apos pagar (successUrl).
-      let checkoutUrl = data.data?.checkout?.url || null;
-      if (checkoutUrl && account_id != null) {
-        const sep = checkoutUrl.includes('?') ? '&' : '?';
-        checkoutUrl = `${checkoutUrl}${sep}aid=${encodeURIComponent(account_id)}`;
+      // Construimos a URL apontando pro nosso /checkout (inline checkout
+      // proprio com layout Leona) ao inves de usar o default payment link
+      // (/recovery, que abre o overlay padrao da Paddle - mais feio).
+      // O /recovery continua existindo pra emails de cobranca falhada da
+      // Paddle, mas o fluxo de auto-atendimento usa /checkout.
+      const txnId = data.data?.id || null;
+      let checkoutUrl = null;
+      if (txnId) {
+        const qs = new URLSearchParams();
+        qs.set('_ptxn', txnId);
+        if (account_id != null) qs.set('aid', String(account_id));
+        checkoutUrl = `https://client.leonaflow.com/checkout?${qs.toString()}`;
       }
 
       return res.status(200).json({
         checkout_url: checkoutUrl,
-        transaction_id: data.data?.id || null,
+        transaction_id: txnId,
         customer_id: data.data?.customer_id || null
       });
     }
