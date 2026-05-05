@@ -5,98 +5,251 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Finalizar pagamento - Leona Flow</title>
     <link rel="icon" type="image/png" href="/logo-leona.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
     <style>
         :root {
-            --bg-primary: #0c0a12;
-            --bg-secondary: #151120;
-            --bg-card: #1e1830;
-            --bg-elevated: #261f3a;
-            --accent: #8b5cf6;
-            --accent-hover: #7c3aed;
-            --accent-soft: rgba(139, 92, 246, 0.12);
-            --paddle: #3B82F6;
-            --text-primary: #f0ecf7;
-            --text-secondary: #9589ad;
-            --text-muted: #6b5f82;
-            --success: #10b981;
-            --error: #ef4444;
-            --border: #2a2240;
-            --border-light: #352d50;
-            --glow-purple: rgba(139, 92, 246, 0.25);
+            --bg-base: #08060f;
+            --bg-1: #0f0a1a;
+            --bg-2: #16101f;
+            --panel: rgba(28, 22, 44, 0.65);
+            --panel-strong: rgba(34, 26, 54, 0.85);
+            --panel-border: rgba(139, 92, 246, 0.18);
+            --panel-border-strong: rgba(139, 92, 246, 0.3);
+            --accent: #a78bfa;
+            --accent-2: #8b5cf6;
+            --accent-3: #7c3aed;
+            --accent-glow: rgba(139, 92, 246, 0.45);
+            --paddle: #60a5fa;
+            --text: #f5f3fb;
+            --text-2: #c4bdd9;
+            --text-3: #8e85a8;
+            --text-4: #5d5572;
+            --success: #34d399;
+            --success-bg: rgba(52, 211, 153, 0.12);
+            --error: #f87171;
+            --error-bg: rgba(248, 113, 113, 0.1);
+            --line: rgba(255, 255, 255, 0.06);
+            --line-strong: rgba(255, 255, 255, 0.1);
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { background: var(--bg-base); }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            color: var(--text);
             min-height: 100vh;
             line-height: 1.55;
+            font-feature-settings: 'cv11', 'ss01';
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            background:
+                radial-gradient(ellipse 1200px 700px at 12% -10%, rgba(139, 92, 246, 0.18) 0%, transparent 60%),
+                radial-gradient(ellipse 900px 600px at 88% 110%, rgba(96, 165, 250, 0.12) 0%, transparent 55%),
+                linear-gradient(180deg, #08060f 0%, #0f0a1a 100%);
+            background-attachment: fixed;
         }
-        body::before {
+        .page {
+            max-width: 1120px; margin: 0 auto; padding: 40px 24px 60px;
+            position: relative; z-index: 1;
+        }
+
+        /* ============ HEADER ============ */
+        header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 32px; flex-wrap: wrap; gap: 14px;
+        }
+        .brand { display: flex; align-items: center; gap: 14px; }
+        .brand img {
+            height: 44px;
+            filter: drop-shadow(0 6px 20px var(--accent-glow));
+        }
+        .brand-meta .brand-name {
+            font-weight: 700; font-size: 1rem; color: var(--text);
+            letter-spacing: -0.01em;
+        }
+        .brand-meta .brand-sub {
+            font-size: 0.72rem; color: var(--text-3); margin-top: 2px;
+            letter-spacing: 0.5px; font-weight: 500; text-transform: uppercase;
+        }
+
+        .secure-pill {
+            display: inline-flex; align-items: center; gap: 8px;
+            font-size: 0.78rem; color: var(--text-2); font-weight: 500;
+            padding: 9px 14px;
+            background: var(--panel); border: 1px solid var(--panel-border);
+            border-radius: 999px;
+            backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+        }
+        .secure-pill svg {
+            width: 14px; height: 14px; color: var(--success);
+            filter: drop-shadow(0 0 6px rgba(52, 211, 153, 0.5));
+        }
+
+        /* ============ GRID ============ */
+        .grid {
+            display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+            gap: 24px; align-items: start;
+        }
+        @media (max-width: 920px) { .grid { grid-template-columns: 1fr; } }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            border-radius: 22px;
+            padding: 26px;
+            backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+            box-shadow:
+                0 1px 0 rgba(255, 255, 255, 0.04) inset,
+                0 30px 60px -30px rgba(0, 0, 0, 0.6);
+            position: relative;
+            overflow: hidden;
+        }
+        .panel::before {
             content: '';
-            position: fixed; top: 0; left: 0; right: 0; height: 400px;
-            background: radial-gradient(ellipse at 50% -20%, rgba(139, 92, 246, 0.08) 0%, transparent 70%);
-            pointer-events: none; z-index: 0;
+            position: absolute; top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(167, 139, 250, 0.5), transparent);
         }
-        .page { max-width: 1080px; margin: 0 auto; padding: 36px 22px 60px; position: relative; z-index: 1; }
+        .panel h2 {
+            font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.6px;
+            color: var(--text-3); margin-bottom: 20px; font-weight: 700;
+        }
 
-        header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; flex-wrap: wrap; gap: 12px; }
-        .brand { display: flex; align-items: center; gap: 12px; }
-        .brand img { height: 40px; filter: drop-shadow(0 4px 20px var(--glow-purple)); }
-        .brand-name { font-weight: 600; font-size: 0.95rem; color: var(--text-primary); }
-        .brand-sub { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; }
-        .secure-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 0.72rem; color: var(--text-secondary); padding: 6px 10px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 999px; }
-        .secure-badge svg { width: 12px; height: 12px; }
-
-        .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 22px; align-items: start; }
-        @media (max-width: 880px) { .grid { grid-template-columns: 1fr; } }
-
-        .panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 22px; }
-        .panel h2 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-secondary); margin-bottom: 16px; font-weight: 600; }
-
-        .order-line { display: flex; align-items: flex-start; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--border); }
-        .order-line:last-child { border-bottom: none; }
-        .order-line .icon { width: 38px; height: 38px; border-radius: 10px; background: var(--accent-soft); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-        .order-line .icon svg { width: 18px; height: 18px; color: var(--accent); }
+        /* ============ ORDER SUMMARY ============ */
+        .order-line {
+            display: flex; align-items: flex-start; gap: 14px;
+            padding: 16px 0; border-bottom: 1px solid var(--line);
+        }
+        .order-line:first-of-type { padding-top: 0; }
+        .order-line:last-of-type { border-bottom: none; padding-bottom: 0; }
+        .order-line .icon {
+            width: 44px; height: 44px; border-radius: 14px;
+            background: linear-gradient(135deg, rgba(167, 139, 250, 0.2), rgba(139, 92, 246, 0.08));
+            border: 1px solid rgba(167, 139, 250, 0.25);
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            box-shadow: 0 0 24px -4px rgba(139, 92, 246, 0.4) inset;
+        }
+        .order-line .icon svg { width: 20px; height: 20px; color: var(--accent); }
         .order-line .meta { flex: 1; min-width: 0; }
-        .order-line .name { font-weight: 600; font-size: 0.92rem; }
-        .order-line .desc { color: var(--text-secondary); font-size: 0.78rem; margin-top: 2px; }
-        .order-line .qty-badge { display: inline-block; margin-top: 6px; font-size: 0.72rem; padding: 2px 8px; background: var(--bg-elevated); border-radius: 6px; color: var(--text-secondary); }
+        .order-line .name {
+            font-weight: 600; font-size: 0.96rem; color: var(--text);
+            letter-spacing: -0.01em;
+        }
+        .order-line .desc {
+            color: var(--text-3); font-size: 0.8rem; margin-top: 3px;
+        }
+        .order-line .qty-badge {
+            display: inline-block; margin-top: 8px;
+            font-size: 0.72rem; font-weight: 500;
+            padding: 3px 9px;
+            background: rgba(167, 139, 250, 0.12);
+            color: var(--accent);
+            border: 1px solid rgba(167, 139, 250, 0.18);
+            border-radius: 7px;
+        }
 
-        .totals { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border-light); }
-        .totals .row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 0.86rem; color: var(--text-secondary); }
-        .totals .row .v { color: var(--text-primary); font-weight: 500; }
+        .totals { margin-top: 18px; padding-top: 18px; border-top: 1px dashed var(--line-strong); }
+        .totals .row {
+            display: flex; justify-content: space-between; padding: 7px 0;
+            font-size: 0.88rem; color: var(--text-3);
+        }
+        .totals .row .v { color: var(--text-2); font-weight: 500; font-variant-numeric: tabular-nums; }
         .totals .row.discount .v { color: var(--success); }
-        .totals .row.total { margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--border-light); font-size: 1.05rem; }
-        .totals .row.total .l { color: var(--text-primary); font-weight: 600; }
-        .totals .row.total .v { color: var(--accent); font-weight: 700; font-size: 1.2rem; }
-        .totals .row.next-bill { font-size: 0.72rem; color: var(--text-muted); padding-top: 8px; }
+        .totals .row.total {
+            margin-top: 10px; padding-top: 14px;
+            border-top: 1px solid var(--line-strong);
+            font-size: 1rem;
+        }
+        .totals .row.total .l {
+            color: var(--text); font-weight: 600;
+        }
+        .totals .row.total .v {
+            background: linear-gradient(135deg, var(--accent), var(--paddle));
+            -webkit-background-clip: text; background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 800; font-size: 1.45rem;
+            letter-spacing: -0.02em;
+            font-variant-numeric: tabular-nums;
+        }
+        .totals .row.next-bill {
+            font-size: 0.74rem; color: var(--text-4);
+            padding-top: 12px; justify-content: center;
+        }
 
-        .recurrence-note { margin-top: 14px; padding: 10px 12px; background: var(--accent-soft); border: 1px solid var(--border-light); border-radius: 10px; font-size: 0.78rem; color: var(--text-secondary); display: flex; gap: 8px; align-items: flex-start; }
-        .recurrence-note svg { width: 14px; height: 14px; color: var(--accent); flex-shrink: 0; margin-top: 2px; }
+        .recurrence-note {
+            margin-top: 18px;
+            padding: 13px 14px;
+            background: linear-gradient(135deg, rgba(167, 139, 250, 0.08), rgba(96, 165, 250, 0.05));
+            border: 1px solid var(--panel-border);
+            border-radius: 14px;
+            font-size: 0.8rem; color: var(--text-2);
+            display: flex; gap: 10px; align-items: flex-start;
+        }
+        .recurrence-note svg {
+            width: 16px; height: 16px; color: var(--accent);
+            flex-shrink: 0; margin-top: 2px;
+        }
 
-        .checkout-panel { padding: 14px 14px 18px 14px; min-height: 540px; }
-        .checkout-frame { min-height: 500px; }
+        /* ============ CHECKOUT FRAME ============ */
+        .checkout-panel {
+            padding: 18px;
+            min-height: 600px;
+            background: var(--panel-strong);
+        }
+        .checkout-panel.with-iframe { padding: 4px; }
 
-        .loader { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; gap: 12px; }
-        .spinner { width: 28px; height: 28px; border: 2px solid var(--border-light); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        .checkout-frame { min-height: 560px; }
+        .checkout-container { width: 100%; }
+
+        .loader {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            padding: 80px 24px; gap: 14px;
+        }
+        .spinner {
+            width: 32px; height: 32px;
+            border: 2.5px solid rgba(167, 139, 250, 0.18);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .loader p { color: var(--text-secondary); font-size: 0.86rem; }
+        .loader p { color: var(--text-3); font-size: 0.88rem; font-weight: 500; }
 
-        .error-box { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.35); color: #fca5a5; padding: 14px; border-radius: 10px; font-size: 0.86rem; }
+        .error-box {
+            background: var(--error-bg);
+            border: 1px solid rgba(248, 113, 113, 0.3);
+            color: #fca5a5;
+            padding: 16px;
+            border-radius: 14px; font-size: 0.86rem;
+            margin: 14px 0 4px 0;
+        }
 
-        footer { margin-top: 36px; padding-top: 22px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 0.74rem; color: var(--text-muted); }
-        footer .links a { color: var(--text-secondary); text-decoration: none; margin-right: 14px; }
+        /* ============ FOOTER ============ */
+        footer {
+            margin-top: 40px; padding-top: 24px;
+            border-top: 1px solid var(--line);
+            display: flex; justify-content: space-between; align-items: center;
+            flex-wrap: wrap; gap: 12px;
+            font-size: 0.74rem; color: var(--text-4);
+        }
+        footer .links a {
+            color: var(--text-3); text-decoration: none; margin-right: 16px;
+            transition: color 0.15s;
+        }
         footer .links a:hover { color: var(--accent); }
-        footer .powered { display: flex; align-items: center; gap: 6px; }
-        footer .powered b { color: var(--text-secondary); font-weight: 600; }
+        footer .powered b { color: var(--text-3); font-weight: 600; }
 
+        /* ============ RESPONSIVE ============ */
         @media (max-width: 600px) {
-            .page { padding: 22px 14px 40px; }
-            .panel { padding: 16px; border-radius: 12px; }
-            .checkout-panel { padding: 10px; }
-            .brand img { height: 34px; }
-            .brand-name { font-size: 0.86rem; }
+            .page { padding: 24px 16px 40px; }
+            .panel { padding: 18px; border-radius: 18px; }
+            .checkout-panel { padding: 12px; }
+            .brand img { height: 36px; }
+            .totals .row.total .v { font-size: 1.25rem; }
+            header { margin-bottom: 22px; }
+            .secure-pill { font-size: 0.72rem; padding: 7px 11px; }
         }
     </style>
 </head>
@@ -105,13 +258,13 @@
         <header>
             <div class="brand">
                 <img src="/logo-leona.png" alt="Leona Flow">
-                <div>
+                <div class="brand-meta">
                     <div class="brand-name">Leona Flow</div>
                     <div class="brand-sub">Finalizar pagamento</div>
                 </div>
             </div>
-            <div class="secure-badge">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 2 4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4z"/></svg>
+            <div class="secure-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
                 Pagamento seguro pela Paddle
             </div>
         </header>
@@ -129,25 +282,24 @@
 
                 <div id="orderTotals" class="totals" style="display: none;">
                     <div class="row"><span class="l">Subtotal</span><span class="v" id="ttSubtotal">—</span></div>
-                    <div class="row discount" id="ttDiscountRow" style="display: none;"><span class="l" id="ttDiscountLabel">Desconto</span><span class="v" id="ttDiscount">—</span></div>
+                    <div class="row discount" id="ttDiscountRow" style="display: none;"><span class="l" id="ttDiscountLabel">Desconto por volume</span><span class="v" id="ttDiscount">—</span></div>
                     <div class="row" id="ttTaxRow" style="display: none;"><span class="l">Imposto</span><span class="v" id="ttTax">—</span></div>
                     <div class="row total"><span class="l">Total</span><span class="v" id="ttTotal">—</span></div>
                     <div class="row next-bill" id="ttNextBill" style="display: none;"></div>
                 </div>
 
                 <div class="recurrence-note">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 1-15.36 6.36M3 12a9 9 0 0 1 15.36-6.36"/><path d="M21 4v5h-5M3 20v-5h5"/></svg>
-                    <span>Esta e uma assinatura mensal recorrente. O cartao sera cobrado automaticamente todo mes ate voce cancelar pelo portal.</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.36 6.36"/><path d="M3 12a9 9 0 0 1 15.36-6.36"/><path d="M21 4v5h-5"/><path d="M3 20v-5h5"/></svg>
+                    <span>Assinatura mensal recorrente. O cartao sera cobrado automaticamente todo mes ate voce cancelar pelo portal.</span>
                 </div>
             </section>
 
-            <section class="panel checkout-panel" aria-label="Formulario de pagamento">
+            <section class="panel checkout-panel" aria-label="Formulario de pagamento" id="checkoutPanel">
                 <div id="checkoutLoader" class="loader">
                     <div class="spinner"></div>
                     <p>Carregando formulario de pagamento...</p>
                 </div>
-                <!-- Paddle inline checkout: frameTarget exige CLASSE, nao id.
-                     A Paddle vai substituir o conteudo deste div pelo iframe. -->
+                <!-- Paddle inline checkout: frameTarget exige nome de CLASSE -->
                 <div class="checkout-container checkout-frame"></div>
                 <div id="checkoutError" class="error-box" style="display: none;"></div>
             </section>
@@ -171,6 +323,7 @@
         const params = new URLSearchParams(window.location.search);
         const ptxn = params.get('_ptxn');
         const aid = params.get('aid');
+        const cid = params.get('cid'); // Paddle customer id (ctm_xxx)
 
         function buildSuccessUrl() {
             const base = 'https://client.leonaflow.com/';
@@ -187,7 +340,13 @@
             if (!d) return '';
             const date = new Date(d);
             if (isNaN(date.getTime())) return '';
-            return date.toLocaleDateString('pt-BR');
+            return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+        }
+
+        function escapeHtml(s) {
+            return String(s == null ? '' : s).replace(/[&<>"']/g, m => (
+                { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]
+            ));
         }
 
         function showError(msg) {
@@ -199,21 +358,21 @@
         function renderItems(items, currency) {
             const root = document.getElementById('orderItems');
             if (!items || !items.length) {
-                root.innerHTML = `<p style="color: var(--text-secondary); font-size: 0.86rem;">Nenhum item neste pedido.</p>`;
+                root.innerHTML = `<p style="color: var(--text-3); font-size: 0.86rem; padding: 8px 0;">Nenhum item neste pedido.</p>`;
                 return;
             }
             root.innerHTML = items.map(it => {
                 const name = it.product?.name || it.price?.name || 'Leona Flow';
-                const desc = it.price?.description || it.price?.name || '';
+                const desc = it.price?.description || it.price?.name || 'Plano mensal';
                 const qty = it.quantity || 1;
                 return `
                     <div class="order-line">
                         <div class="icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9 12 3l9 6v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 7v10l8 5 8-5V7l-8-5z"/><path d="m4 7 8 5 8-5"/><path d="M12 22V12"/></svg>
                         </div>
                         <div class="meta">
                             <div class="name">${escapeHtml(name)}</div>
-                            ${desc ? `<div class="desc">${escapeHtml(desc)}</div>` : ''}
+                            <div class="desc">${escapeHtml(desc)}</div>
                             <span class="qty-badge">${qty} ${qty === 1 ? 'conexao' : 'conexoes'}</span>
                         </div>
                     </div>
@@ -244,14 +403,8 @@
             if (nextBilledAt) {
                 const el = document.getElementById('ttNextBill');
                 el.style.display = 'flex';
-                el.innerHTML = `<span style="margin: 0 auto;">Proxima cobranca: ${fmtDate(nextBilledAt)}</span>`;
+                el.innerHTML = `<span style="margin: 0 auto;">Proxima cobranca em ${fmtDate(nextBilledAt)}</span>`;
             }
-        }
-
-        function escapeHtml(s) {
-            return String(s == null ? '' : s).replace(/[&<>"']/g, m => (
-                { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]
-            ));
         }
 
         function paddleEventCallback(ev) {
@@ -262,18 +415,33 @@
                 if (ev.name === 'checkout.loaded') {
                     const loader = document.getElementById('checkoutLoader');
                     if (loader) loader.style.display = 'none';
+                    document.getElementById('checkoutPanel').classList.add('with-iframe');
                 }
 
-                if (ev.name === 'checkout.loaded' || ev.name === 'checkout.items.updated' || ev.name === 'checkout.totals.updated' || ev.name === 'checkout.customer.updated') {
-                    const items = data.items || data?.lineItems || [];
-                    const currency = data.currency_code || 'BRL';
-                    const totals = data.totals || data?.recurring_totals || data?.recurringTotals || data?.summary;
+                if (
+                    ev.name === 'checkout.loaded' ||
+                    ev.name === 'checkout.items.updated' ||
+                    ev.name === 'checkout.totals.updated' ||
+                    ev.name === 'checkout.customer.updated'
+                ) {
+                    const items = data.items || data.lineItems || [];
+                    const currency = data.currency_code || data.currencyCode || 'BRL';
+                    const totals = data.totals || data.recurring_totals || data.recurringTotals || data.summary;
+                    const nextBilledAt = data.recurring_totals?.next_billed_at
+                        || data.recurringTotals?.nextBilledAt
+                        || data.nextBilledAt
+                        || null;
 
                     if (items && items.length) renderItems(items, currency);
-                    if (totals) renderTotals(totals, currency, data.recurring_totals?.next_billed_at || data?.recurringTotals?.nextBilledAt || data?.nextBilledAt);
+                    if (totals) renderTotals(totals, currency, nextBilledAt);
                 }
 
                 if (ev.name === 'checkout.completed') {
+                    const items = data.items || data.lineItems || [];
+                    const currency = data.currency_code || 'BRL';
+                    const totals = data.totals || data.recurring_totals || data.recurringTotals;
+                    if (items && items.length) renderItems(items, currency);
+                    if (totals) renderTotals(totals, currency, null);
                     setTimeout(() => { window.location.href = buildSuccessUrl(); }, 800);
                 }
 
@@ -314,21 +482,26 @@
                     eventCallback: paddleEventCallback
                 });
 
-                Paddle.Checkout.open({
+                // Quando temos o customer_id (cid), passamos no Checkout.open.
+                // A Paddle pula a tela "Insira seus dados" - email, pais e
+                // marketing consent ficam fora da experiencia do cliente.
+                const checkoutPayload = {
                     transactionId: ptxn,
                     settings: {
                         displayMode: 'inline',
                         theme: 'dark',
                         locale: 'pt-BR',
-                        // frameTarget = nome da CLASSE do elemento alvo (nao id)
                         frameTarget: 'checkout-container',
-                        frameInitialHeight: 500,
-                        frameStyle: 'width: 100%; min-height: 500px; border: 0; background: transparent;',
+                        frameInitialHeight: 560,
+                        frameStyle: 'width: 100%; min-height: 560px; border: 0; background: transparent;',
                         successUrl: buildSuccessUrl(),
                         showAddDiscounts: false,
                         allowLogout: false
                     }
-                });
+                };
+                if (cid) checkoutPayload.customer = { id: cid };
+
+                Paddle.Checkout.open(checkoutPayload);
             } catch (e) {
                 console.error('[checkout] erro init:', e);
                 showError('Erro ao iniciar checkout: ' + (e?.message || 'desconhecido'));

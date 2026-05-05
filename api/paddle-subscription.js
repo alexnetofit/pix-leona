@@ -224,6 +224,9 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'price_id, quantity e email são obrigatórios' });
       }
 
+      // Garante que existe um customer Paddle (ctm_*) para esse email.
+      // Se nao existir, cria. Precisamos do customer_id na URL final pra
+      // o Paddle.Checkout.open pular a tela de "Insira seus dados".
       let customerId = null;
       try {
         const cusRes = await fetch(
@@ -238,6 +241,22 @@ export default async function handler(req, res) {
           customerId = match?.id || null;
         }
       } catch (_) {}
+
+      if (!customerId) {
+        try {
+          const createRes = await fetch(`${PADDLE_BASE}/customers`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ email, ...(name ? { name } : {}) })
+          });
+          if (createRes.ok) {
+            const created = await createRes.json();
+            customerId = created.data?.id || null;
+          }
+        } catch (e) {
+          console.warn('paddle-subscription: falha ao criar customer:', e.message);
+        }
+      }
 
       const qtyInt = Number(quantity);
       const discount = tierDiscount(qtyInt);
@@ -273,18 +292,21 @@ export default async function handler(req, res) {
       // O /recovery continua existindo pra emails de cobranca falhada da
       // Paddle, mas o fluxo de auto-atendimento usa /checkout.
       const txnId = data.data?.id || null;
+      const finalCustomerId = data.data?.customer_id || customerId || null;
+
       let checkoutUrl = null;
       if (txnId) {
         const qs = new URLSearchParams();
         qs.set('_ptxn', txnId);
         if (account_id != null) qs.set('aid', String(account_id));
+        if (finalCustomerId) qs.set('cid', finalCustomerId);
         checkoutUrl = `https://client.leonaflow.com/checkout?${qs.toString()}`;
       }
 
       return res.status(200).json({
         checkout_url: checkoutUrl,
         transaction_id: txnId,
-        customer_id: data.data?.customer_id || null
+        customer_id: finalCustomerId
       });
     }
 

@@ -788,9 +788,9 @@
                 footer: 'Apos o pagamento, sua assinatura volta a ser cobrada mensalmente.'
             },
             subscribe: {
-                title: 'Assinar via Paddle',
-                buttonLabel: 'Assinar via Paddle',
-                footer: 'Apos o pagamento, sua assinatura passa a ser cobrada mensalmente via cartao automaticamente.'
+                title: 'Atualizar plano',
+                buttonLabel: 'Atualizar plano',
+                footer: 'Apos o pagamento, sua assinatura passa a ser cobrada mensalmente via cartao automaticamente. Voce pode aumentar ou reduzir o numero de conexoes a qualquer momento.'
             },
             migrate: {
                 title: 'Migrar para Paddle',
@@ -824,9 +824,9 @@
             // Intro varia por modo, com texto humano e claro pro cliente.
             let intro;
             if (mode === 'subscribe') {
-                intro = `Sua conta tem <strong>${initialQty} ${initialQty === 1 ? 'conexão' : 'conexões'}</strong>${
-                    venceuEm ? ` e vence em <strong>${venceuEm}</strong>` : ''
-                }. Ative cobrança automática mensal via cartão e mantenha seu plano sem se preocupar.`;
+                intro = `Sua conta esta ativa com <strong>${initialQty} ${initialQty === 1 ? 'conexão' : 'conexões'}</strong>${
+                    venceuEm ? ` ate <strong>${venceuEm}</strong>` : ''
+                }. Use este painel pra <strong>aumentar</strong> ou <strong>reduzir</strong> o numero de conexoes e ativar a cobranca automatica mensal no cartao via Paddle. Voce paga somente a diferenca pelo periodo restante.`;
             } else if (mode === 'migrate') {
                 intro = `Sua conta tem <strong>${initialQty} ${initialQty === 1 ? 'conexão' : 'conexões'}</strong>${
                     venceuEm ? ` e vence em <strong>${venceuEm}</strong>` : ''
@@ -869,7 +869,11 @@
                     <div class="qty-control">
                         <button onclick="renewAdjust(-1)">−</button>
                         <input type="number" id="renew-qty" value="${initialQty}" min="1"
-                               oninput="renewPreview()" data-price-id="${escapeHtml(priceId)}">
+                               oninput="renewPreview()"
+                               data-price-id="${escapeHtml(priceId)}"
+                               data-current-qty="${initialQty}"
+                               data-mode="${mode}"
+                               data-base-label="${escapeHtml(m.buttonLabel)}">
                         <button onclick="renewAdjust(1)">+</button>
                     </div>
 
@@ -1045,6 +1049,26 @@
                                </div>`
                             : ''}
                     `;
+
+                    // Botao dinamico: para "subscribe" (cliente ativo no Leona, sem
+                    // sub Paddle), o cliente esta efetivamente ajustando o plano.
+                    // Mostramos label que reflete o que vai acontecer: manter,
+                    // aumentar ou reduzir o numero de conexoes.
+                    const mode = el.dataset.mode || 'renew';
+                    const currentQty = parseInt(el.dataset.currentQty, 10) || 0;
+                    const baseLabel = el.dataset.baseLabel || 'Continuar';
+                    if (mode === 'subscribe' && currentQty > 0) {
+                        if (quantity === currentQty) {
+                            btn.textContent = `Manter ${quantity} ${quantity === 1 ? 'conexao' : 'conexoes'}`;
+                        } else if (quantity > currentQty) {
+                            btn.textContent = `Aumentar para ${quantity} ${quantity === 1 ? 'conexao' : 'conexoes'} (+${quantity - currentQty})`;
+                        } else {
+                            btn.textContent = `Reduzir para ${quantity} ${quantity === 1 ? 'conexao' : 'conexoes'} (-${currentQty - quantity})`;
+                        }
+                    } else {
+                        btn.textContent = baseLabel;
+                    }
+
                     btn.disabled = false;
                 } catch (err) {
                     preview.innerHTML = `<span style="color: var(--error);">Erro de conexao: ${escapeHtml(err.message)}</span>`;
