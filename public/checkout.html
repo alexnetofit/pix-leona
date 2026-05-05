@@ -142,12 +142,13 @@
             </section>
 
             <section class="panel checkout-panel" aria-label="Formulario de pagamento">
-                <div id="checkoutContainer" class="checkout-frame">
-                    <div class="loader">
-                        <div class="spinner"></div>
-                        <p>Carregando formulario de pagamento...</p>
-                    </div>
+                <div id="checkoutLoader" class="loader">
+                    <div class="spinner"></div>
+                    <p>Carregando formulario de pagamento...</p>
                 </div>
+                <!-- Paddle inline checkout: frameTarget exige CLASSE, nao id.
+                     A Paddle vai substituir o conteudo deste div pelo iframe. -->
+                <div class="checkout-container checkout-frame"></div>
                 <div id="checkoutError" class="error-box" style="display: none;"></div>
             </section>
         </div>
@@ -258,6 +259,11 @@
                 if (!ev || !ev.name) return;
                 const data = ev.data || {};
 
+                if (ev.name === 'checkout.loaded') {
+                    const loader = document.getElementById('checkoutLoader');
+                    if (loader) loader.style.display = 'none';
+                }
+
                 if (ev.name === 'checkout.loaded' || ev.name === 'checkout.items.updated' || ev.name === 'checkout.totals.updated' || ev.name === 'checkout.customer.updated') {
                     const items = data.items || data?.lineItems || [];
                     const currency = data.currency_code || 'BRL';
@@ -314,7 +320,8 @@
                         displayMode: 'inline',
                         theme: 'dark',
                         locale: 'pt-BR',
-                        frameTarget: 'checkoutContainer',
+                        // frameTarget = nome da CLASSE do elemento alvo (nao id)
+                        frameTarget: 'checkout-container',
                         frameInitialHeight: 500,
                         frameStyle: 'width: 100%; min-height: 500px; border: 0; background: transparent;',
                         successUrl: buildSuccessUrl(),
