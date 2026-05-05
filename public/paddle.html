@@ -560,9 +560,29 @@
             }
         }
 
+        // Classifica o estado de cada gateway pra rotear o cenário correto.
+        // Saídas: leonaState, paddleState, guruState — cada uma 'active'|'expired'|'none'.
+        function pickScenario(activeProfile, paddle, guru) {
+            const leonaState = !activeProfile
+                ? 'none'
+                : (isExpired(activeProfile) ? 'expired' : 'active');
+
+            const paddleSubsActive = (paddle?.subscriptions || []).filter(
+                s => s.status === 'active' || s.status === 'trialing' || s.status === 'past_due'
+            );
+            const paddleSubsAny = (paddle?.subscriptions || []);
+            const paddleState = paddleSubsActive.length > 0
+                ? 'active'
+                : (paddleSubsAny.length > 0 ? 'expired' : 'none');
+
+            const guruState = (guru?.subscriptions || []).length > 0 ? 'active' : 'none';
+            return { leonaState, paddleState, guruState };
+        }
+
         function renderProfile(data, email) {
             const content = document.getElementById('content');
             const { paddle, leona, products, config } = data;
+            const guru = data.guru || { found: false, subscriptions: [] };
 
             let html = '';
 
@@ -592,32 +612,55 @@
                 html += renderLeonaSummary(activeProfile);
             }
 
-            // ===== Decide qual painel mostrar =====
-            // - vencida + sem Paddle           → painel "Renovar"
-            // - ativa + sem Paddle + custom    → painel "Assinar via Paddle"
-            // - ativa + sem Paddle + outro gw  → aviso "fale com suporte"
-            // - ativa + com Paddle             → painel de gerenciamento (renderSubscription)
-            const noPaddleSub = !paddle.subscriptions || paddle.subscriptions.length === 0;
-            const expired = activeProfile && isExpired(activeProfile);
-            const subType = String(activeProfile?.subscription_type || '').toLowerCase();
-            const hasOtherGateway = ['stripe', 'guru', 'guru_digital', 'guru-digital'].includes(subType);
+            // ===== Roteamento por cenário =====
+            // Matriz (leona × guru × paddle), cobrindo os 8 casos do plano:
+            //   1. active + guru active   + paddle none     → 'migrate'    (qty atual; cancela Guru após pagar)
+            //   2. expired + guru active  + paddle none     → 'renew_inc'  (inconsistência; renova Paddle, cancela Guru)
+            //   3. expired + guru any     + paddle none     → 'renew'
+            //   4. expired + guru none    + paddle expired  → 'reactivate' (sub Paddle cancelada, recriar)
+            //   5. active + guru none     + paddle active   → painel gerenciar (renderSubscription, já existe)
+            //   6. active + guru none     + paddle none     → 'subscribe'
+            //   7. expired + guru none    + paddle none     → 'renew'
+            //   8. active + guru active   + paddle active   → 'double_billing' (alerta + cancelar Guru agora)
+            const { leonaState, paddleState, guruState } = pickScenario(activeProfile, paddle, guru);
+            const noPaddleSub = paddleState === 'none' || paddleState === 'expired';
 
-            const shouldShowRenewal = activeProfile && expired && noPaddleSub;
-            const shouldShowSubscribe = activeProfile && !expired && noPaddleSub && !hasOtherGateway;
-            const shouldShowOtherGw = activeProfile && !expired && noPaddleSub && hasOtherGateway;
-            const shouldRunPreview = shouldShowRenewal || shouldShowSubscribe;
+            let scenario = null;
+            if (activeProfile) {
+                if (leonaState === 'active' && guruState === 'active' && paddleState === 'active') {
+                    scenario = 'double_billing';
+                } else if (leonaState === 'active' && guruState === 'active' && noPaddleSub) {
+                    scenario = 'migrate';
+                } else if (leonaState === 'expired' && guruState === 'active' && noPaddleSub) {
+                    scenario = 'renew_inc';
+                } else if (leonaState === 'expired' && noPaddleSub) {
+                    scenario = 'renew';
+                } else if (leonaState === 'expired' && paddleState === 'expired') {
+                    scenario = 'reactivate';
+                } else if (leonaState === 'active' && noPaddleSub && guruState === 'none') {
+                    scenario = 'subscribe';
+                }
+            }
 
-            if (shouldShowRenewal) {
-                html += renderRenewalPanel(activeProfile, products, config, 'renew');
-            } else if (shouldShowSubscribe) {
-                html += renderRenewalPanel(activeProfile, products, config, 'subscribe');
-            } else if (shouldShowOtherGw) {
-                html += renderOtherGatewayPanel(activeProfile);
+            const shouldRunPreview = ['renew', 'renew_inc', 'subscribe', 'migrate', 'reactivate'].includes(scenario);
+
+            if (scenario === 'double_billing') {
+                html += renderDoubleBillingAlert(activeProfile, paddle, guru);
+            } else if (scenario === 'migrate') {
+                html += renderRenewalPanel(activeProfile, products, config, 'migrate', { guru });
+            } else if (scenario === 'renew_inc') {
+                html += renderRenewalPanel(activeProfile, products, config, 'renew_inc', { guru });
+            } else if (scenario === 'renew') {
+                html += renderRenewalPanel(activeProfile, products, config, 'renew', { guru });
+            } else if (scenario === 'reactivate') {
+                html += renderRenewalPanel(activeProfile, products, config, 'reactivate', { guru });
+            } else if (scenario === 'subscribe') {
+                html += renderRenewalPanel(activeProfile, products, config, 'subscribe', { guru });
             }
 
             // ===== Sem cliente Paddle =====
             if (!paddle.found) {
-                if (!shouldShowRenewal && !shouldShowSubscribe && !shouldShowOtherGw) {
+                if (!scenario) {
                     html += `
                         <div class="empty-state">
                             <div class="icon">🔍</div>
@@ -633,9 +676,9 @@
                 return;
             }
 
-            // ===== Sem subs =====
-            if (noPaddleSub) {
-                if (!shouldShowRenewal && !shouldShowSubscribe && !shouldShowOtherGw) {
+            // ===== Sem subs Paddle (mas customer existe) =====
+            if (paddleState === 'none' || paddleState === 'expired') {
+                if (!scenario) {
                     html += `
                         <div class="card">
                             <h3 class="paddle-tone">Cliente Paddle encontrado</h3>
@@ -653,7 +696,7 @@
                 return;
             }
 
-            // ===== Cards de subscriptions =====
+            // ===== Cards de subscriptions Paddle ativas =====
             for (let i = 0; i < paddle.subscriptions.length; i++) {
                 html += renderSubscription(paddle.subscriptions[i], i, products, activeProfile);
             }
@@ -673,16 +716,46 @@
             return starter?.prices?.[0]?.id || null;
         }
 
-        function renderRenewalPanel(bp, products, config, mode = 'renew') {
+        // Conteúdo (título, copy, botão, footer) por modo. Isolado pra
+        // facilitar manter o copy em um lugar só.
+        const RENEWAL_MODES = {
+            renew: {
+                title: 'Renovar assinatura',
+                buttonLabel: 'Pagar e renovar',
+                footer: 'Apos o pagamento, sua conta Leona é reativada automaticamente.'
+            },
+            renew_inc: {
+                title: 'Renovar assinatura',
+                buttonLabel: 'Pagar e renovar',
+                footer: 'Apos o pagamento, sua conta Leona é reativada automaticamente e a Guru é cancelada.'
+            },
+            reactivate: {
+                title: 'Reativar assinatura',
+                buttonLabel: 'Pagar e reativar',
+                footer: 'Apos o pagamento, sua assinatura volta a ser cobrada mensalmente.'
+            },
+            subscribe: {
+                title: 'Assinar via Paddle',
+                buttonLabel: 'Assinar via Paddle',
+                footer: 'Apos o pagamento, sua assinatura passa a ser cobrada mensalmente via cartao automaticamente.'
+            },
+            migrate: {
+                title: 'Migrar para Paddle',
+                buttonLabel: 'Migrar e pagar',
+                footer: 'Apos o pagamento, sua sub Guru é cancelada automaticamente. Voce passa a pagar somente via cartao.'
+            }
+        };
+
+        function renderRenewalPanel(bp, products, config, mode = 'renew', extra = {}) {
             const priceId = findStarterPriceId(products, config);
-            const isSubscribe = mode === 'subscribe';
-            const title = isSubscribe ? 'Assinar via Paddle' : 'Renovar assinatura';
-            const buttonLabel = isSubscribe ? 'Assinar via Paddle' : 'Pagar e renovar';
+            const m = RENEWAL_MODES[mode] || RENEWAL_MODES.renew;
+            const guru = extra.guru || { subscriptions: [] };
+            const guruActive = (guru.subscriptions || []).length > 0;
 
             if (!priceId) {
                 return `
                     <div class="card">
-                        <h3 class="paddle-tone">${title}</h3>
+                        <h3 class="paddle-tone">${m.title}</h3>
                         <div class="alert alert-warning" style="margin-top:10px;">
                             Plano ainda nao esta disponivel. Fale com o suporte
                             para concluir manualmente.
@@ -695,29 +768,47 @@
             const accountId = bp.account_id;
             const venceuEm = bp.current_period_end ? fmtDate(bp.current_period_end) : null;
 
-            const intro = isSubscribe
-                ? `Sua conta tem <strong>${initialQty} ${initialQty === 1 ? 'conexão' : 'conexões'}</strong>${
-                        venceuEm ? ` e vence em <strong>${venceuEm}</strong>` : ''
-                    }. Ative cobrança automática mensal via cartão e mantenha seu plano sem se preocupar.`
-                : `${venceuEm
-                        ? `Sua conta venceu em <strong>${venceuEm}</strong>.`
-                        : 'Sua conta esta inativa.'} Escolha quantas conexoes voce quer ativar e pague com cartao via Paddle.`;
+            // Intro varia por modo, com texto humano e claro pro cliente.
+            let intro;
+            if (mode === 'subscribe') {
+                intro = `Sua conta tem <strong>${initialQty} ${initialQty === 1 ? 'conexão' : 'conexões'}</strong>${
+                    venceuEm ? ` e vence em <strong>${venceuEm}</strong>` : ''
+                }. Ative cobrança automática mensal via cartão e mantenha seu plano sem se preocupar.`;
+            } else if (mode === 'migrate') {
+                intro = `Sua conta tem <strong>${initialQty} ${initialQty === 1 ? 'conexão' : 'conexões'}</strong>${
+                    venceuEm ? ` e vence em <strong>${venceuEm}</strong>` : ''
+                }. Voce paga atualmente via Guru. Migre agora para Paddle e cobre seu plano todo mes no cartao automaticamente — sua assinatura na Guru sera cancelada automaticamente apos o pagamento.`;
+            } else if (mode === 'reactivate') {
+                intro = `Sua assinatura Paddle anterior foi encerrada. Reative quando quiser, mantendo o mesmo plano.`;
+            } else if (mode === 'renew_inc') {
+                intro = `Detectamos que sua conta esta vencida no Leona${venceuEm ? ` (em ${venceuEm})` : ''}, mas voce ainda tem assinatura ativa na Guru. Renove agora via Paddle — vamos cancelar a Guru automaticamente apos o pagamento para evitar cobranca duplicada.`;
+            } else {
+                intro = `${venceuEm
+                    ? `Sua conta venceu em <strong>${venceuEm}</strong>.`
+                    : 'Sua conta esta inativa.'} Escolha quantas conexoes voce quer ativar e pague com cartao via Paddle.`;
+            }
 
-            const footer = isSubscribe
-                ? 'Apos o pagamento, sua assinatura passa a ser cobrada mensalmente via cartao automaticamente.'
-                : 'Apos o pagamento, sua conta Leona é reativada automaticamente.';
-
-            const dupWarning = isSubscribe
-                ? `<div class="alert alert-warning" style="margin-top: 12px; font-size: 0.82rem;">
-                        Se voce ja paga sua assinatura por outro meio (Pix recorrente, boleto, outro gateway),
-                        <a href="https://wa.me/5511947209231" target="_blank" rel="noopener" style="color: var(--warning); text-decoration: underline;">fale com o suporte</a>
-                        antes de continuar para evitar cobranca duplicada.
-                    </div>`
-                : '';
+            // Avisos extras:
+            //  - subscribe: alerta genérico de cobrança duplicada (cliente pode ter algo fora do nosso radar)
+            //  - migrate / renew_inc: aviso explícito de Guru ativa (informativo, não bloqueante)
+            //  - guruActive em qualquer modo: idem (defesa)
+            let warning = '';
+            if (mode === 'subscribe') {
+                warning = `<div class="alert alert-warning" style="margin-top: 12px; font-size: 0.82rem;">
+                    Se voce ja paga sua assinatura por outro meio (Pix recorrente, boleto, outro gateway),
+                    <a href="https://wa.me/5511947209231" target="_blank" rel="noopener" style="color: var(--warning); text-decoration: underline;">fale com o suporte</a>
+                    antes de continuar para evitar cobranca duplicada.
+                </div>`;
+            } else if (guruActive && (mode === 'migrate' || mode === 'renew_inc' || mode === 'renew' || mode === 'reactivate')) {
+                warning = `<div class="alert alert-warning" style="margin-top: 12px; font-size: 0.82rem;">
+                    Detectamos uma assinatura ativa na <strong>Guru</strong>. Apos o pagamento aqui, vamos
+                    cancela-la automaticamente para voce nao pagar duas vezes.
+                </div>`;
+            }
 
             return `
                 <div class="card card-paddle">
-                    <h3 class="paddle-tone">${title}</h3>
+                    <h3 class="paddle-tone">${m.title}</h3>
                     <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 12px;">
                         ${intro}
                     </p>
@@ -733,20 +824,92 @@
                         Calculando...
                     </div>
 
-                    ${dupWarning}
+                    ${warning}
 
                     <button class="btn btn-paddle" id="renew-btn" style="width: 100%; margin-top: 14px;"
                             onclick="renewCheckout('${escapeHtml(priceId)}', ${accountId})" disabled>
-                        ${buttonLabel}
+                        ${m.buttonLabel}
                     </button>
 
                     <p style="color: var(--text-muted); font-size: 0.75rem; margin-top: 10px; text-align: center;">
-                        ${footer}
+                        ${m.footer}
                     </p>
                 </div>
             `;
         }
 
+        // Card de "double billing": cliente tem Paddle E Guru ativas ao mesmo
+        // tempo. Acontece quando webhook-paddle não conseguiu cancelar a Guru
+        // (ex: GURU_TOKEN faltando temporariamente). Oferecemos cancelar
+        // imediatamente via UI.
+        function renderDoubleBillingAlert(bp, paddle, guru) {
+            const accountId = bp.account_id;
+            const guruSubs = guru.subscriptions || [];
+            const subList = guruSubs.map(s =>
+                `<li style="margin-top:6px;"><code style="font-size:0.78rem;">${escapeHtml(s.id)}</code> — ${escapeHtml(s.offer_name || '?')}</li>`
+            ).join('');
+
+            return `
+                <div class="card card-error" id="double-billing-card">
+                    <h3 style="color: var(--error);">Atencao: 2 cobrancas ativas</h3>
+                    <p style="color: var(--text-primary); font-size: 0.9rem; margin-top: 8px;">
+                        Voce tem assinatura ativa simultaneamente na <strong>Paddle</strong> e na <strong>Guru</strong>.
+                        Pra evitar cobranca dupla, recomendamos cancelar a Guru agora — sua assinatura Paddle continua intacta.
+                    </p>
+                    <ul style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px; padding-left: 20px;">
+                        ${subList}
+                    </ul>
+                    <button class="btn btn-paddle" id="db-cancel-btn" style="width: 100%; margin-top: 14px;"
+                            onclick="cancelGuruNow(${accountId})">
+                        Cancelar assinatura Guru agora
+                    </button>
+                    <div id="db-cancel-result" style="margin-top: 10px; font-size: 0.85rem;"></div>
+                </div>
+            `;
+        }
+
+        async function cancelGuruNow(accountId) {
+            const btn = document.getElementById('db-cancel-btn');
+            const result = document.getElementById('db-cancel-result');
+            if (!btn || !result) return;
+            const orig = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'Cancelando...';
+            result.innerHTML = '';
+
+            try {
+                const r = await fetch('/api/paddle-subscription', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'cancel_guru',
+                        account_id: accountId,
+                        email: _email
+                    })
+                });
+                const data = await r.json();
+                if (!r.ok) {
+                    btn.disabled = false;
+                    btn.textContent = orig;
+                    result.innerHTML = `<span style="color: var(--error);">Erro: ${escapeHtml(data.error || 'tente novamente')}</span>`;
+                    return;
+                }
+                const cancelled = data.cancelled || [];
+                if (cancelled.length === 0) {
+                    result.innerHTML = `<span style="color: var(--warning);">Nenhuma assinatura Guru ativa encontrada para cancelar.</span>`;
+                } else {
+                    result.innerHTML = `<span style="color: var(--success);">${cancelled.length} assinatura${cancelled.length > 1 ? 's' : ''} Guru cancelada${cancelled.length > 1 ? 's' : ''}. Recarregando...</span>`;
+                    setTimeout(() => location.reload(), 1500);
+                }
+            } catch (err) {
+                btn.disabled = false;
+                btn.textContent = orig;
+                result.innerHTML = `<span style="color: var(--error);">Erro de conexao: ${escapeHtml(err.message)}</span>`;
+            }
+        }
+
+        // Mantido pra retrocompatibilidade caso alguma chamada antiga
+        // referencie. Hoje não é usado pelo router novo.
         function renderOtherGatewayPanel(bp) {
             const gateway = (bp.subscription_type || '').toString();
             const venceuEm = bp.current_period_end ? fmtDate(bp.current_period_end) : null;

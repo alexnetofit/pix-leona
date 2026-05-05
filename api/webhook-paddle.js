@@ -21,7 +21,8 @@
  */
 
 import crypto from 'crypto';
-import { updateLeonaBillingProfile } from '../lib/leona.js';
+import { updateLeonaBillingProfile, getLeonaBillingProfile } from '../lib/leona.js';
+import { findGuruActiveSubscriptionsByEmail, cancelGuruSubscription } from '../lib/guru.js';
 
 export const config = {
   api: { bodyParser: false }
@@ -182,9 +183,51 @@ export default async function handler(req, res) {
       return res.status(200).json({ received: true, leona_sync: { ok: false, error: result.body?.error || result.error } });
     }
 
+    // Cancelamento automático Guru: só dispara em eventos de "ativação" da
+    // sub Paddle (transaction.completed e subscription.activated). Eventos
+    // de update/cancel/pause não devem mexer na Guru.
+    let guruCancel = null;
+    const isActivationEvent = (
+      eventType === 'transaction.completed' ||
+      eventType === 'subscription.activated'
+    );
+    const guruToken = process.env.GURU_TOKEN;
+
+    if (isActivationEvent && guruToken) {
+      try {
+        const profile = await getLeonaBillingProfile(accountId, leonaToken);
+        const profileEmail = profile?.user?.email || null;
+
+        if (profileEmail) {
+          const subs = await findGuruActiveSubscriptionsByEmail(profileEmail, guruToken);
+          if (subs.length === 0) {
+            guruCancel = { skipped: true, reason: 'sem subs Guru ativas' };
+          } else {
+            const results = [];
+            for (const s of subs) {
+              const r = await cancelGuruSubscription(s.id, guruToken);
+              if (!r.ok) {
+                console.error(`webhook-paddle: falha ao cancelar sub Guru ${s.id}:`, r.body || r.error);
+              }
+              results.push({ id: s.id, ok: r.ok, error: r.ok ? null : (r.body?.message || r.error) });
+            }
+            guruCancel = { attempted: subs.length, results };
+          }
+        } else {
+          guruCancel = { skipped: true, reason: 'sem email no billing_profile' };
+        }
+      } catch (err) {
+        console.error('webhook-paddle: erro inesperado no cancel Guru:', err);
+        guruCancel = { skipped: true, error: err.message };
+      }
+    } else if (isActivationEvent && !guruToken) {
+      guruCancel = { skipped: true, reason: 'GURU_TOKEN não configurado' };
+    }
+
     return res.status(200).json({
       received: true,
-      leona_sync: { ok: true, account_id: accountId, payload }
+      leona_sync: { ok: true, account_id: accountId, payload },
+      guru_cancel: guruCancel
     });
 
   } catch (e) {

@@ -1,3 +1,5 @@
+import { findGuruActiveSubscriptionsByEmail } from '../lib/guru.js';
+
 const PADDLE_BASE = 'https://api.paddle.com';
 
 function paddleHeaders(token) {
@@ -18,6 +20,7 @@ export default async function handler(req, res) {
 
   const paddleToken = process.env.PADDLE_API_KEY;
   const leonaToken = process.env.LEONA_BILLING_TOKEN;
+  const guruToken = process.env.GURU_TOKEN;
 
   if (!paddleToken) return res.status(500).json({ error: 'PADDLE_API_KEY não configurado' });
 
@@ -30,14 +33,19 @@ export default async function handler(req, res) {
   const headers = paddleHeaders(paddleToken);
 
   try {
-    const [customersRes, productsRes, leonaRes] = await Promise.all([
+    const [customersRes, productsRes, leonaRes, guruActiveSubs] = await Promise.all([
       fetch(`${PADDLE_BASE}/customers?email=${encodeURIComponent(emailClean)}`, { headers }),
       fetch(`${PADDLE_BASE}/products?include=prices&per_page=200&status=active`, { headers }),
       leonaToken
         ? fetch(`https://apiaws.leonasolutions.io/api/v1/integration/accounts/billing_profile?email=${encodeURIComponent(emailClean)}`, {
             headers: { 'Authorization': `Bearer ${leonaToken}`, 'Accept': 'application/json' }
           }).catch(e => ({ ok: false, _error: e.message }))
-        : Promise.resolve(null)
+        : Promise.resolve(null),
+      // Lookup Guru: o helper já trata erro silenciosamente devolvendo []
+      // se GURU_TOKEN faltar, retornamos array vazio
+      guruToken
+        ? findGuruActiveSubscriptionsByEmail(emailClean, guruToken).catch(() => [])
+        : Promise.resolve([])
     ]);
 
     // --- Paddle customers ---
@@ -190,11 +198,18 @@ export default async function handler(req, res) {
         : { found: false, billing_profile: null, billing_profiles: [], error: `account_id ${wantedAccountId} não pertence a este e-mail` };
     }
 
+    // Estado da Guru. found=true só quando há sub ativa (uso prático no front).
+    const guru = {
+      found: Array.isArray(guruActiveSubs) && guruActiveSubs.length > 0,
+      subscriptions: Array.isArray(guruActiveSubs) ? guruActiveSubs : [],
+      configured: Boolean(guruToken)
+    };
+
     const config = {
       starter_price_id: process.env.PADDLE_STARTER_PRICE_ID || null
     };
 
-    return res.status(200).json({ paddle, leona, products, config });
+    return res.status(200).json({ paddle, leona, guru, products, config });
 
   } catch (error) {
     console.error('paddle-search error:', error);

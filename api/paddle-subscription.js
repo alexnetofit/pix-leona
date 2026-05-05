@@ -1,4 +1,5 @@
-import { findLeonaAccountByEmail, updateLeonaBillingProfile } from '../lib/leona.js';
+import { findLeonaAccountByEmail, updateLeonaBillingProfile, getLeonaBillingProfile } from '../lib/leona.js';
+import { findGuruActiveSubscriptionsByEmail, cancelGuruSubscription } from '../lib/guru.js';
 
 const PADDLE_BASE = 'https://api.paddle.com';
 
@@ -156,6 +157,41 @@ export default async function handler(req, res) {
     // pricing_preview — usado pelo simulador ao vivo na tela de renovação.
     // Recebe { price_id, quantity } e devolve totals já com tier aplicado.
     // ----------------------------------------------------------------
+    // ----------------------------------------------------------------
+    // cancel_guru — cancela todas as subs Guru ativas associadas ao email
+    // (ou ao email do billing_profile do account_id). Usado pelo card de
+    // double-billing no /paddle e pode ser chamado manualmente pelo
+    // suporte quando o cancelamento automático no webhook não rolou.
+    // ----------------------------------------------------------------
+    if (action === 'cancel_guru') {
+      const guruToken = process.env.GURU_TOKEN;
+      if (!guruToken) return res.status(503).json({ error: 'GURU_TOKEN não configurado' });
+
+      let lookupEmail = email;
+      if (!lookupEmail && account_id && leonaToken) {
+        const profile = await getLeonaBillingProfile(account_id, leonaToken);
+        lookupEmail = profile?.user?.email || null;
+      }
+      if (!lookupEmail) {
+        return res.status(400).json({ error: 'email ou account_id (com LEONA_BILLING_TOKEN) é obrigatório' });
+      }
+
+      const subs = await findGuruActiveSubscriptionsByEmail(lookupEmail, guruToken);
+      if (subs.length === 0) {
+        return res.status(200).json({ email: lookupEmail, cancelled: [], skipped: true });
+      }
+
+      const cancelled = [];
+      const failed = [];
+      for (const s of subs) {
+        const r = await cancelGuruSubscription(s.id, guruToken);
+        if (r.ok) cancelled.push({ id: s.id, offer_name: s.offer_name });
+        else failed.push({ id: s.id, error: r.body?.message || r.error || `HTTP ${r.status}` });
+      }
+
+      return res.status(200).json({ email: lookupEmail, cancelled, failed });
+    }
+
     if (action === 'pricing_preview') {
       if (!price_id || !quantity) {
         return res.status(400).json({ error: 'price_id e quantity são obrigatórios' });
@@ -454,7 +490,7 @@ export default async function handler(req, res) {
     }
 
     return res.status(400).json({
-      error: 'action inválida. Use: pricing_preview, create_renewal_checkout, preview, update, get, cancel, pause, resume, list_transactions, get_transaction, refund'
+      error: 'action inválida. Use: pricing_preview, create_renewal_checkout, preview, update, get, cancel, pause, resume, list_transactions, get_transaction, refund, cancel_guru'
     });
 
   } catch (error) {
