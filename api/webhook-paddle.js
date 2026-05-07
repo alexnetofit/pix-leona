@@ -61,6 +61,36 @@ function sumQuantities(items) {
   return items.reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
 }
 
+/**
+ * Converte ISO 8601 (ou YYYY-MM-DD) pra YYYY-MM-DD.
+ * Leona aceita apenas esse formato no campo due_date do POST.
+ */
+function toDueDate(iso) {
+  if (!iso) return null;
+  const s = String(iso);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  try { return new Date(s).toISOString().slice(0, 10); } catch { return null; }
+}
+
+/**
+ * Busca next_billed_at da subscription Paddle. Usado quando o evento e
+ * transaction.completed (que NAO inclui next_billed_at no payload — esse
+ * campo vive no objeto subscription).
+ */
+async function fetchPaddleSubscriptionNextBilled(subscriptionId, paddleApiKey) {
+  if (!subscriptionId || !paddleApiKey) return null;
+  try {
+    const r = await fetch(`https://api.paddle.com/subscriptions/${subscriptionId}`, {
+      headers: { 'Authorization': `Bearer ${paddleApiKey}`, 'Accept': 'application/json' }
+    });
+    if (!r.ok) return null;
+    const body = await r.json();
+    return body.data?.next_billed_at || null;
+  } catch (_) {
+    return null;
+  }
+}
+
 function extractLeonaAccountId(data) {
   const raw =
     data?.custom_data?.leona_account_id ??
@@ -127,10 +157,18 @@ export default async function handler(req, res) {
     switch (eventType) {
       case 'transaction.completed': {
         // Pode ser 1ª compra (sem subscription ainda) — usa items da própria tx.
+        // Pra atualizar due_date precisamos do next_billed_at da subscription
+        // (transaction.completed nao inclui esse campo).
         const qty = sumQuantities(data.items);
+        const subId = data.subscription_id || null;
+        const nextBilled = subId
+          ? await fetchPaddleSubscriptionNextBilled(subId, process.env.PADDLE_API_KEY)
+          : null;
+        const dueDate = toDueDate(nextBilled);
         payload = {
           status: 'active',
-          ...(qty > 0 ? { starter_instances: qty } : {})
+          ...(qty > 0 ? { starter_instances: qty } : {}),
+          ...(dueDate ? { due_date: dueDate } : {})
         };
         break;
       }
@@ -138,16 +176,21 @@ export default async function handler(req, res) {
       case 'subscription.activated':
       case 'subscription.resumed': {
         const qty = sumQuantities(data.items);
+        const dueDate = toDueDate(data.next_billed_at);
         payload = {
           status: 'active',
-          ...(qty > 0 ? { starter_instances: qty } : {})
+          ...(qty > 0 ? { starter_instances: qty } : {}),
+          ...(dueDate ? { due_date: dueDate } : {})
         };
         break;
       }
 
       case 'subscription.updated': {
         const qty = sumQuantities(data.items);
-        payload = qty > 0 ? { starter_instances: qty } : null;
+        const dueDate = toDueDate(data.next_billed_at);
+        payload = (qty > 0 || dueDate)
+          ? { ...(qty > 0 ? { starter_instances: qty } : {}), ...(dueDate ? { due_date: dueDate } : {}) }
+          : null;
         break;
       }
 
