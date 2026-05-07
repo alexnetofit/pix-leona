@@ -101,6 +101,136 @@ function extractLeonaAccountId(data) {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * Logica pura de processamento de evento Paddle. Recebe o evento ja parseado
+ * (sem precisar validar signature aqui — quem chama e responsavel) e os
+ * tokens. Retorna { status, body } pra o handler HTTP responder do mesmo
+ * jeito que o webhook responderia.
+ *
+ * Tambem usado pelo /api/webhook-paddle-replay (debug — autenticado por
+ * SUPPORT_CHAT_TOKEN) e pelo proprio handler do webhook real.
+ */
+export async function processPaddleEvent(event, opts = {}) {
+  const {
+    leonaToken = process.env.LEONA_BILLING_TOKEN,
+    paddleApiKey = process.env.PADDLE_API_KEY,
+    guruToken = process.env.GURU_TOKEN
+  } = opts;
+
+  const eventType = event?.event_type || event?.type;
+  const data = event?.data || {};
+  const accountId = extractLeonaAccountId(data);
+
+  if (!accountId) {
+    return { status: 200, body: { received: true, ignored: true, reason: 'sem leona_account_id', event_type: eventType } };
+  }
+  if (!leonaToken) {
+    return { status: 200, body: { received: true, error: 'LEONA_BILLING_TOKEN ausente', event_type: eventType } };
+  }
+
+  let payload = null;
+  switch (eventType) {
+    case 'transaction.completed': {
+      const qty = sumQuantities(data.items);
+      const subId = data.subscription_id || null;
+      const nextBilled = subId ? await fetchPaddleSubscriptionNextBilled(subId, paddleApiKey) : null;
+      const dueDate = toDueDate(nextBilled);
+      payload = {
+        status: 'active',
+        ...(qty > 0 ? { starter_instances: qty } : {}),
+        ...(dueDate ? { due_date: dueDate } : {})
+      };
+      break;
+    }
+    case 'subscription.activated':
+    case 'subscription.resumed': {
+      const qty = sumQuantities(data.items);
+      const dueDate = toDueDate(data.next_billed_at);
+      payload = {
+        status: 'active',
+        ...(qty > 0 ? { starter_instances: qty } : {}),
+        ...(dueDate ? { due_date: dueDate } : {})
+      };
+      break;
+    }
+    case 'subscription.updated': {
+      const qty = sumQuantities(data.items);
+      const dueDate = toDueDate(data.next_billed_at);
+      payload = (qty > 0 || dueDate)
+        ? { ...(qty > 0 ? { starter_instances: qty } : {}), ...(dueDate ? { due_date: dueDate } : {}) }
+        : null;
+      break;
+    }
+    case 'subscription.canceled':
+      payload = { status: 'canceled', starter_instances: 0 };
+      break;
+    case 'subscription.paused':
+      payload = { status: 'inactive' };
+      break;
+    case 'subscription.past_due':
+    case 'transaction.payment_failed':
+      return { status: 200, body: { received: true, action: 'log_only', event_type: eventType, account_id: accountId } };
+    default:
+      return { status: 200, body: { received: true, ignored: true, reason: `evento ${eventType} sem handler`, account_id: accountId } };
+  }
+
+  if (!payload) {
+    return { status: 200, body: { received: true, action: 'noop', reason: 'payload vazio', account_id: accountId } };
+  }
+
+  const result = await updateLeonaBillingProfile(accountId, payload, leonaToken);
+  if (!result.ok) {
+    return {
+      status: 200,
+      body: {
+        received: true,
+        event_type: eventType,
+        account_id: accountId,
+        payload_attempted: payload,
+        leona_sync: { ok: false, status: result.status, error: result.body?.error || result.error, body: result.body }
+      }
+    };
+  }
+
+  let guruCancel = null;
+  const isActivationEvent = (eventType === 'transaction.completed' || eventType === 'subscription.activated');
+  if (isActivationEvent && guruToken) {
+    try {
+      const profile = await getLeonaBillingProfile(accountId, leonaToken);
+      const profileEmail = profile?.user?.email || null;
+      if (profileEmail) {
+        const subs = await findGuruActiveSubscriptionsByEmail(profileEmail, guruToken);
+        if (subs.length === 0) {
+          guruCancel = { skipped: true, reason: 'sem subs Guru ativas' };
+        } else {
+          const results = [];
+          for (const s of subs) {
+            const r = await cancelGuruSubscription(s.id, guruToken);
+            results.push({ id: s.id, ok: r.ok, error: r.ok ? null : (r.body?.message || r.error) });
+          }
+          guruCancel = { attempted: subs.length, results };
+        }
+      } else {
+        guruCancel = { skipped: true, reason: 'sem email no billing_profile' };
+      }
+    } catch (err) {
+      guruCancel = { skipped: true, error: err.message };
+    }
+  } else if (isActivationEvent && !guruToken) {
+    guruCancel = { skipped: true, reason: 'GURU_TOKEN nao configurado' };
+  }
+
+  return {
+    status: 200,
+    body: {
+      received: true,
+      event_type: eventType,
+      leona_sync: { ok: true, account_id: accountId, payload },
+      guru_cancel: guruCancel
+    }
+  };
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido' });
@@ -135,144 +265,11 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'JSON inválido' });
   }
 
-  const eventType = event.event_type || event.type;
-  const data = event.data || {};
-  const accountId = extractLeonaAccountId(data);
-
-  console.log(`webhook-paddle: evento ${eventType} | leona_account_id=${accountId} | tx=${data.id}`);
-
-  // Sem marker leona = não veio do nosso fluxo de renovação. Ack e segue.
-  if (!accountId) {
-    return res.status(200).json({ received: true, ignored: true, reason: 'sem leona_account_id' });
-  }
-
-  if (!leonaToken) {
-    console.error('webhook-paddle: LEONA_BILLING_TOKEN não configurado');
-    return res.status(200).json({ received: true, error: 'LEONA_BILLING_TOKEN ausente' });
-  }
+  console.log(`webhook-paddle: evento ${event.event_type} | tx=${event.data?.id}`);
 
   try {
-    let payload = null;
-
-    switch (eventType) {
-      case 'transaction.completed': {
-        // Pode ser 1ª compra (sem subscription ainda) — usa items da própria tx.
-        // Pra atualizar due_date precisamos do next_billed_at da subscription
-        // (transaction.completed nao inclui esse campo).
-        const qty = sumQuantities(data.items);
-        const subId = data.subscription_id || null;
-        const nextBilled = subId
-          ? await fetchPaddleSubscriptionNextBilled(subId, process.env.PADDLE_API_KEY)
-          : null;
-        const dueDate = toDueDate(nextBilled);
-        payload = {
-          status: 'active',
-          ...(qty > 0 ? { starter_instances: qty } : {}),
-          ...(dueDate ? { due_date: dueDate } : {})
-        };
-        break;
-      }
-
-      case 'subscription.activated':
-      case 'subscription.resumed': {
-        const qty = sumQuantities(data.items);
-        const dueDate = toDueDate(data.next_billed_at);
-        payload = {
-          status: 'active',
-          ...(qty > 0 ? { starter_instances: qty } : {}),
-          ...(dueDate ? { due_date: dueDate } : {})
-        };
-        break;
-      }
-
-      case 'subscription.updated': {
-        const qty = sumQuantities(data.items);
-        const dueDate = toDueDate(data.next_billed_at);
-        payload = (qty > 0 || dueDate)
-          ? { ...(qty > 0 ? { starter_instances: qty } : {}), ...(dueDate ? { due_date: dueDate } : {}) }
-          : null;
-        break;
-      }
-
-      case 'subscription.canceled': {
-        payload = { status: 'canceled', starter_instances: 0 };
-        break;
-      }
-
-      case 'subscription.paused': {
-        payload = { status: 'inactive' };
-        break;
-      }
-
-      case 'subscription.past_due':
-      case 'transaction.payment_failed': {
-        // Por enquanto só logamos — não cancela na Leona automaticamente
-        // pra dar tempo do dunning recuperar.
-        console.log(`webhook-paddle: ${eventType} para account ${accountId} (sem ação)`);
-        return res.status(200).json({ received: true, action: 'log_only' });
-      }
-
-      default:
-        return res.status(200).json({ received: true, ignored: true, reason: `evento ${eventType} sem handler` });
-    }
-
-    if (!payload) {
-      return res.status(200).json({ received: true, action: 'noop', reason: 'payload vazio' });
-    }
-
-    const result = await updateLeonaBillingProfile(accountId, payload, leonaToken);
-    if (!result.ok) {
-      console.error(`webhook-paddle: falha ao atualizar Leona ${accountId}:`, result);
-      return res.status(200).json({ received: true, leona_sync: { ok: false, error: result.body?.error || result.error } });
-    }
-
-    // Cancelamento automático Guru: só dispara em eventos de "ativação" da
-    // sub Paddle (transaction.completed e subscription.activated). Eventos
-    // de update/cancel/pause não devem mexer na Guru.
-    let guruCancel = null;
-    const isActivationEvent = (
-      eventType === 'transaction.completed' ||
-      eventType === 'subscription.activated'
-    );
-    const guruToken = process.env.GURU_TOKEN;
-
-    if (isActivationEvent && guruToken) {
-      try {
-        const profile = await getLeonaBillingProfile(accountId, leonaToken);
-        const profileEmail = profile?.user?.email || null;
-
-        if (profileEmail) {
-          const subs = await findGuruActiveSubscriptionsByEmail(profileEmail, guruToken);
-          if (subs.length === 0) {
-            guruCancel = { skipped: true, reason: 'sem subs Guru ativas' };
-          } else {
-            const results = [];
-            for (const s of subs) {
-              const r = await cancelGuruSubscription(s.id, guruToken);
-              if (!r.ok) {
-                console.error(`webhook-paddle: falha ao cancelar sub Guru ${s.id}:`, r.body || r.error);
-              }
-              results.push({ id: s.id, ok: r.ok, error: r.ok ? null : (r.body?.message || r.error) });
-            }
-            guruCancel = { attempted: subs.length, results };
-          }
-        } else {
-          guruCancel = { skipped: true, reason: 'sem email no billing_profile' };
-        }
-      } catch (err) {
-        console.error('webhook-paddle: erro inesperado no cancel Guru:', err);
-        guruCancel = { skipped: true, error: err.message };
-      }
-    } else if (isActivationEvent && !guruToken) {
-      guruCancel = { skipped: true, reason: 'GURU_TOKEN não configurado' };
-    }
-
-    return res.status(200).json({
-      received: true,
-      leona_sync: { ok: true, account_id: accountId, payload },
-      guru_cancel: guruCancel
-    });
-
+    const { status, body } = await processPaddleEvent(event, { leonaToken });
+    return res.status(status).json(body);
   } catch (e) {
     console.error('webhook-paddle: erro inesperado:', e);
     return res.status(200).json({ received: true, error: e.message });
