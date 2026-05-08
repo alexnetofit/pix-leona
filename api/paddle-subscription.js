@@ -575,6 +575,61 @@ export default async function handler(req, res) {
       });
     }
 
+    // ----------------------------------------------------------------
+    // force_next_billed_at — ajuste manual da data da proxima cobranca
+    // de uma sub Paddle. Util pra:
+    //  - corrigir migrations onde o webhook não conseguiu ancorar
+    //    (ex: anchor_at no passado, ver applyMigrationAnchor)
+    //  - encurtar/estender ciclo a pedido do cliente
+    //
+    // Protegido por SUPPORT_CHAT_TOKEN. Default usa do_not_bill (so
+    // muda a data, sem cobrar/creditar). Aceita override do
+    // proration_billing_mode pra casos especiais.
+    //
+    // Uso:
+    //   curl -X POST https://client.leonaflow.com/api/paddle-subscription \
+    //     -H "Authorization: Bearer $SUPPORT_CHAT_TOKEN" \
+    //     -H "Content-Type: application/json" \
+    //     -d '{"action":"force_next_billed_at",
+    //          "subscription_id":"sub_...",
+    //          "next_billed_at":"2026-05-10T12:00:00Z"}'
+    // ----------------------------------------------------------------
+    if (action === 'force_next_billed_at') {
+      const supportToken = process.env.SUPPORT_CHAT_TOKEN;
+      if (!supportToken) {
+        return res.status(503).json({ error: 'SUPPORT_CHAT_TOKEN não configurado' });
+      }
+      const auth = req.headers.authorization || '';
+      const provided = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+      if (provided !== supportToken) {
+        return res.status(401).json({ error: 'Token inválido — use Authorization: Bearer SUPPORT_CHAT_TOKEN' });
+      }
+      if (!subscription_id || !req.body?.next_billed_at) {
+        return res.status(400).json({ error: 'subscription_id e next_billed_at são obrigatórios' });
+      }
+      const targetDate = String(req.body.next_billed_at);
+      let isoTarget = targetDate;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+        isoTarget = `${targetDate}T12:00:00Z`;
+      }
+      const mode = proration_billing_mode || 'do_not_bill';
+
+      const r = await fetch(`${PADDLE_BASE}/subscriptions/${subscription_id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({
+          next_billed_at: isoTarget,
+          proration_billing_mode: mode
+        })
+      });
+      const data = await r.json();
+      return res.status(r.ok ? 200 : r.status).json({
+        ...data,
+        forced_next_billed_at: isoTarget,
+        proration_billing_mode: mode
+      });
+    }
+
     if (action === 'preview') {
       if (!subscription_id || !items) {
         return res.status(400).json({ error: 'subscription_id e items são obrigatórios' });
@@ -791,7 +846,7 @@ export default async function handler(req, res) {
     }
 
     return res.status(400).json({
-      error: 'action inválida. Use: pricing_preview, create_renewal_checkout, migration_preview, create_migration_checkout, preview, update, get, cancel, pause, resume, list_transactions, get_transaction, refund, cancel_guru'
+      error: 'action inválida. Use: pricing_preview, create_renewal_checkout, migration_preview, create_migration_checkout, force_next_billed_at, preview, update, get, cancel, pause, resume, list_transactions, get_transaction, refund, cancel_guru'
     });
 
   } catch (error) {
