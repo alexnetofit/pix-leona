@@ -1415,7 +1415,8 @@
 
         // Init
         const emailParam = getEmail();
-        if (emailParam) {
+        const accountIdParamInit = getAccountIdParam();
+        if (emailParam || accountIdParamInit) {
             loadProfile();
         } else {
             document.getElementById('searchSection').style.display = 'flex';
