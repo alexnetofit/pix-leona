@@ -187,6 +187,7 @@ export default async function handler(req, res) {
                   offer_name: t.product?.offer?.name || '',
                   product_name: t.product?.name || '',
                   payment_method: t.payment?.method || null,
+                  payment_url: t.invoice?.payment_url || t.payment?.url || null,
                   subscription_id: t.subscription?.internal_id || null
                 });
               }

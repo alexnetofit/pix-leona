@@ -611,16 +611,16 @@
             if (diff === 0) {
                 label.innerHTML = `<span style="color: var(--text-muted);">Igual ao plano atual</span>`;
                 btn.disabled = true;
-                btn.textContent = 'Simular alteração';
+                btn.textContent = 'Calcular nova mensalidade';
             } else if (diff > 0) {
                 label.innerHTML = `<span style="color: var(--success);">+${diff} conex${diff !== 1 ? 'ões' : 'ão'}</span><span style="color: var(--text-muted);"> · total: <strong style="color: var(--text-primary);">${newQty}</strong></span>`;
                 btn.disabled = false;
-                btn.textContent = `Simular upgrade para ${newQty} conexões`;
+                btn.textContent = `Calcular upgrade para ${newQty} conex${newQty !== 1 ? 'ões' : 'ão'}`;
             } else {
                 const absDiff = Math.abs(diff);
                 label.innerHTML = `<span style="color: var(--orange);">−${absDiff} conex${absDiff !== 1 ? 'ões' : 'ão'}</span><span style="color: var(--text-muted);"> · total: <strong style="color: var(--text-primary);">${newQty}</strong></span>`;
                 btn.disabled = false;
-                btn.textContent = `Simular downgrade para ${newQty} conex${newQty !== 1 ? 'ões' : 'ão'}`;
+                btn.textContent = `Calcular downgrade para ${newQty} conex${newQty !== 1 ? 'ões' : 'ão'}`;
             }
         }
 
@@ -680,7 +680,7 @@
                 }
 
                 _data = data;
-                renderProfile(data, email);
+                await renderProfile(data, email);
                 showWhatsapp(email);
             } catch (err) {
                 content.innerHTML = `<div class="error-msg">Erro de conexão: ${err.message}</div>`;
@@ -688,20 +688,23 @@
             }
         }
 
+        function totalConnections(bp) {
+            const starter = Number(bp.starter_instances) || 0;
+            const pro = Number(bp.pro_instances) || 0;
+            return starter + pro;
+        }
+
         function renderProfileCard(bp, idx, total) {
             const active = !isLeonaExpired(bp);
+            const connections = totalConnections(bp);
+            const validityLabel = active ? 'Ativa até' : 'Venceu em';
             return `
                 <div class="card" style="${active ? 'border-color: var(--accent); box-shadow: 0 0 20px var(--glow-purple);' : 'border-color: var(--error);'}">
-                    <h3>Assinatura${total > 1 ? ` #${idx + 1}` : ''}</h3>
+                    <h3>Sua assinatura${total > 1 ? ` (${connections} conex${connections !== 1 ? 'ões' : 'ão'})` : ''}</h3>
                     <div>
                         ${bp.user?.name ? `<div class="info-row"><span class="info-label">Nome</span><span class="info-value">${bp.user.name}</span></div>` : ''}
-                        ${bp.user?.email ? `<div class="info-row"><span class="info-label">Email</span><span class="info-value">${bp.user.email}</span></div>` : ''}
-                        ${bp.user?.phone ? `<div class="info-row"><span class="info-label">Telefone</span><span class="info-value">${bp.user.phone}</span></div>` : ''}
-                        ${bp.plan_summary ? `<div class="info-row"><span class="info-label">Plano</span><span class="info-value">${bp.plan_summary}</span></div>` : ''}
-                        ${bp.starter_instances != null ? `<div class="info-row"><span class="info-label">Conexões Starter</span><span class="info-value">${bp.starter_instances}</span></div>` : ''}
-                        ${bp.pro_instances != null && bp.pro_instances > 0 ? `<div class="info-row"><span class="info-label">Conexões Pro</span><span class="info-value">${bp.pro_instances}</span></div>` : ''}
-                        ${bp.subscription_status ? `<div class="info-row"><span class="info-label">Status</span><span class="info-value"><span class="status-badge ${statusClass(bp.subscription_status)}">${statusLabel(bp.subscription_status)}</span></span></div>` : ''}
-                        ${bp.current_period_end ? `<div class="info-row"><span class="info-label">${active ? 'Próxima renovação' : 'Venceu em'}</span><span class="info-value">${formatDate(bp.current_period_end)}</span></div>` : ''}
+                        ${connections > 0 ? `<div class="info-row"><span class="info-label">Plano</span><span class="info-value">${connections} conex${connections !== 1 ? 'ões' : 'ão'}</span></div>` : ''}
+                        ${bp.current_period_end ? `<div class="info-row"><span class="info-label">${validityLabel}</span><span class="info-value">${formatDate(bp.current_period_end)}</span></div>` : ''}
                     </div>
                 </div>
             `;
@@ -742,7 +745,7 @@
             return `
                 <div class="card">
                     <h3>Escolha seu plano</h3>
-                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 16px;">Selecione quantas conexões deseja e clique em Assinar agora:</p>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 16px;">Quantas conexões você precisa?</p>
                     <div style="display: flex; align-items: center; justify-content: center; gap: 16px;">
                         <button onclick="qtySelAdjust('${slotId}', -1)" style="width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); font-size: 1.4rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-primary)'">−</button>
                         <input type="number" id="qtySel-${slotId}" value="${initialQty}" min="1"
@@ -802,25 +805,34 @@
         function renderOpenInvoices(invoices) {
             const open = (invoices || []).filter(inv => inv.status !== 'paid' && inv.status !== 'refunded');
             if (open.length === 0) return null;
+
+            // Pega a fatura mais relevante: prioriza a que tem payment_url, depois a mais recente.
+            const sorted = [...open].sort((a, b) => {
+                if (a.payment_url && !b.payment_url) return -1;
+                if (!a.payment_url && b.payment_url) return 1;
+                const da = a.charge_at || a.period_end || '';
+                const db = b.charge_at || b.period_end || '';
+                return db.localeCompare(da);
+            });
+            const inv = sorted[0];
+
+            if (!inv.payment_url) return null;
+
+            const planLabel = inv.offer_name || inv.product_name || 'sua assinatura';
+
             return `
-                <div class="card">
-                    <h3>Faturas em aberto</h3>
-                    ${open.map(inv => `
-                        <div class="invoice-card">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;">
-                                <div>
-                                    <div style="font-weight: 600;">${inv.offer_name || inv.product_name || 'Fatura'}</div>
-                                    <div style="font-family: monospace; font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">${inv.id}</div>
-                                </div>
-                                <div style="text-align: right;">
-                                    <div style="font-size: 1.2rem; font-weight: 700; color: var(--orange);">${fmtCurrency(inv.value)}</div>
-                                    <div style="font-size: 0.8rem; color: var(--warning);">${invoiceStatusLabel(inv.status)}</div>
-                                    ${inv.charge_at ? `<div style="font-size: 0.75rem; color: var(--text-secondary);">Vence: ${formatDate(inv.charge_at)}</div>` : ''}
-                                </div>
-                            </div>
+                <div class="card" style="border-color: var(--orange); box-shadow: 0 0 20px var(--glow-orange);">
+                    <h3 style="color: var(--orange);">Renovação pendente</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+                        <div>
+                            <div style="color: var(--text-primary); font-weight: 600;">${planLabel}</div>
+                            ${inv.charge_at ? `<div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 4px;">Vencimento: ${formatDate(inv.charge_at)}</div>` : ''}
                         </div>
-                    `).join('')}
-                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 8px;">Realize o pagamento da fatura acima para reativar sua assinatura.</p>
+                        <div style="font-size: 1.4rem; font-weight: 700; color: var(--orange);">${fmtCurrency(inv.value)}</div>
+                    </div>
+                    <a href="${inv.payment_url}" target="_blank" rel="noopener" class="btn-orange" style="display: block; text-align: center; padding: 14px; font-size: 0.95rem; text-decoration: none; border-radius: 12px; font-weight: 600;">
+                        Pagar e renovar agora
+                    </a>
                 </div>
             `;
         }
@@ -837,12 +849,14 @@
         }
 
         function renderPendingInvoice(inv) {
-            const typeLabel = inv.type === 'upgrade' ? 'Upgrade' : inv.type === 'downgrade' ? 'Downgrade' : 'Fatura';
+            const typeLabel = inv.type === 'downgrade'
+                ? 'Pagamento pendente do seu downgrade'
+                : 'Pagamento pendente do seu upgrade';
             return `
                 <div style="background: var(--bg-card); padding: 20px; border-radius: 14px; border: 1px solid rgba(245,158,11,0.3); margin-bottom: 16px; box-shadow: 0 0 20px var(--glow-orange);">
                     <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
                         <span style="color: var(--orange); font-size: 1.2rem;">⚠️</span>
-                        <strong style="color: var(--orange);">${typeLabel} pendente de pagamento</strong>
+                        <strong style="color: var(--orange);">${typeLabel}</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
                         <span style="color: var(--text-secondary);">Valor:</span>
@@ -870,7 +884,7 @@
             const currentQty = bp.starter_instances || 0;
             return `
                 <div class="sim-panel">
-                    <h3 style="color: var(--orange); font-size: 1rem; margin-bottom: 16px;">Alterar plano</h3>
+                    <h3 style="color: var(--orange); font-size: 1rem; margin-bottom: 16px;">Quer mudar seu plano?</h3>
 
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
                         <span style="color: var(--text-secondary); font-size: 0.85rem;">Plano atual</span>
@@ -878,7 +892,7 @@
                     </div>
 
                     <div style="border-top: 1px solid var(--border); padding-top: 16px; margin-top: 8px;">
-                        <span style="color: var(--text-secondary); font-size: 0.85rem; display: block; margin-bottom: 12px;">Novo total de conexões:</span>
+                        <span style="color: var(--text-secondary); font-size: 0.85rem; display: block; margin-bottom: 12px;">Quantas conexões você quer:</span>
                         <div style="display: flex; align-items: center; justify-content: center; gap: 16px;">
                             <button onclick="adjustQty(${idx}, -1)" style="width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); font-size: 1.4rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-primary)'">−</button>
                             <div style="text-align: center; min-width: 80px;">
@@ -894,7 +908,7 @@
                     </div>
 
                     <button class="btn-orange" style="width: 100%; padding: 14px; margin-top: 16px; font-size: 0.95rem;" onclick="simulateChange(${idx})" id="simBtn-${idx}" disabled>
-                        Simular alteração
+                        Calcular nova mensalidade
                     </button>
 
                     <div class="sim-result" id="simResult-${idx}"></div>
@@ -902,7 +916,24 @@
             `;
         }
 
-        function renderProfile(data, email) {
+        async function fixGuruInconsistency(accountId, guruSubId, email) {
+            try {
+                const r = await fetch('/api/fix-guru-inconsistency', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email,
+                        account_id: accountId,
+                        guru_subscription_id: guruSubId
+                    })
+                });
+                return await r.json().catch(() => ({ ok: false }));
+            } catch (e) {
+                return { ok: false, error: e.message };
+            }
+        }
+
+        async function renderProfile(data, email) {
             const content = document.getElementById('content');
             const { leona, guru, offers } = data;
 
@@ -912,7 +943,7 @@
                 content.innerHTML = `
                     <div class="empty-state">
                         <div class="icon">🔍</div>
-                        <p>Nenhuma assinatura encontrada para <strong>${email}</strong>.</p>
+                        <p>Não encontramos uma assinatura para <strong>${email}</strong>.</p>
                     </div>
                     ${renderQtySelector(offers, email, 'none')}
                 `;
@@ -920,6 +951,33 @@
             }
 
             const hasGuruActive = guru.found && guru.subscriptions.some(s => s.status === 'active');
+
+            // Cenário 3 (auto-correção silenciosa): se a Leona está vencida
+            // mas a Guru ainda está ativa, a data Guru ficou divergente.
+            // Cancelamos a sub Guru e soltamos o vínculo na Leona; depois
+            // re-buscamos os dados e renderizamos como Cenário 1
+            // (vencida sem Guru = seletor de plano).
+            const expiredProfile = profiles.find(p => isLeonaExpired(p));
+            if (expiredProfile && hasGuruActive) {
+                const activeGuruSub = guru.subscriptions.find(s => s.status === 'active');
+                if (activeGuruSub) {
+                    await fixGuruInconsistency(expiredProfile.account_id, activeGuruSub.id, email);
+                    // Re-busca os dados frescos.
+                    try {
+                        const res = await fetch('/api/guru-search', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ email })
+                        });
+                        const fresh = await res.json();
+                        if (res.ok) {
+                            _data = fresh;
+                            return renderProfile(fresh, email);
+                        }
+                    } catch (_) {}
+                }
+            }
+
             const hasGuruAny = guru.found && guru.subscriptions.length > 0;
 
             let html = '';
@@ -931,19 +989,7 @@
                 html += renderProfileCard(bp, i, profiles.length);
 
                 if (expired) {
-                    if (hasGuruActive) {
-                        // Cenário 3: Leona vencida + Guru ativa
-                        html += `
-                            <div class="alert alert-warning">
-                                <strong>Inconsistência detectada</strong>
-                                Identificamos que seu pagamento está em dia, mas sua conta Leona está inativa.
-                                Por favor, entre em contato com o suporte para regularizar sua situação.
-                                <div style="margin-top: 12px;">
-                                    <a href="https://leonaflow.com/leona-tube/suporte-whatsapp" target="_blank" rel="noopener" style="color: var(--orange); font-weight: 600; text-decoration: none;">Falar com o suporte →</a>
-                                </div>
-                            </div>
-                        `;
-                    } else if (hasGuruAny) {
+                    if (hasGuruAny) {
                         // Cenário 2: Leona vencida + Guru vencida/cancelada
                         const invoicesHtml = renderOpenInvoices(guru.invoices);
                         if (invoicesHtml) {
@@ -951,8 +997,8 @@
                         } else {
                             html += `
                                 <div class="alert alert-error">
-                                    <strong>Assinatura vencida</strong>
-                                    Não há faturas pendentes de pagamento. Escolha um plano abaixo para reativar sua assinatura.
+                                    <strong>Sua assinatura venceu</strong>
+                                    Escolha um plano abaixo para renovar.
                                 </div>
                             `;
                             html += renderQtySelector(offers, email, `exp${i}`);
@@ -961,8 +1007,8 @@
                         // Cenário 1: Leona vencida + sem Guru
                         html += `
                             <div class="alert alert-error">
-                                <strong>Assinatura vencida</strong>
-                                Escolha um plano abaixo para reativar sua assinatura.
+                                <strong>Sua assinatura venceu</strong>
+                                Escolha um plano abaixo para renovar.
                             </div>
                         `;
                         html += renderQtySelector(offers, email, `noguru${i}`);
@@ -973,12 +1019,6 @@
                     if (pendingInvoice) {
                         html += renderPendingInvoice(pendingInvoice);
                     }
-                    html += `
-                        <div class="alert alert-info">
-                            <strong>Assinatura ativa</strong>
-                            Sua assinatura está em dia. Você pode alterar seu plano abaixo.
-                        </div>
-                    `;
                     html += renderUpgradePanel(bp, i);
                 }
             }

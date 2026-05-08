@@ -352,7 +352,14 @@ async function syncGuruCycleDate(subscriptionId, leonaPeriodEnd, accountId, leon
     return;
   }
 
-  let cycleEndDate = leonaPeriodEnd.split('T')[0];
+  // Invariante Leona = Guru + 1 dia: ao empurrar a data Leona pra Guru,
+  // subtraimos 1 dia para que a Guru fique com a data "real" do ciclo.
+  // Na proxima renovacao, calculateDueDate adiciona +1 de novo, mantendo
+  // a invariante.
+  const leonaDateStr = leonaPeriodEnd.split('T')[0];
+  const guruDate = new Date(leonaDateStr + 'T00:00:00Z');
+  guruDate.setUTCDate(guruDate.getUTCDate() - 1);
+  let cycleEndDate = guruDate.toISOString().split('T')[0];
 
   const minDate = new Date();
   minDate.setUTCDate(minDate.getUTCDate() + 6);
@@ -385,11 +392,16 @@ async function syncGuruCycleDate(subscriptionId, leonaPeriodEnd, accountId, leon
       console.log(`webhook-guru: ciclo da Guru ajustado com sucesso para ${cycleEndDate}`);
 
       if (adjustedLeona) {
-        console.log(`webhook-guru: atualizando due_date no Leona para ${cycleEndDate} (ajustado por limite mínimo)`);
+        // Invariante Leona = Guru + 1 dia: ao subir a data minima da Guru,
+        // a Leona deve ficar 1 dia depois.
+        const leonaAdjusted = new Date(cycleEndDate + 'T00:00:00Z');
+        leonaAdjusted.setUTCDate(leonaAdjusted.getUTCDate() + 1);
+        const leonaDueDate = leonaAdjusted.toISOString().split('T')[0];
+        console.log(`webhook-guru: atualizando due_date no Leona para ${leonaDueDate} (Guru=${cycleEndDate}, ajustado por limite mínimo)`);
         await fetch(`${LEONA_BASE}/accounts/${accountId}/billing_profile`, {
           method: 'POST',
           headers: leonaHeaders,
-          body: JSON.stringify({ due_date: cycleEndDate })
+          body: JSON.stringify({ due_date: leonaDueDate })
         }).catch(e => console.error('webhook-guru: erro ao ajustar due_date no Leona:', e.message));
       }
     } else {
@@ -400,20 +412,37 @@ async function syncGuruCycleDate(subscriptionId, leonaPeriodEnd, accountId, leon
   }
 }
 
+/**
+ * Calcula o due_date que ira pra Leona com base no payload da Guru.
+ *
+ * Invariante: Leona = Guru + 1 dia.
+ *
+ * Motivo: a Guru so libera a fatura do proximo ciclo no dia x+1 as 10h,
+ * mas a Leona marcaria como vencida em x+1 as 00h. O cliente entraria em
+ * panico e nao conseguiria pagar (fatura ainda indisponivel na Guru).
+ * Adicionando +1 dia, o cliente tem o dia x+1 inteiro pra pagar.
+ *
+ * O fluxo de refund/chargeback (handleRefundOrChargeback) NAO usa essa
+ * funcao porque la a expiracao e proposital e imediata.
+ */
 function calculateDueDate(payload) {
   const chargeAt = payload.invoice?.charge_at;
   const chargedEveryDays = payload.subscription?.charged_every_days;
 
   if (chargeAt && chargedEveryDays) {
     const date = new Date(chargeAt + 'T00:00:00Z');
-    date.setUTCDate(date.getUTCDate() + chargedEveryDays);
+    date.setUTCDate(date.getUTCDate() + chargedEveryDays + 1);
     return date.toISOString().split('T')[0];
   }
 
   const periodEnd = payload.invoice?.period_end;
-  if (periodEnd) return periodEnd;
+  if (periodEnd) {
+    const d = new Date(periodEnd + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().split('T')[0];
+  }
 
   const d = new Date();
-  d.setUTCDate(d.getUTCDate() + 30);
+  d.setUTCDate(d.getUTCDate() + 31);
   return d.toISOString().split('T')[0];
 }
