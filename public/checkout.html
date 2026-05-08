@@ -335,10 +335,15 @@
             return aid ? `${base}?account_id=${encodeURIComponent(aid)}` : base;
         }
 
-        function fmtMoney(amountCents, currency = 'BRL') {
-            const n = typeof amountCents === 'string' ? parseFloat(amountCents) : amountCents;
+        // ATENCAO: o Paddle.js eventCallback passa os totals JA EM
+        // FORMATO DECIMAL DE REAIS (ex: "316.00"), e nao em centavos
+        // como a API REST. Por isso aqui NAO dividimos por 100.
+        // Se um dia precisar usar com valores em centavos, criar
+        // outra funcao (fmtMoneyCents).
+        function fmtMoney(amount, currency = 'BRL') {
+            const n = typeof amount === 'string' ? parseFloat(amount) : amount;
             if (!Number.isFinite(n)) return '—';
-            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency }).format(n / 100);
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency }).format(n);
         }
 
         function fmtDate(d) {
