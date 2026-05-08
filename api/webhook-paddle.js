@@ -131,9 +131,17 @@ async function applyMigrationAnchor({ subscriptionId, anchorAt, tierDiscountId, 
   } catch (_) {}
 
   if (anchorAt) {
+    // Aceita 3 formatos:
+    //  1. ISO completo (preferencial — quando custom_data.anchor_at_iso
+    //     ja vem do create_migration_checkout, ja em fim-do-dia BRT)
+    //  2. YYYY-MM-DD → converte pra fim do dia BRT em UTC, garantindo
+    //     que o anchor seja sempre > started_at da sub recem-criada
+    //  3. ISO completo legacy → usa como veio
     let anchorIso = anchorAt;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(anchorAt)) {
-      anchorIso = `${anchorAt}T00:00:00Z`;
+    const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(anchorAt);
+    if (ymd) {
+      const d = new Date(Date.UTC(+ymd[1], +ymd[2] - 1, +ymd[3] + 1, 2, 59, 59));
+      anchorIso = d.toISOString();
     }
 
     // Defesa explícita: se anchor_at já passou em relação ao
@@ -264,7 +272,7 @@ export async function processPaddleEvent(event, opts = {}) {
       if (cd.migration === true && subId) {
         migrationAnchorResult = await applyMigrationAnchor({
           subscriptionId: subId,
-          anchorAt: cd.anchor_at || null,
+          anchorAt: cd.anchor_at_iso || cd.anchor_at || null,
           tierDiscountId: cd.tier_discount_id || null,
           paddleApiKey
         });

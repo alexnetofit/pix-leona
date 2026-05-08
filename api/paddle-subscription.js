@@ -129,19 +129,28 @@ function buildTierSummary(qty) {
 //     até a data de renovação Guru. Os N seats atuais já foram pagos
 //     na Guru pra esse ciclo.
 //   - Mínimo R$ 5,00 (abaixo disso vira ruído operacional).
-//   - Mínimo 3 dias até a renovação. Abaixo disso o fluxo migrate
-//     vira armadilha: a subscription Paddle (ciclo D → D+30) acaba
-//     "comendo" um mês quase de graça porque o pro-rata de 1-2 dias
-//     não casa com o ciclo recorrente. Esse caso vira fallback pra
-//     renovação cheia via Paddle (que cancela Guru igual).
+//   - Bloqueia apenas se a Guru já venceu (days <= 0). Pra qualquer
+//     days >= 1 o fluxo migrate roda — o anchor é mandado como fim
+//     do dia BRT, garantindo que sempre seja > started_at da sub.
 //
 // Após o pagamento, o webhook ancora a subscription Paddle no
-// `anchor_at` (data Guru) com `do_not_bill`, e attacha o tier
-// discount recorrente — ou seja: 1 única assinatura, 1ª cobrança
-// menor, próxima na data Guru no valor cheio.
+// `anchor_at_iso` (fim do dia da Guru em BRT) com `do_not_bill`, e
+// attacha o tier discount recorrente — ou seja: 1 única assinatura,
+// 1ª cobrança menor, próxima na data Guru no valor cheio.
 // ----------------------------------------------------------------
 const MIN_PRORATA_CENTS = 500; // R$ 5,00
-const MIN_MIGRATION_DAYS = 3;
+
+// Converte YYYY-MM-DD em ISO UTC representando 23:59:59 BRT (UTC-3)
+// daquele dia. Resultado: "YYYY-MM-(DD+1)T02:59:59Z".
+// Pra ISO completo (ja com hora), retorna como veio.
+function anchorAtToEndOfDayUtcIso(anchorAt) {
+  if (!anchorAt) return null;
+  const s = String(anchorAt);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return s;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3] + 1, 2, 59, 59));
+  return d.toISOString();
+}
 
 function daysUntil(endIso, now = new Date()) {
   if (!endIso) return 0;
@@ -179,14 +188,7 @@ function calcMigrationProrata({ current_qty, target_qty, anchor_at, now = new Da
     return {
       ok: false,
       reason: 'expired_anchor',
-      error: 'Sua renovação na Guru já chegou. Use o fluxo de renovação direto na Paddle (sem migração).'
-    };
-  }
-  if (days < MIN_MIGRATION_DAYS) {
-    return {
-      ok: false,
-      reason: 'too_close_to_renewal',
-      error: `Faltam menos de ${MIN_MIGRATION_DAYS} dias para sua renovação Guru — não compensa migrar agora. Renove direto via Paddle no plano cheio que sua Guru é cancelada na sequência.`
+      error: 'Sua renovação na Guru já passou. Renove direto via Paddle (sem migração) — sua Guru será cancelada após o pagamento.'
     };
   }
   const unitTargetCents = tierUnitCents(M);
@@ -215,7 +217,8 @@ function calcMigrationProrata({ current_qty, target_qty, anchor_at, now = new Da
     formatted_prorata: fmtBRL(prorataCents),
     formatted_full_monthly: fmtBRL(fullMonthlyCents),
     formatted_unit_target: fmtBRL(unitTargetCents),
-    anchor_at
+    anchor_at,
+    anchor_at_iso: anchorAtToEndOfDayUtcIso(anchor_at)
   };
 }
 
@@ -524,6 +527,7 @@ export default async function handler(req, res) {
         current_qty: calc.current_qty,
         target_qty: calc.target_qty,
         anchor_at: calc.anchor_at,
+        anchor_at_iso: calc.anchor_at_iso,
         prorata_cents: calc.prorata_cents,
         days_remaining: calc.days_remaining,
         tier_discount_id: tierDiscountId,
