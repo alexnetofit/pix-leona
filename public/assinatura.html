@@ -654,23 +654,33 @@
 
         async function loadProfile() {
             let email = getEmail();
-            if (!email) {
+            const accountIdParam = getAccountIdParam();
+            if (!email && !accountIdParam) {
                 const input = document.getElementById('emailInput');
                 email = (input.value || '').trim().toLowerCase();
             }
-            if (!email) return;
-            _email = email;
+            if (!email && !accountIdParam) return;
+            _email = email || '';
 
             const content = document.getElementById('content');
             content.innerHTML = `<div class="loading-state"><div class="spinner"></div><p style="color: var(--text-secondary); margin-top: 16px;">Carregando dados...</p></div>`;
 
             try {
+                const body = {};
+                if (email) body.email = email;
+                if (accountIdParam) body.account_id = accountIdParam;
                 const res = await fetch('/api/guru-search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email })
+                    body: JSON.stringify(body)
                 });
                 const data = await res.json();
+
+                // Quando buscamos por account_id, o email "real" e o do dono da conta.
+                if (accountIdParam && data?.leona?.billing_profile?.user?.email) {
+                    _email = String(data.leona.billing_profile.user.email).trim().toLowerCase();
+                    email = _email;
+                }
 
                 if (!res.ok) {
                     content.innerHTML = `<div class="error-msg">${data.error || 'Erro ao buscar dados'}</div>`;
@@ -971,10 +981,14 @@
                     await fixGuruInconsistency(expiredProfile.account_id, activeGuruSub.id, email);
                     // Re-busca os dados frescos.
                     try {
+                        const accountIdParam = getAccountIdParam();
+                        const refetchBody = {};
+                        if (email) refetchBody.email = email;
+                        if (accountIdParam) refetchBody.account_id = accountIdParam;
                         const res = await fetch('/api/guru-search', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ email })
+                            body: JSON.stringify(refetchBody)
                         });
                         const fresh = await res.json();
                         if (res.ok) {

@@ -21,21 +21,66 @@ export default async function handler(req, res) {
 
   if (!guruToken) return res.status(500).json({ error: 'GURU_TOKEN não configurado' });
 
-  const { email } = req.body || {};
-  if (!email || !email.trim()) return res.status(400).json({ error: 'Informe um e-mail' });
+  const { email, account_id } = req.body || {};
+  const accountIdNum = account_id != null && /^\d+$/.test(String(account_id)) ? Number(account_id) : null;
 
-  const emailClean = email.trim().toLowerCase();
+  if (!accountIdNum && (!email || !email.trim())) {
+    return res.status(400).json({ error: 'Informe um e-mail ou account_id' });
+  }
+
   const headers = GURU_HEADERS(guruToken);
+  const leonaAuthHeaders = { 'Authorization': `Bearer ${leonaToken}`, 'Accept': 'application/json' };
 
   try {
+    // Se veio account_id, busca a conta Leona DIRETO pelo ID. O email
+    // pra buscar Guru passa a ser o email do dono da conta encontrada,
+    // nao o email da query string (que pode ser de outra pessoa).
+    let leonaPriority = null;
+    let lookupEmail = email ? email.trim().toLowerCase() : null;
+
+    if (accountIdNum && leonaToken) {
+      try {
+        const r = await fetch(
+          `https://apiaws.leonasolutions.io/api/v1/integration/accounts/${accountIdNum}/billing_profile`,
+          { headers: leonaAuthHeaders }
+        );
+        if (r.ok) {
+          const profile = await r.json();
+          leonaPriority = { found: true, billing_profile: profile, billing_profiles: [profile], error: null };
+          if (profile?.user?.email) {
+            lookupEmail = String(profile.user.email).trim().toLowerCase();
+          }
+        } else if (r.status === 404) {
+          leonaPriority = { found: false, billing_profile: null, billing_profiles: [], error: `account_id ${accountIdNum} nao encontrada` };
+        } else {
+          leonaPriority = { found: false, billing_profile: null, billing_profiles: [], error: `Leona retornou ${r.status} para account_id ${accountIdNum}` };
+        }
+      } catch (e) {
+        leonaPriority = { found: false, billing_profile: null, billing_profiles: [], error: e.message };
+      }
+    }
+
+    if (!lookupEmail) {
+      return res.status(400).json({
+        error: accountIdNum
+          ? `nao foi possivel determinar o email do dono da conta ${accountIdNum}`
+          : 'Informe um e-mail'
+      });
+    }
+
+    const emailClean = lookupEmail;
+
     const [contactRes, offersRes, leonaRes] = await Promise.all([
       fetch(`${GURU_BASE}/contacts?email=${encodeURIComponent(emailClean)}&limit=20`, { headers }),
       fetch(`${GURU_BASE}/products/${LEONA_PRODUCT_ID}/offers?limit=50`, { headers }),
-      leonaToken
-        ? fetch(`https://apiaws.leonasolutions.io/api/v1/integration/accounts/billing_profile?email=${encodeURIComponent(emailClean)}`, {
-            headers: { 'Authorization': `Bearer ${leonaToken}`, 'Accept': 'application/json' }
-          }).catch(e => ({ ok: false, _error: e.message }))
-        : Promise.resolve(null)
+      // Se ja achamos a conta via account_id, nao precisa buscar de novo.
+      leonaPriority
+        ? Promise.resolve(null)
+        : (leonaToken
+            ? fetch(`https://apiaws.leonasolutions.io/api/v1/integration/accounts/billing_profile?email=${encodeURIComponent(emailClean)}`, {
+                headers: leonaAuthHeaders
+              }).catch(e => ({ ok: false, _error: e.message }))
+            : Promise.resolve(null))
     ]);
 
     const contactData = contactRes.ok ? await contactRes.json() : { data: [] };
@@ -58,7 +103,10 @@ export default async function handler(req, res) {
       .sort((a, b) => a.value - b.value);
 
     let leona = { found: false, billing_profile: null, billing_profiles: null, error: null };
-    if (leonaRes === null) {
+    if (leonaPriority) {
+      // Conta achada direto pelo account_id na URL — usa essa.
+      leona = leonaPriority;
+    } else if (leonaRes === null) {
       leona.error = 'LEONA_BILLING_TOKEN não configurado';
     } else if (leonaRes._error) {
       leona.error = leonaRes._error;
