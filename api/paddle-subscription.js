@@ -120,6 +120,78 @@ function buildTierSummary(qty) {
   };
 }
 
+// ----------------------------------------------------------------
+// Migração Guru → Paddle: cálculo pro-rata "delta_only".
+//
+// Regra (confirmada com produto):
+//   - Só aceita upgrade (M > N). Downgrade/manter aguarda renovação.
+//   - Cobra hoje só os SEATS A MAIS, prorratados pelos dias restantes
+//     até a data de renovação Guru. Os N seats atuais já foram pagos
+//     na Guru pra esse ciclo.
+//   - Mínimo R$ 5,00 (abaixo disso vira ruído operacional).
+//
+// Após o pagamento, o webhook ancora a subscription Paddle no
+// `anchor_at` (data Guru) com `do_not_bill`, e attacha o tier
+// discount recorrente — ou seja: 1 única assinatura, 1ª cobrança
+// menor, próxima na data Guru no valor cheio.
+// ----------------------------------------------------------------
+const MIN_PRORATA_CENTS = 500; // R$ 5,00
+
+function daysUntil(endIso, now = new Date()) {
+  const endMs = new Date(endIso).getTime();
+  const nowMs = now.getTime();
+  if (!Number.isFinite(endMs) || endMs <= nowMs) return 0;
+  return Math.max(1, Math.ceil((endMs - nowMs) / (1000 * 60 * 60 * 24)));
+}
+
+function calcMigrationProrata({ current_qty, target_qty, anchor_at, now = new Date() }) {
+  const N = Math.max(0, Number(current_qty) || 0);
+  const M = Math.max(0, Number(target_qty) || 0);
+  if (M <= N) {
+    return {
+      ok: false,
+      reason: 'not_upgrade',
+      error: 'Migração disponível apenas para upgrade (mais conexões). Para manter ou reduzir, aguarde sua renovação na Guru e contrate na Paddle nesse momento.'
+    };
+  }
+  const days = daysUntil(anchor_at, now);
+  if (days <= 0) {
+    return {
+      ok: false,
+      reason: 'expired_anchor',
+      error: 'Sua renovação na Guru já chegou. Use o fluxo de renovação direto na Paddle (sem migração).'
+    };
+  }
+  const unitTargetCents = tierUnitCents(M);
+  const extraSeats = M - N;
+  let prorataCents = Math.round((extraSeats * unitTargetCents * days) / 30);
+  let bumped = false;
+  if (prorataCents < MIN_PRORATA_CENTS) {
+    prorataCents = MIN_PRORATA_CENTS;
+    bumped = true;
+  }
+  const fullMonthlyCents = unitTargetCents * M;
+  const baseTotalCents = TIER_BASE_UNIT_CENTS * M;
+  const oneTimeDiscountCents = baseTotalCents - prorataCents;
+  return {
+    ok: true,
+    current_qty: N,
+    target_qty: M,
+    extra_seats: extraSeats,
+    days_remaining: days,
+    unit_target_cents: unitTargetCents,
+    prorata_cents: prorataCents,
+    full_monthly_cents: fullMonthlyCents,
+    base_total_cents: baseTotalCents,
+    one_time_discount_cents: oneTimeDiscountCents,
+    minimum_applied: bumped,
+    formatted_prorata: fmtBRL(prorataCents),
+    formatted_full_monthly: fmtBRL(fullMonthlyCents),
+    formatted_unit_target: fmtBRL(unitTargetCents),
+    anchor_at
+  };
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -147,7 +219,10 @@ export default async function handler(req, res) {
     sync_leona = true,
     price_id,
     quantity,
-    name
+    name,
+    current_qty,
+    target_qty,
+    anchor_at
   } = req.body || {};
 
   const headers = paddleHeaders(paddleToken);
@@ -307,6 +382,169 @@ export default async function handler(req, res) {
         checkout_url: checkoutUrl,
         transaction_id: txnId,
         customer_id: finalCustomerId
+      });
+    }
+
+    // ----------------------------------------------------------------
+    // migration_preview — usado pelo simulador da tela "Migrar para
+    // Paddle" pra mostrar pro-rata e data preservada antes do checkout.
+    // ----------------------------------------------------------------
+    if (action === 'migration_preview') {
+      if (current_qty == null || target_qty == null || !anchor_at) {
+        return res.status(400).json({ error: 'current_qty, target_qty e anchor_at são obrigatórios' });
+      }
+      const calc = calcMigrationProrata({ current_qty, target_qty, anchor_at });
+      if (!calc.ok) return res.status(400).json({ error: calc.error, reason: calc.reason });
+      return res.status(200).json({
+        ...calc,
+        tier: buildTierSummary(Number(target_qty))
+      });
+    }
+
+    // ----------------------------------------------------------------
+    // create_migration_checkout — gera link de checkout pra migrar de
+    // Guru pra Paddle preservando a data de renovação.
+    //
+    // Mecânica:
+    //  1. Pré-cria um "tier discount" recorrente na Paddle (saved
+    //     discount) — webhook attacha à subscription depois do pagamento.
+    //  2. Cria a transaction Paddle com o price recorrente normal +
+    //     um discount inline `flat` (recur:false) calibrado pra
+    //     primeira cobrança ser apenas o pro-rata calculado.
+    //  3. custom_data carrega { migration:true, anchor_at,
+    //     tier_discount_id, target_qty, ... } — webhook usa pra:
+    //       - PATCH next_billed_at = anchor_at (do_not_bill)
+    //       - PATCH discount = tier_discount_id (effective next_billing_period)
+    //       - cancelar Guru
+    //       - sync Leona com starter_instances=target_qty + due_date
+    // ----------------------------------------------------------------
+    if (action === 'create_migration_checkout') {
+      if (!price_id || !email || target_qty == null || current_qty == null || !anchor_at) {
+        return res.status(400).json({
+          error: 'price_id, email, current_qty, target_qty e anchor_at são obrigatórios'
+        });
+      }
+      const calc = calcMigrationProrata({ current_qty, target_qty, anchor_at });
+      if (!calc.ok) return res.status(400).json({ error: calc.error, reason: calc.reason });
+
+      // 1. Resolver/criar customer (mesma lógica de create_renewal_checkout)
+      let customerId = null;
+      try {
+        const cusRes = await fetch(
+          `${PADDLE_BASE}/customers?email=${encodeURIComponent(email)}`,
+          { headers }
+        );
+        if (cusRes.ok) {
+          const cusBody = await cusRes.json();
+          const match = (cusBody.data || []).find(
+            c => c.email?.toLowerCase() === email.toLowerCase()
+          );
+          customerId = match?.id || null;
+        }
+      } catch (_) {}
+
+      if (!customerId) {
+        try {
+          const createRes = await fetch(`${PADDLE_BASE}/customers`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ email, ...(name ? { name } : {}) })
+          });
+          if (createRes.ok) {
+            const created = await createRes.json();
+            customerId = created.data?.id || null;
+          }
+        } catch (e) {
+          console.warn('paddle-subscription: falha ao criar customer (migration):', e.message);
+        }
+      }
+
+      // 2. Pré-criar tier discount recorrente (saved discount).
+      //    PATCH /subscriptions só aceita discount por id, não inline.
+      //    Pra qty < 2 não tem desconto: deixa null.
+      let tierDiscountId = null;
+      const tierBlueprint = tierDiscount(calc.target_qty);
+      if (tierBlueprint) {
+        try {
+          const discRes = await fetch(`${PADDLE_BASE}/discounts`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              ...tierBlueprint,
+              currency_code: 'BRL'
+            })
+          });
+          if (discRes.ok) {
+            const discBody = await discRes.json();
+            tierDiscountId = discBody.data?.id || null;
+          } else {
+            const errText = await discRes.text();
+            console.warn('paddle-subscription: falha ao criar tier discount:', errText);
+          }
+        } catch (e) {
+          console.warn('paddle-subscription: erro ao criar tier discount:', e.message);
+        }
+      }
+
+      // 3. Criar transaction com inline discount one-time. O `recur:false`
+      //    garante que o desconto se aplica só na primeira cobrança —
+      //    a próxima (em anchor_at) será o valor cheio com o tier
+      //    discount que o webhook attacha à subscription.
+      const customData = {
+        leona_account_id: account_id != null ? String(account_id) : null,
+        source: 'leona-migration-page',
+        migration: true,
+        current_qty: calc.current_qty,
+        target_qty: calc.target_qty,
+        anchor_at: calc.anchor_at,
+        prorata_cents: calc.prorata_cents,
+        days_remaining: calc.days_remaining,
+        tier_discount_id: tierDiscountId,
+        tier_label: `${calc.target_qty} ${calc.target_qty === 1 ? 'conexão' : 'conexões'} (R$ ${(calc.unit_target_cents / 100).toFixed(2).replace('.', ',')}/ea)`
+      };
+
+      const txBody = {
+        items: [{ price_id, quantity: calc.target_qty }],
+        collection_mode: 'automatic',
+        currency_code: 'BRL',
+        custom_data: customData,
+        discount: {
+          type: 'flat',
+          amount: String(calc.one_time_discount_cents),
+          description: `Pro-rata migração Guru→Paddle (${calc.days_remaining} ${calc.days_remaining === 1 ? 'dia' : 'dias'} até ${calc.anchor_at})`,
+          recur: false
+        },
+        ...(customerId
+          ? { customer_id: customerId }
+          : { customer: { email, ...(name ? { name } : {}) } })
+      };
+
+      const r = await fetch(`${PADDLE_BASE}/transactions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(txBody)
+      });
+      const data = await r.json();
+      if (!r.ok) return res.status(r.status).json(data);
+
+      const txnId = data.data?.id || null;
+      const finalCustomerId = data.data?.customer_id || customerId || null;
+
+      let checkoutUrl = null;
+      if (txnId) {
+        const qs = new URLSearchParams();
+        qs.set('_ptxn', txnId);
+        if (account_id != null) qs.set('aid', String(account_id));
+        if (finalCustomerId) qs.set('cid', finalCustomerId);
+        checkoutUrl = `https://client.leonaflow.com/checkout?${qs.toString()}`;
+      }
+
+      return res.status(200).json({
+        checkout_url: checkoutUrl,
+        transaction_id: txnId,
+        customer_id: finalCustomerId,
+        tier_discount_id: tierDiscountId,
+        quote: calc
       });
     }
 
@@ -526,7 +764,7 @@ export default async function handler(req, res) {
     }
 
     return res.status(400).json({
-      error: 'action inválida. Use: pricing_preview, create_renewal_checkout, preview, update, get, cancel, pause, resume, list_transactions, get_transaction, refund, cancel_guru'
+      error: 'action inválida. Use: pricing_preview, create_renewal_checkout, migration_preview, create_migration_checkout, preview, update, get, cancel, pause, resume, list_transactions, get_transaction, refund, cancel_guru'
     });
 
   } catch (error) {

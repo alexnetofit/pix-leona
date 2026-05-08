@@ -91,6 +91,73 @@ async function fetchPaddleSubscriptionNextBilled(subscriptionId, paddleApiKey) {
   }
 }
 
+/**
+ * Após pagamento de uma transaction de migração (Guru→Paddle), ajusta a
+ * subscription recém-criada para:
+ *   1. Ancorar a próxima cobrança em `anchor_at` (a data Guru), sem cobrar
+ *      nada agora — `proration_billing_mode: 'do_not_bill'`.
+ *   2. Attachar o tier discount recorrente (saved discount criado pelo
+ *      paddle-subscription.action=create_migration_checkout) pra que as
+ *      próximas cobranças mensais já saiam com o desconto por volume.
+ *
+ * Faz tudo best-effort: se uma etapa falha, loga e continua. O custom_data
+ * da transaction é a fonte da verdade pra anchor_at e tier_discount_id.
+ */
+async function applyMigrationAnchor({ subscriptionId, anchorAt, tierDiscountId, paddleApiKey }) {
+  if (!subscriptionId || !paddleApiKey) {
+    return { ok: false, error: 'subscription_id ou PADDLE_API_KEY ausente' };
+  }
+  const headers = {
+    'Authorization': `Bearer ${paddleApiKey}`,
+    'Accept': 'application/json',
+    'Content-Type': 'application/json'
+  };
+  const result = { anchor: null, discount: null };
+
+  if (anchorAt) {
+    let anchorIso = anchorAt;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(anchorAt)) {
+      anchorIso = `${anchorAt}T00:00:00Z`;
+    }
+    try {
+      const r = await fetch(`https://api.paddle.com/subscriptions/${subscriptionId}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({
+          next_billed_at: anchorIso,
+          proration_billing_mode: 'do_not_bill'
+        })
+      });
+      const body = await r.json().catch(() => ({}));
+      result.anchor = { ok: r.ok, status: r.status, error: r.ok ? null : (body?.error || body) };
+    } catch (e) {
+      result.anchor = { ok: false, error: e.message };
+    }
+  }
+
+  if (tierDiscountId) {
+    try {
+      const r = await fetch(`https://api.paddle.com/subscriptions/${subscriptionId}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({
+          discount: {
+            id: tierDiscountId,
+            effective_from: 'next_billing_period'
+          },
+          proration_billing_mode: 'do_not_bill'
+        })
+      });
+      const body = await r.json().catch(() => ({}));
+      result.discount = { ok: r.ok, status: r.status, error: r.ok ? null : (body?.error || body) };
+    } catch (e) {
+      result.discount = { ok: false, error: e.message };
+    }
+  }
+
+  return result;
+}
+
 function extractLeonaAccountId(data) {
   const raw =
     data?.custom_data?.leona_account_id ??
@@ -129,10 +196,29 @@ export async function processPaddleEvent(event, opts = {}) {
   }
 
   let payload = null;
+  let migrationAnchorResult = null;
   switch (eventType) {
     case 'transaction.completed': {
       const qty = sumQuantities(data.items);
       const subId = data.subscription_id || null;
+
+      // Migração Guru→Paddle: a transaction marca migration:true em
+      // custom_data. Antes de ler next_billed_at do Paddle, a gente
+      // PATCHa a subscription pra:
+      //   1. mover next_billed_at pra data Guru (do_not_bill, sem cobrar)
+      //   2. attachar o tier discount recorrente
+      // Aí o fetchPaddleSubscriptionNextBilled abaixo já devolve a
+      // data correta pra sincronizar com o Leona.
+      const cd = data.custom_data || {};
+      if (cd.migration === true && subId) {
+        migrationAnchorResult = await applyMigrationAnchor({
+          subscriptionId: subId,
+          anchorAt: cd.anchor_at || null,
+          tierDiscountId: cd.tier_discount_id || null,
+          paddleApiKey
+        });
+      }
+
       const nextBilled = subId ? await fetchPaddleSubscriptionNextBilled(subId, paddleApiKey) : null;
       const dueDate = toDueDate(nextBilled);
       payload = {
@@ -187,7 +273,8 @@ export async function processPaddleEvent(event, opts = {}) {
         event_type: eventType,
         account_id: accountId,
         payload_attempted: payload,
-        leona_sync: { ok: false, status: result.status, error: result.body?.error || result.error, body: result.body }
+        leona_sync: { ok: false, status: result.status, error: result.body?.error || result.error, body: result.body },
+        ...(migrationAnchorResult ? { migration_anchor: migrationAnchorResult } : {})
       }
     };
   }
@@ -226,7 +313,8 @@ export async function processPaddleEvent(event, opts = {}) {
       received: true,
       event_type: eventType,
       leona_sync: { ok: true, account_id: accountId, payload },
-      guru_cancel: guruCancel
+      guru_cancel: guruCancel,
+      ...(migrationAnchorResult ? { migration_anchor: migrationAnchorResult } : {})
     }
   };
 }

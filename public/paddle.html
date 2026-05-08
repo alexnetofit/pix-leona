@@ -796,7 +796,7 @@
             migrate: {
                 title: 'Migrar para Paddle',
                 buttonLabel: 'Migrar e pagar',
-                footer: 'Apos o pagamento, sua sub Guru é cancelada automaticamente. Voce passa a pagar somente via cartao.'
+                footer: 'Hoje voce paga so a diferenca pelos dias restantes. Sua data de renovacao e mantida e a Guru e cancelada automaticamente.'
             }
         };
 
@@ -821,6 +821,18 @@
             const initialQty = Number(bp.starter_instances) || 1;
             const accountId = bp.account_id;
             const venceuEm = bp.current_period_end ? fmtDate(bp.current_period_end) : null;
+            // Em "migrate" precisamos da data Guru pra pro-rata e pra
+            // ancorar a próxima cobrança. Preferimos cycle_end da Guru
+            // (autoritativo) e caímos pra current_period_end do Leona.
+            const guruEnd = guru?.subscriptions?.[0]?.cycle_end
+                || guru?.subscriptions?.[0]?.next_cycle
+                || null;
+            const anchorAt = guruEnd || bp.current_period_end || null;
+            // No modo migrate, a primeira cobrança é só o pro-rata, então
+            // o "qty inicial" é o atual + 1 (cliente está fazendo upgrade).
+            // Se ele só quiser manter (não recomendado nesse fluxo), o
+            // backend devolve erro e a UI bloqueia.
+            const startQty = mode === 'migrate' ? initialQty + 1 : initialQty;
 
             // Intro varia por modo, com texto humano e claro pro cliente.
             let intro;
@@ -830,8 +842,8 @@
                 }. Use este painel pra <strong>aumentar</strong> ou <strong>reduzir</strong> o numero de conexoes e ativar a cobranca automatica mensal no cartao via Paddle. Voce paga somente a diferenca pelo periodo restante.`;
             } else if (mode === 'migrate') {
                 intro = `Sua conta tem <strong>${initialQty} ${initialQty === 1 ? 'conexão' : 'conexões'}</strong>${
-                    venceuEm ? ` e vence em <strong>${venceuEm}</strong>` : ''
-                }. Voce paga atualmente via Guru. Migre agora para Paddle e cobre seu plano todo mes no cartao automaticamente — sua assinatura na Guru sera cancelada automaticamente apos o pagamento.`;
+                    venceuEm ? ` e renova em <strong>${venceuEm}</strong>` : ''
+                }. Voce paga atualmente via Guru. Migre agora para Paddle adicionando mais conexoes — voce paga hoje so a diferenca dos dias restantes (pro-rata), sua data de renovacao em ${venceuEm || 'breve'} e mantida, e a Guru e cancelada automaticamente apos o pagamento.`;
             } else if (mode === 'reactivate') {
                 intro = `Sua assinatura Paddle anterior foi encerrada. Reative quando quiser, mantendo o mesmo plano.`;
             } else if (mode === 'renew_inc') {
@@ -869,11 +881,12 @@
 
                     <div class="qty-control">
                         <button onclick="renewAdjust(-1)">−</button>
-                        <input type="number" id="renew-qty" value="${initialQty}" min="1"
+                        <input type="number" id="renew-qty" value="${startQty}" min="1"
                                oninput="renewPreview()"
                                data-price-id="${escapeHtml(priceId)}"
                                data-current-qty="${initialQty}"
                                data-mode="${mode}"
+                               data-anchor-at="${escapeHtml(anchorAt || '')}"
                                data-base-label="${escapeHtml(m.buttonLabel)}">
                         <button onclick="renewAdjust(1)">+</button>
                     </div>
@@ -1012,6 +1025,71 @@
                 if (!el) return;
                 const price_id = el.dataset.priceId;
                 const quantity = parseInt(el.value, 10) || 1;
+                const mode = el.dataset.mode || 'renew';
+                const currentQty = parseInt(el.dataset.currentQty, 10) || 0;
+                const baseLabel = el.dataset.baseLabel || 'Continuar';
+                const anchorAt = el.dataset.anchorAt || null;
+
+                // Modo "migrate" usa o simulador especifico de migracao
+                // (delta_only com pro-rata pelos dias restantes ate a Guru).
+                if (mode === 'migrate') {
+                    if (!anchorAt) {
+                        preview.innerHTML = `<span style="color: var(--error);">Sem data de renovacao Guru. Fale com o suporte.</span>`;
+                        return;
+                    }
+                    if (quantity <= currentQty) {
+                        preview.innerHTML = `
+                            <div style="color: var(--warning); font-size: 0.9rem; line-height: 1.4;">
+                                Migracao Guru → Paddle disponivel apenas para upgrade.
+                                Aumente para <strong>${currentQty + 1}</strong> ou mais conexoes,
+                                ou aguarde sua renovacao Guru e contrate na Paddle nesse momento.
+                            </div>
+                        `;
+                        btn.disabled = true;
+                        btn.textContent = baseLabel;
+                        return;
+                    }
+                    try {
+                        const r = await fetch('/api/paddle-subscription', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                action: 'migration_preview',
+                                current_qty: currentQty,
+                                target_qty: quantity,
+                                anchor_at: anchorAt
+                            })
+                        });
+                        const data = await r.json();
+                        if (!r.ok) {
+                            preview.innerHTML = `<span style="color: var(--error);">${escapeHtml(data.error || 'Erro ao calcular')}</span>`;
+                            btn.disabled = true;
+                            return;
+                        }
+                        const anchorFmt = fmtDate(data.anchor_at);
+                        const minBadge = data.minimum_applied
+                            ? ` <span style="color: var(--text-muted); font-size: 0.78rem;">(valor minimo)</span>`
+                            : '';
+                        preview.innerHTML = `
+                            <div style="line-height: 1.5;">
+                                <div>Pague hoje: <strong style="color: var(--paddle);">${data.formatted_prorata}</strong>${minBadge}</div>
+                                <div style="color: var(--text-muted); font-size: 0.82rem;">
+                                    ${data.extra_seats} ${data.extra_seats === 1 ? 'conexao extra' : 'conexoes extras'}
+                                    × ${data.days_remaining} ${data.days_remaining === 1 ? 'dia' : 'dias'} ate ${anchorFmt}
+                                </div>
+                                <div style="margin-top: 8px;">
+                                    Proxima cobranca: <strong>${anchorFmt}</strong> — <strong>${data.formatted_full_monthly}/mes</strong>
+                                </div>
+                            </div>
+                        `;
+                        btn.textContent = `Migrar e pagar ${data.formatted_prorata}`;
+                        btn.disabled = false;
+                    } catch (err) {
+                        preview.innerHTML = `<span style="color: var(--error);">Erro de conexao: ${escapeHtml(err.message)}</span>`;
+                        btn.disabled = true;
+                    }
+                    return;
+                }
 
                 try {
                     const r = await fetch('/api/paddle-subscription', {
@@ -1055,9 +1133,6 @@
                     // sub Paddle), o cliente esta efetivamente ajustando o plano.
                     // Mostramos label que reflete o que vai acontecer: manter,
                     // aumentar ou reduzir o numero de conexoes.
-                    const mode = el.dataset.mode || 'renew';
-                    const currentQty = parseInt(el.dataset.currentQty, 10) || 0;
-                    const baseLabel = el.dataset.baseLabel || 'Continuar';
                     if (mode === 'subscribe' && currentQty > 0) {
                         if (quantity === currentQty) {
                             btn.textContent = `Manter ${quantity} ${quantity === 1 ? 'conexao' : 'conexoes'}`;
@@ -1082,28 +1157,51 @@
             const btn = document.getElementById('renew-btn');
             if (!el || !btn) return;
             const quantity = parseInt(el.value, 10) || 1;
+            const mode = el.dataset.mode || 'renew';
+            const currentQty = parseInt(el.dataset.currentQty, 10) || 0;
+            const anchorAt = el.dataset.anchorAt || null;
             const originalLabel = btn.textContent;
             btn.disabled = true;
             btn.textContent = 'Gerando link...';
+
+            const userName = _data?.leona?.billing_profile?.user?.name
+                || _data?.leona?.billing_profiles?.[0]?.user?.name
+                || null;
+
+            // Migracao Guru → Paddle vai pra action dedicada que cobra
+            // pro-rata e injeta custom_data pra o webhook ancorar a sub
+            // na data de renovacao da Guru.
+            const body = (mode === 'migrate')
+                ? {
+                    action: 'create_migration_checkout',
+                    price_id,
+                    current_qty: currentQty,
+                    target_qty: quantity,
+                    anchor_at: anchorAt,
+                    account_id,
+                    email: _email,
+                    name: userName
+                }
+                : {
+                    action: 'create_renewal_checkout',
+                    price_id,
+                    quantity,
+                    account_id,
+                    email: _email,
+                    name: userName
+                };
 
             try {
                 const r = await fetch('/api/paddle-subscription', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'create_renewal_checkout',
-                        price_id,
-                        quantity,
-                        account_id,
-                        email: _email,
-                        name: _data?.leona?.billing_profile?.user?.name || null
-                    })
+                    body: JSON.stringify(body)
                 });
                 const data = await r.json();
                 if (!r.ok || !data.checkout_url) {
                     btn.disabled = false;
                     btn.textContent = originalLabel;
-                    alert('Nao consegui gerar o link agora. Tente novamente em instantes ou fale com o suporte.');
+                    alert(data.error || 'Nao consegui gerar o link agora. Tente novamente em instantes ou fale com o suporte.');
                     console.error('renewCheckout falhou:', data);
                     return;
                 }
