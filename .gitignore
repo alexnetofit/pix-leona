@@ -18,3 +18,7 @@
 Thumbs.db
 .vercel
 .env*.local
+
+# Scripts locais one-shot (nao versionar)
+scripts/
+
