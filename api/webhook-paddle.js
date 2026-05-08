@@ -114,24 +114,68 @@ async function applyMigrationAnchor({ subscriptionId, anchorAt, tierDiscountId, 
   };
   const result = { anchor: null, discount: null };
 
+  // Pré-checa o estado atual da subscription. A Paddle rejeita PATCH
+  // de next_billed_at se o anchor for <= started_at — nesse caso o
+  // ciclo Paddle "default" (D → D+30) prevalece, o que efetivamente
+  // dá ao cliente um mês quase de graça quando ele migra colado no
+  // vencimento Guru. Esse cenário deveria ter sido bloqueado no
+  // create_migration_checkout (MIN_MIGRATION_DAYS), mas se chegou
+  // aqui, é melhor logar bem visivel pro suporte.
+  let subSnapshot = null;
+  try {
+    const r = await fetch(`https://api.paddle.com/subscriptions/${subscriptionId}`, { headers });
+    if (r.ok) {
+      const body = await r.json();
+      subSnapshot = body.data || null;
+    }
+  } catch (_) {}
+
   if (anchorAt) {
     let anchorIso = anchorAt;
     if (/^\d{4}-\d{2}-\d{2}$/.test(anchorAt)) {
       anchorIso = `${anchorAt}T00:00:00Z`;
     }
-    try {
-      const r = await fetch(`https://api.paddle.com/subscriptions/${subscriptionId}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({
-          next_billed_at: anchorIso,
-          proration_billing_mode: 'do_not_bill'
-        })
-      });
-      const body = await r.json().catch(() => ({}));
-      result.anchor = { ok: r.ok, status: r.status, error: r.ok ? null : (body?.error || body) };
-    } catch (e) {
-      result.anchor = { ok: false, error: e.message };
+
+    // Defesa explícita: se anchor_at já passou em relação ao
+    // started_at da sub, skipa o PATCH e loga warning. Sem isso,
+    // o PATCH 4xx fica enterrado no response body e ninguém vê.
+    const startedAtMs = subSnapshot?.started_at ? new Date(subSnapshot.started_at).getTime() : null;
+    const anchorMs = new Date(anchorIso).getTime();
+    if (startedAtMs && Number.isFinite(anchorMs) && anchorMs <= startedAtMs) {
+      console.warn(
+        `[migration_anchor] ANCHOR NO PASSADO sub=${subscriptionId} anchor=${anchorIso} started_at=${subSnapshot.started_at}. ` +
+        `PATCH skipado — ciclo Paddle ficará D→D+30 e o cliente terá 1 mês quase grátis. ` +
+        `Considere ajustar a sub manualmente ou aguardar 1 ciclo.`
+      );
+      result.anchor = {
+        ok: false,
+        skipped: true,
+        reason: 'anchor_in_past',
+        anchor_at: anchorIso,
+        started_at: subSnapshot.started_at
+      };
+    } else {
+      try {
+        const r = await fetch(`https://api.paddle.com/subscriptions/${subscriptionId}`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({
+            next_billed_at: anchorIso,
+            proration_billing_mode: 'do_not_bill'
+          })
+        });
+        const body = await r.json().catch(() => ({}));
+        result.anchor = { ok: r.ok, status: r.status, error: r.ok ? null : (body?.error || body) };
+        if (!r.ok) {
+          console.warn(
+            `[migration_anchor] PATCH next_billed_at FALHOU sub=${subscriptionId} ` +
+            `anchor=${anchorIso} status=${r.status} error=${JSON.stringify(body?.error || body)}`
+          );
+        }
+      } catch (e) {
+        console.warn(`[migration_anchor] EXCEPTION no PATCH next_billed_at sub=${subscriptionId}: ${e.message}`);
+        result.anchor = { ok: false, error: e.message };
+      }
     }
   }
 
@@ -150,7 +194,14 @@ async function applyMigrationAnchor({ subscriptionId, anchorAt, tierDiscountId, 
       });
       const body = await r.json().catch(() => ({}));
       result.discount = { ok: r.ok, status: r.status, error: r.ok ? null : (body?.error || body) };
+      if (!r.ok) {
+        console.warn(
+          `[migration_anchor] PATCH discount FALHOU sub=${subscriptionId} ` +
+          `discount=${tierDiscountId} status=${r.status} error=${JSON.stringify(body?.error || body)}`
+        );
+      }
     } catch (e) {
+      console.warn(`[migration_anchor] EXCEPTION no PATCH discount sub=${subscriptionId}: ${e.message}`);
       result.discount = { ok: false, error: e.message };
     }
   }

@@ -129,6 +129,11 @@ function buildTierSummary(qty) {
 //     até a data de renovação Guru. Os N seats atuais já foram pagos
 //     na Guru pra esse ciclo.
 //   - Mínimo R$ 5,00 (abaixo disso vira ruído operacional).
+//   - Mínimo 3 dias até a renovação. Abaixo disso o fluxo migrate
+//     vira armadilha: a subscription Paddle (ciclo D → D+30) acaba
+//     "comendo" um mês quase de graça porque o pro-rata de 1-2 dias
+//     não casa com o ciclo recorrente. Esse caso vira fallback pra
+//     renovação cheia via Paddle (que cancela Guru igual).
 //
 // Após o pagamento, o webhook ancora a subscription Paddle no
 // `anchor_at` (data Guru) com `do_not_bill`, e attacha o tier
@@ -136,6 +141,7 @@ function buildTierSummary(qty) {
 // menor, próxima na data Guru no valor cheio.
 // ----------------------------------------------------------------
 const MIN_PRORATA_CENTS = 500; // R$ 5,00
+const MIN_MIGRATION_DAYS = 3;
 
 function daysUntil(endIso, now = new Date()) {
   if (!endIso) return 0;
@@ -174,6 +180,13 @@ function calcMigrationProrata({ current_qty, target_qty, anchor_at, now = new Da
       ok: false,
       reason: 'expired_anchor',
       error: 'Sua renovação na Guru já chegou. Use o fluxo de renovação direto na Paddle (sem migração).'
+    };
+  }
+  if (days < MIN_MIGRATION_DAYS) {
+    return {
+      ok: false,
+      reason: 'too_close_to_renewal',
+      error: `Faltam menos de ${MIN_MIGRATION_DAYS} dias para sua renovação Guru — não compensa migrar agora. Renove direto via Paddle no plano cheio que sua Guru é cancelada na sequência.`
     };
   }
   const unitTargetCents = tierUnitCents(M);
