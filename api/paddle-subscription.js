@@ -138,7 +138,21 @@ function buildTierSummary(qty) {
 const MIN_PRORATA_CENTS = 500; // R$ 5,00
 
 function daysUntil(endIso, now = new Date()) {
-  const endMs = new Date(endIso).getTime();
+  if (!endIso) return 0;
+  const s = String(endIso);
+  // Datas YYYY-MM-DD (formato padrao da Guru) sao interpretadas como
+  // FIM do dia em UTC-3 (Brasil). Sem isso, "2026-05-08" vira 00h UTC,
+  // o que parece "ja vencido" pra cliente brasileiro fazendo migracao
+  // as 21h do dia 07.
+  const ymdMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  let endMs;
+  if (ymdMatch) {
+    const [, y, mo, d] = ymdMatch;
+    // 23:59:59 BRT (UTC-3) = 02:59:59 UTC do dia seguinte
+    endMs = Date.UTC(Number(y), Number(mo) - 1, Number(d) + 1, 2, 59, 59);
+  } else {
+    endMs = new Date(s).getTime();
+  }
   const nowMs = now.getTime();
   if (!Number.isFinite(endMs) || endMs <= nowMs) return 0;
   return Math.max(1, Math.ceil((endMs - nowMs) / (1000 * 60 * 60 * 24)));

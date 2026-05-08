@@ -1030,59 +1030,91 @@
                 const baseLabel = el.dataset.baseLabel || 'Continuar';
                 const anchorAt = el.dataset.anchorAt || null;
 
-                // Modo "migrate" usa o simulador especifico de migracao
-                // (delta_only com pro-rata pelos dias restantes ate a Guru).
+                // Modo "migrate" tenta o simulador especifico de migracao
+                // (delta_only com pro-rata). Se nao for upgrade ou se a
+                // renovacao Guru ja chegou, faz fallback automatico pro
+                // fluxo de renovacao cheia via Paddle (cancela Guru
+                // depois, igual o renew_inc).
                 if (mode === 'migrate') {
-                    if (!anchorAt) {
-                        preview.innerHTML = `<span style="color: var(--error);">Sem data de renovacao Guru. Fale com o suporte.</span>`;
-                        return;
+                    if (anchorAt && quantity > currentQty) {
+                        try {
+                            const r = await fetch('/api/paddle-subscription', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    action: 'migration_preview',
+                                    current_qty: currentQty,
+                                    target_qty: quantity,
+                                    anchor_at: anchorAt
+                                })
+                            });
+                            const data = await r.json();
+                            if (r.ok) {
+                                el.dataset.fallbackRenew = '0';
+                                const anchorFmt = fmtDate(data.anchor_at);
+                                const minBadge = data.minimum_applied
+                                    ? ` <span style="color: var(--text-muted); font-size: 0.78rem;">(valor minimo)</span>`
+                                    : '';
+                                preview.innerHTML = `
+                                    <div style="line-height: 1.5;">
+                                        <div>Pague hoje: <strong style="color: var(--paddle);">${data.formatted_prorata}</strong>${minBadge}</div>
+                                        <div style="color: var(--text-muted); font-size: 0.82rem;">
+                                            ${data.extra_seats} ${data.extra_seats === 1 ? 'conexao extra' : 'conexoes extras'}
+                                            × ${data.days_remaining} ${data.days_remaining === 1 ? 'dia' : 'dias'} ate ${anchorFmt}
+                                        </div>
+                                        <div style="margin-top: 8px;">
+                                            Proxima cobranca: <strong>${anchorFmt}</strong> — <strong>${data.formatted_full_monthly}/mes</strong>
+                                        </div>
+                                    </div>
+                                `;
+                                btn.textContent = `Migrar e pagar ${data.formatted_prorata}`;
+                                btn.disabled = false;
+                                return;
+                            }
+                            // Backend rejeitou (expired_anchor/not_upgrade):
+                            // cai pro fluxo de renovacao cheia abaixo.
+                        } catch (err) {
+                            preview.innerHTML = `<span style="color: var(--error);">Erro de conexao: ${escapeHtml(err.message)}</span>`;
+                            btn.disabled = true;
+                            return;
+                        }
                     }
-                    if (quantity <= currentQty) {
-                        preview.innerHTML = `
-                            <div style="color: var(--warning); font-size: 0.9rem; line-height: 1.4;">
-                                Migracao Guru → Paddle disponivel apenas para upgrade.
-                                Aumente para <strong>${currentQty + 1}</strong> ou mais conexoes,
-                                ou aguarde sua renovacao Guru e contrate na Paddle nesse momento.
-                            </div>
-                        `;
-                        btn.disabled = true;
-                        btn.textContent = baseLabel;
-                        return;
-                    }
+
+                    // Fallback: renovacao cheia no plano escolhido.
+                    // Marca o input pra create_renewal_checkout no clique.
+                    el.dataset.fallbackRenew = '1';
                     try {
                         const r = await fetch('/api/paddle-subscription', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                action: 'migration_preview',
-                                current_qty: currentQty,
-                                target_qty: quantity,
-                                anchor_at: anchorAt
-                            })
+                            body: JSON.stringify({ action: 'pricing_preview', price_id, quantity })
                         });
                         const data = await r.json();
-                        if (!r.ok) {
-                            preview.innerHTML = `<span style="color: var(--error);">${escapeHtml(data.error || 'Erro ao calcular')}</span>`;
+                        if (!r.ok || !data.tier) {
+                            preview.innerHTML = `<span style="color: var(--error);">${escapeHtml(data.error?.detail || data.error || 'Erro ao calcular')}</span>`;
                             btn.disabled = true;
                             return;
                         }
-                        const anchorFmt = fmtDate(data.anchor_at);
-                        const minBadge = data.minimum_applied
-                            ? ` <span style="color: var(--text-muted); font-size: 0.78rem;">(valor minimo)</span>`
-                            : '';
+                        const tier = data.tier;
+                        const reason = quantity <= currentQty
+                            ? `Pra <strong>${quantity} ${quantity === 1 ? 'conexao' : 'conexoes'}</strong> nao tem pro-rata: voce ja pagou esse periodo na Guru. Renove agora via Paddle no plano cheio — sua Guru sera cancelada apos o pagamento.`
+                            : `Sua renovacao Guru chega muito em breve. Renove agora via Paddle no plano cheio (${quantity} ${quantity === 1 ? 'conexao' : 'conexoes'}) — sua Guru sera cancelada apos o pagamento.`;
                         preview.innerHTML = `
                             <div style="line-height: 1.5;">
-                                <div>Pague hoje: <strong style="color: var(--paddle);">${data.formatted_prorata}</strong>${minBadge}</div>
-                                <div style="color: var(--text-muted); font-size: 0.82rem;">
-                                    ${data.extra_seats} ${data.extra_seats === 1 ? 'conexao extra' : 'conexoes extras'}
-                                    × ${data.days_remaining} ${data.days_remaining === 1 ? 'dia' : 'dias'} ate ${anchorFmt}
+                                <div style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 8px;">
+                                    ${reason}
                                 </div>
-                                <div style="margin-top: 8px;">
-                                    Proxima cobranca: <strong>${anchorFmt}</strong> — <strong>${data.formatted_full_monthly}/mes</strong>
+                                <div>Valor por conexao: <strong>${tier.formatted_unit}</strong>${
+                                    tier.quantity > 1
+                                        ? ` <span style="color: var(--text-muted); font-size: 0.85rem;">(de ${tier.formatted_base_unit})</span>`
+                                        : ''
+                                }</div>
+                                <div style="font-size: 1.15rem; margin-top: 4px;">
+                                    Total: <strong style="color: var(--paddle);">${tier.formatted_total} / mes</strong>
                                 </div>
                             </div>
                         `;
-                        btn.textContent = `Migrar e pagar ${data.formatted_prorata}`;
+                        btn.textContent = `Renovar via Paddle ${tier.formatted_total}`;
                         btn.disabled = false;
                     } catch (err) {
                         preview.innerHTML = `<span style="color: var(--error);">Erro de conexao: ${escapeHtml(err.message)}</span>`;
@@ -1160,6 +1192,7 @@
             const mode = el.dataset.mode || 'renew';
             const currentQty = parseInt(el.dataset.currentQty, 10) || 0;
             const anchorAt = el.dataset.anchorAt || null;
+            const fallbackRenew = el.dataset.fallbackRenew === '1';
             const originalLabel = btn.textContent;
             btn.disabled = true;
             btn.textContent = 'Gerando link...';
@@ -1168,10 +1201,12 @@
                 || _data?.leona?.billing_profiles?.[0]?.user?.name
                 || null;
 
-            // Migracao Guru → Paddle vai pra action dedicada que cobra
-            // pro-rata e injeta custom_data pra o webhook ancorar a sub
-            // na data de renovacao da Guru.
-            const body = (mode === 'migrate')
+            // Migracao Guru → Paddle vai pra action dedicada (pro-rata +
+            // ancorar na data Guru). Se o preview decidiu fallback pra
+            // renovacao cheia (qty <= atual ou anchor expirado), usa o
+            // create_renewal_checkout normal.
+            const useMigration = mode === 'migrate' && !fallbackRenew && quantity > currentQty;
+            const body = useMigration
                 ? {
                     action: 'create_migration_checkout',
                     price_id,
