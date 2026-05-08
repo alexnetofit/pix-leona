@@ -1,7 +1,38 @@
+import { updateGuruContact } from '../lib/guru.js';
+
 const LEONA_PRODUCT_ID = 'a1869b83-b28d-4257-a986-1df94558a152';
 const LEONA_BASE = 'https://apiaws.leonasolutions.io/api/v1/integration';
 const GURU_BASE = 'https://digitalmanager.guru/api/v2';
 const STRIPE_UPGRADE_COUPON_PREFIX = 'up-leona-';
+
+/**
+ * Procura o `src` do tracking no payload da Guru.
+ *
+ * O `src` e enviado como query param do checkout (?src=<account_id>) e
+ * a Guru o repassa no webhook em algum desses lugares (depende do tipo
+ * de transacao). Pegamos a primeira ocorrencia nao-vazia.
+ *
+ * Convencao do projeto: usar `src` para carregar o `account_id` Leona,
+ * permitindo que o webhook saiba qual conta atualizar mesmo quando o
+ * cliente compra com email diferente do cadastrado.
+ */
+function extractSrc(payload) {
+  const candidates = [
+    payload?.src,
+    payload?.subscription?.src,
+    payload?.transaction?.src,
+    payload?.tracking?.src,
+    payload?.tracking?.source,
+    payload?.transaction?.tracking?.source,
+    payload?.transaction?.tracking?.src,
+    payload?.metadata?.src,
+    payload?.checkout?.src
+  ];
+  for (const c of candidates) {
+    if (c != null && String(c).trim() !== '') return String(c).trim();
+  }
+  return null;
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -78,23 +109,53 @@ export default async function handler(req, res) {
       'Content-Type': 'application/json'
     };
 
-    const profiles = await fetchLeonaProfiles(email, leonaHeaders);
+    // Priorizacao por src (account_id Leona vindo do checkout):
+    // se o front mandou ?src=<account_id> no checkout, a Guru repassa esse
+    // valor no webhook. Isso evita problemas quando o cliente compra com um
+    // email diferente do cadastrado na Leona.
+    const srcRaw = extractSrc(payload);
+    const srcAccountId = srcRaw && /^\d+$/.test(srcRaw) ? Number(srcRaw) : null;
 
-    if (profiles.length === 0) {
-      console.error('webhook-guru: nenhuma conta Leona encontrada para:', email);
-      return res.status(200).json({
-        received: true,
-        processed: false,
-        error: `nenhuma conta Leona encontrada para ${email}`
-      });
+    let match = null;
+    let firstLink = false;
+    let profiles = [];
+
+    if (srcAccountId) {
+      console.log(`webhook-guru: src=${srcAccountId} detectado, buscando conta Leona direto pelo ID`);
+      try {
+        const r = await fetch(`${LEONA_BASE}/accounts/${srcAccountId}/billing_profile`, { headers: leonaHeaders });
+        if (r.ok) {
+          const profile = await r.json();
+          match = profile;
+          profiles = [profile];
+          firstLink = !profile.guru_account_id || (profile.guru_account_id !== guruSubId && profile.guru_account_id !== guruSubCode);
+          console.log(`webhook-guru: conta ${srcAccountId} encontrada via src${firstLink ? ' (precisa vincular guru_account_id)' : ''}`);
+        } else {
+          console.log(`webhook-guru: conta ${srcAccountId} (src) nao encontrada na Leona (status ${r.status}), caindo no fluxo de email`);
+        }
+      } catch (e) {
+        console.error(`webhook-guru: erro buscando conta ${srcAccountId} via src:`, e.message);
+      }
     }
 
-    let match = profiles.find(p =>
-      p.guru_account_id &&
-      (p.guru_account_id === guruSubId || p.guru_account_id === guruSubCode)
-    );
+    // Fallback: se nao achou via src, faz lookup tradicional por email.
+    if (!match) {
+      profiles = await fetchLeonaProfiles(email, leonaHeaders);
 
-    let firstLink = false;
+      if (profiles.length === 0) {
+        console.error('webhook-guru: nenhuma conta Leona encontrada para:', email);
+        return res.status(200).json({
+          received: true,
+          processed: false,
+          error: `nenhuma conta Leona encontrada para ${email}`
+        });
+      }
+
+      match = profiles.find(p =>
+        p.guru_account_id &&
+        (p.guru_account_id === guruSubId || p.guru_account_id === guruSubCode)
+      );
+    }
 
     if (!match) {
       const unlinked = profiles.filter(p => !p.guru_account_id);
@@ -205,9 +266,27 @@ export default async function handler(req, res) {
         await syncGuruCycleDate(guruSubId, existingPeriodEnd, accountId, leonaHeaders);
       }
 
+      // Sincronia de email Leona -> Guru: quando o cliente compra via /assinatura
+      // com um src valido, podemos ter uma conta Leona com email diferente do
+      // que foi usado na Guru. Nesse caso, atualizamos o contato Guru pra que
+      // futuros pagamentos cheguem com o email correto.
+      let emailSync = null;
+      try {
+        emailSync = await syncGuruContactEmail({
+          payload,
+          leonaProfile: match,
+          guruWebhookEmail: email,
+          accountId
+        });
+      } catch (e) {
+        emailSync = { skipped: true, error: e.message };
+        console.error(`webhook-guru: erro inesperado em syncGuruContactEmail:`, e.message);
+      }
+
       return res.status(200).json({
         received: true,
         processed: true,
+        email_sync: emailSync,
         account_id: accountId,
         instances,
         is_upgrade_downgrade: isUpgradeOrDowngrade,
@@ -410,6 +489,80 @@ async function syncGuruCycleDate(subscriptionId, leonaPeriodEnd, accountId, leon
   } catch (e) {
     console.error('webhook-guru: erro ao ajustar ciclo na Guru:', e.message);
   }
+}
+
+/**
+ * Compara o email do contato Guru com o email do dono da conta Leona.
+ * Se forem diferentes, atualiza o contato Guru pra que futuras compras
+ * cheguem com o email correto (matching mais preciso).
+ *
+ * Em caso de erro de duplicidade de documento na Guru (outro contato ja
+ * tem aquele doc), o helper updateGuruContact tenta variacoes do ultimo
+ * digito automaticamente.
+ *
+ * Retorna um objeto descrevendo o resultado pra debug:
+ *   - { skipped: true, reason }
+ *   - { synced: true, from, to, attempts, final_doc }
+ *   - { synced: false, error }
+ */
+async function syncGuruContactEmail({ payload, leonaProfile, guruWebhookEmail, accountId }) {
+  const guruToken = process.env.GURU_TOKEN;
+  if (!guruToken) {
+    return { skipped: true, reason: 'GURU_TOKEN nao configurado' };
+  }
+
+  const leonaEmail = leonaProfile?.user?.email;
+  if (!leonaEmail) {
+    return { skipped: true, reason: 'conta Leona sem email no user' };
+  }
+
+  const leonaEmailNorm = String(leonaEmail).trim().toLowerCase();
+  const guruEmailNorm = String(guruWebhookEmail || '').trim().toLowerCase();
+
+  if (!guruEmailNorm) {
+    return { skipped: true, reason: 'webhook sem email no contato Guru' };
+  }
+
+  if (leonaEmailNorm === guruEmailNorm) {
+    return { skipped: true, reason: 'emails ja iguais' };
+  }
+
+  const contactId = payload?.contact?.internal_id || payload?.contact?.id;
+  if (!contactId) {
+    return { skipped: true, reason: 'webhook sem contact.internal_id' };
+  }
+
+  console.log(`webhook-guru: sincronizando email Guru contact=${contactId} de ${guruEmailNorm} -> ${leonaEmailNorm} (conta Leona ${accountId})`);
+
+  const updatePayload = { email: leonaEmailNorm };
+  // Inclui o doc atual na requisicao caso a Guru exija (e tambem porque o
+  // helper precisa do doc pra fazer o retry de duplicidade).
+  const currentDoc = payload?.contact?.doc;
+  if (currentDoc) updatePayload.doc = String(currentDoc);
+
+  const result = await updateGuruContact(contactId, updatePayload, guruToken);
+
+  if (result.ok) {
+    console.log(`webhook-guru: email Guru contact=${contactId} sincronizado em ${result.attempts} tentativa(s) (doc final=${result.final_doc})`);
+    return {
+      synced: true,
+      contact_id: contactId,
+      from: guruEmailNorm,
+      to: leonaEmailNorm,
+      attempts: result.attempts,
+      final_doc: result.final_doc
+    };
+  }
+
+  console.error(`webhook-guru: falha ao sincronizar email Guru contact=${contactId}: status=${result.status} body=${JSON.stringify(result.body || {}).slice(0, 200)}`);
+  return {
+    synced: false,
+    contact_id: contactId,
+    from: guruEmailNorm,
+    to: leonaEmailNorm,
+    attempts: result.attempts || 1,
+    error: result.error || 'erro desconhecido'
+  };
 }
 
 /**

@@ -700,10 +700,13 @@
             const validityLabel = active ? 'Ativa até' : 'Venceu em';
             return `
                 <div class="card" style="${active ? 'border-color: var(--accent); box-shadow: 0 0 20px var(--glow-purple);' : 'border-color: var(--error);'}">
-                    <h3>Sua assinatura${total > 1 ? ` (${connections} conex${connections !== 1 ? 'ões' : 'ão'})` : ''}</h3>
+                    <h3>Sua assinatura${total > 1 ? ` #${idx + 1}` : ''}</h3>
                     <div>
                         ${bp.user?.name ? `<div class="info-row"><span class="info-label">Nome</span><span class="info-value">${bp.user.name}</span></div>` : ''}
-                        ${connections > 0 ? `<div class="info-row"><span class="info-label">Plano</span><span class="info-value">${connections} conex${connections !== 1 ? 'ões' : 'ão'}</span></div>` : ''}
+                        ${bp.user?.email ? `<div class="info-row"><span class="info-label">E-mail</span><span class="info-value">${bp.user.email}</span></div>` : ''}
+                        ${bp.account_id ? `<div class="info-row"><span class="info-label">ID da conta</span><span class="info-value">${bp.account_id}</span></div>` : ''}
+                        ${bp.plan_summary ? `<div class="info-row"><span class="info-label">Plano</span><span class="info-value">${bp.plan_summary}</span></div>` : ''}
+                        ${connections > 0 ? `<div class="info-row"><span class="info-label">Conexões</span><span class="info-value">${connections}</span></div>` : ''}
                         ${bp.current_period_end ? `<div class="info-row"><span class="info-label">${validityLabel}</span><span class="info-value">${formatDate(bp.current_period_end)}</span></div>` : ''}
                     </div>
                 </div>
@@ -724,7 +727,7 @@
             `;
         }
 
-        function renderQtySelector(offers, email, slot) {
+        function renderQtySelector(offers, email, slot, accountId) {
             if (!offers || offers.length === 0) return '';
             const qtys = [];
             for (const o of offers) {
@@ -740,7 +743,7 @@
             const initialQty = qtys[0];
             const initialOffer = getOfferForQty(offers, initialQty);
 
-            _qtySelStates[slotId] = { offers, email };
+            _qtySelStates[slotId] = { offers, email, accountId: accountId || null };
 
             return `
                 <div class="card">
@@ -797,8 +800,14 @@
             const qty = parseInt(input.value) || 0;
             const offer = getOfferForQty(state.offers, qty);
             if (!offer || !offer.checkout_url) return;
+            const params = [];
+            if (state.email) params.push('email=' + encodeURIComponent(state.email));
+            // src = account_id da Leona (quando existe), pra que o webhook-guru
+            // saiba qual conta atualizar mesmo se o cliente comprar com email
+            // diferente do cadastrado.
+            if (state.accountId) params.push('src=' + encodeURIComponent(String(state.accountId)));
             const sep = offer.checkout_url.includes('?') ? '&' : '?';
-            const url = offer.checkout_url + sep + 'email=' + encodeURIComponent(state.email);
+            const url = offer.checkout_url + (params.length ? sep + params.join('&') : '');
             window.open(url, '_blank');
         }
 
@@ -1001,7 +1010,7 @@
                                     Escolha um plano abaixo para renovar.
                                 </div>
                             `;
-                            html += renderQtySelector(offers, email, `exp${i}`);
+                            html += renderQtySelector(offers, email, `exp${i}`, bp.account_id);
                         }
                     } else {
                         // Cenário 1: Leona vencida + sem Guru
@@ -1011,7 +1020,7 @@
                                 Escolha um plano abaixo para renovar.
                             </div>
                         `;
-                        html += renderQtySelector(offers, email, `noguru${i}`);
+                        html += renderQtySelector(offers, email, `noguru${i}`, bp.account_id);
                     }
                 } else {
                     // Cenário 4: Leona ativa — upgrade/downgrade
