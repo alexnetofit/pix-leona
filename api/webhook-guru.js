@@ -26,7 +26,15 @@ function extractSrc(payload) {
     payload?.transaction?.tracking?.source,
     payload?.transaction?.tracking?.src,
     payload?.metadata?.src,
-    payload?.checkout?.src
+    payload?.checkout?.src,
+    // A Guru hoje (2026) entrega o tracking do checkout dentro de
+    // `payload.source` como objeto: { source, utm_source, utm_campaign, ... }.
+    // O `source.source` carrega o valor da query ?src=<account_id>.
+    payload?.source?.source,
+    payload?.source?.src,
+    payload?.source?.utm_source,
+    payload?.contact?.tracking?.source,
+    payload?.contact?.tracking_source
   ];
   for (const c of candidates) {
     if (c != null && String(c).trim() !== '') return String(c).trim();
@@ -165,21 +173,48 @@ export default async function handler(req, res) {
         firstLink = true;
         console.log(`webhook-guru: conta ${match.account_id} sem guru_account_id, vinculando à subscription ${guruSubId}`);
       } else if (unlinked.length > 1) {
-        const activeUnlinked = unlinked.filter(p =>
-          p.subscription_status === 'active' && p.current_period_end && new Date(p.current_period_end) > new Date()
-        );
+        // Prioridade pra desempatar quando ha varias contas no mesmo email
+        // sem vinculo Guru (cenario classico: cliente criou 2 contas e voltou
+        // pagar pelo link puro da Guru, sem o src do checkout):
+        //   1. exatamente 1 com subscription_status='active' e periodo futuro
+        //   2. exatamente 1 com subscription_status='past_due'
+        //      (e claro: cliente que estava pagando e atrasou, agora reativando)
+        //   3. desempate por current_period_end mais recente entre as
+        //      candidatas "vivas" (active ou past_due)
+        // Se nada disso bater, aborta com erro detalhado pra acao manual.
+        const now = new Date();
+        const isActive = (p) => p.subscription_status === 'active' && p.current_period_end && new Date(p.current_period_end) > now;
+        const isPastDue = (p) => p.subscription_status === 'past_due';
+
+        const activeUnlinked = unlinked.filter(isActive);
+        const pastDueUnlinked = unlinked.filter(isPastDue);
+
         if (activeUnlinked.length === 1) {
           match = activeUnlinked[0];
           firstLink = true;
           console.log(`webhook-guru: múltiplas contas sem vínculo, mas apenas conta ${match.account_id} está ativa, vinculando à subscription ${guruSubId}`);
+        } else if (activeUnlinked.length === 0 && pastDueUnlinked.length === 1) {
+          match = pastDueUnlinked[0];
+          firstLink = true;
+          console.log(`webhook-guru: múltiplas contas sem vínculo, nenhuma ativa, mas conta ${match.account_id} está past_due (cliente reativando), vinculando à subscription ${guruSubId}`);
         } else {
-          console.log(`webhook-guru: ${activeUnlinked.length} contas ativas sem vínculo, não é possível determinar qual atualizar. Contas: ${profiles.map(p => `${p.account_id}(guru=${p.guru_account_id}, status=${p.subscription_status})`).join(', ')}`);
-          return res.status(200).json({
-            received: true,
-            processed: false,
-            error: `múltiplas contas sem vínculo (${unlinked.length}), ${activeUnlinked.length} ativas — não é possível determinar qual atualizar`,
-            accounts_found: profiles.map(p => ({ account_id: p.account_id, guru_account_id: p.guru_account_id, status: p.subscription_status }))
-          });
+          const liveCandidates = [...activeUnlinked, ...pastDueUnlinked]
+            .filter(p => p.current_period_end)
+            .sort((a, b) => new Date(b.current_period_end) - new Date(a.current_period_end));
+
+          if (liveCandidates.length > 0) {
+            match = liveCandidates[0];
+            firstLink = true;
+            console.log(`webhook-guru: múltiplas contas vivas sem vínculo (active=${activeUnlinked.length}, past_due=${pastDueUnlinked.length}), desempatando pela conta ${match.account_id} com current_period_end mais recente (${match.current_period_end})`);
+          } else {
+            console.log(`webhook-guru: ${activeUnlinked.length} contas ativas e ${pastDueUnlinked.length} past_due sem vínculo, sem candidata viva — não é possível determinar qual atualizar. Contas: ${profiles.map(p => `${p.account_id}(guru=${p.guru_account_id}, status=${p.subscription_status})`).join(', ')}`);
+            return res.status(200).json({
+              received: true,
+              processed: false,
+              error: `múltiplas contas sem vínculo (${unlinked.length}), ${activeUnlinked.length} ativas / ${pastDueUnlinked.length} past_due — não é possível determinar qual atualizar`,
+              accounts_found: profiles.map(p => ({ account_id: p.account_id, guru_account_id: p.guru_account_id, status: p.subscription_status, current_period_end: p.current_period_end }))
+            });
+          }
         }
       } else {
         const linked = profiles.filter(p => p.guru_account_id);
