@@ -635,6 +635,91 @@
             return false;
         }
 
+        function todayStrUTC() {
+            return new Date().toISOString().split('T')[0];
+        }
+
+        function isGuruCycleStillValid(sub) {
+            // cycle_end vem como YYYY-MM-DD da Guru. Comparar como string evita
+            // problemas de fuso horario (Brasil -3 vs Guru em UTC).
+            if (!sub.cycle_end) return false;
+            return sub.cycle_end >= todayStrUTC();
+        }
+
+        function isGuruSubFresh(sub) {
+            // Sub criada nos ultimos 10 minutos. Protege contra race condition
+            // entre o pagamento e o webhook ativar a Leona.
+            if (!sub.started_at) return false;
+            const startedAt = typeof sub.started_at === 'number'
+                ? sub.started_at * 1000
+                : new Date(sub.started_at).getTime();
+            if (!Number.isFinite(startedAt)) return false;
+            return (Date.now() - startedAt) < 10 * 60 * 1000;
+        }
+
+        function hasGuruPendingInvoice(sub) {
+            const inv = sub.current_invoice;
+            if (!inv) return false;
+            return inv.status === 'waiting_payment' || inv.status === 'pending';
+        }
+
+        function findStaleGuruSub(guru) {
+            // Sub elegivel para o "Cenario 3" (auto-cancelamento por data
+            // divergente). So vale para subs que esta active na Guru MAS:
+            //   - ciclo atual ja venceu (cycle_end no passado)
+            //   - nao tem fatura pendente para pagar (se tivesse, mostrariamos ela)
+            //   - nao foi criada nos ultimos 10 minutos (anti race do webhook)
+            if (!guru.found || !guru.subscriptions) return null;
+            for (const sub of guru.subscriptions) {
+                if (sub.status !== 'active') continue;
+                if (isGuruCycleStillValid(sub)) continue;
+                if (hasGuruPendingInvoice(sub)) continue;
+                if (isGuruSubFresh(sub)) continue;
+                return sub;
+            }
+            return null;
+        }
+
+        function findProcessingGuruSub(guru) {
+            // Sub Guru ativa cuja cobranca foi aceita (sem fatura pendente) e
+            // o ciclo ainda esta valido (ou foi criada agora). Nesse caso o
+            // pagamento ja entrou e estamos so esperando o webhook ativar a
+            // Leona. NAO cancelar.
+            if (!guru.found || !guru.subscriptions) return null;
+            for (const sub of guru.subscriptions) {
+                if (sub.status !== 'active') continue;
+                if (hasGuruPendingInvoice(sub)) continue;
+                if (!isGuruCycleStillValid(sub) && !isGuruSubFresh(sub)) continue;
+                return sub;
+            }
+            return null;
+        }
+
+        function renderProcessingState(sub) {
+            const planLabel = sub.offer_name || sub.product_name || 'sua assinatura';
+            const cycleEnd = sub.cycle_end ? formatDate(sub.cycle_end) : null;
+            return `
+                <div class="card" style="border-color: var(--accent); box-shadow: 0 0 20px var(--glow-purple);">
+                    <h3 style="color: var(--accent); margin-bottom: 12px;">Pagamento confirmado, ativação em andamento</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; margin-bottom: 8px;">
+                        Recebemos o pagamento de <strong style="color: var(--text-primary);">${planLabel}</strong>${cycleEnd ? ` (ciclo até ${cycleEnd})` : ''}.
+                        A liberação no painel pode levar alguns minutos.
+                    </p>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5; margin-bottom: 16px;">
+                        Recarregue esta página em alguns minutos. Se continuar assim por mais de 5 minutos, fale com o suporte.
+                    </p>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button class="btn-primary" style="padding: 12px 20px; font-size: 0.9rem;" onclick="window.location.reload()">
+                            Recarregar agora
+                        </button>
+                        <a href="https://leonaflow.com/leona-tube/suporte-whatsapp" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; padding: 12px 20px; border: 1px solid var(--border); border-radius: 12px; color: var(--text-primary); text-decoration: none; font-size: 0.9rem; font-weight: 500;">
+                            Falar com o suporte
+                        </a>
+                    </div>
+                </div>
+            `;
+        }
+
         function copyLink(text, btnId) {
             const btn = document.getElementById(btnId);
             navigator.clipboard.writeText(text).then(() => {
@@ -967,37 +1052,46 @@
                 return;
             }
 
-            const hasGuruActive = guru.found && guru.subscriptions.some(s => s.status === 'active');
-
-            // Cenário 3 (auto-correção silenciosa): se a Leona está vencida
-            // mas a Guru ainda está ativa, a data Guru ficou divergente.
-            // Cancelamos a sub Guru e soltamos o vínculo na Leona; depois
-            // re-buscamos os dados e renderizamos como Cenário 1
-            // (vencida sem Guru = seletor de plano).
+            // Cenário 3 (auto-correção silenciosa): a Leona aparece vencida
+            // E existe uma sub Guru "stale" (active mas com ciclo no passado,
+            // sem fatura pendente, e nao recem-criada). Esse e o caso real
+            // de "data divergente" — a Guru esqueceu de cobrar/emitir nova
+            // fatura. Nesse caso cancelamos a sub Guru e soltamos o vinculo
+            // na Leona; o cliente vai escolher um novo plano e o webhook
+            // re-vincula tudo na Leona automaticamente.
+            //
+            // IMPORTANTE: nao cancelamos quando a sub Guru ainda tem ciclo
+            // valido (ciclo atual pago e em curso) ou foi criada nos ultimos
+            // minutos — nesses casos o pagamento e legitimo e estamos so
+            // esperando o webhook ativar a Leona. Ver Cenario 5 abaixo.
             const expiredProfile = profiles.find(p => isLeonaExpired(p));
-            if (expiredProfile && hasGuruActive) {
-                const activeGuruSub = guru.subscriptions.find(s => s.status === 'active');
-                if (activeGuruSub) {
-                    await fixGuruInconsistency(expiredProfile.account_id, activeGuruSub.id, email);
-                    // Re-busca os dados frescos.
-                    try {
-                        const accountIdParam = getAccountIdParam();
-                        const refetchBody = {};
-                        if (email) refetchBody.email = email;
-                        if (accountIdParam) refetchBody.account_id = accountIdParam;
-                        const res = await fetch('/api/guru-search', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(refetchBody)
-                        });
-                        const fresh = await res.json();
-                        if (res.ok) {
-                            _data = fresh;
-                            return renderProfile(fresh, email);
-                        }
-                    } catch (_) {}
-                }
+            const staleGuruSub = findStaleGuruSub(guru);
+            if (expiredProfile && staleGuruSub) {
+                await fixGuruInconsistency(expiredProfile.account_id, staleGuruSub.id, email);
+                try {
+                    const accountIdParam = getAccountIdParam();
+                    const refetchBody = {};
+                    if (email) refetchBody.email = email;
+                    if (accountIdParam) refetchBody.account_id = accountIdParam;
+                    const res = await fetch('/api/guru-search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(refetchBody)
+                    });
+                    const fresh = await res.json();
+                    if (res.ok) {
+                        _data = fresh;
+                        return renderProfile(fresh, email);
+                    }
+                } catch (_) {}
             }
+
+            // Cenario 5: Leona vencida + Guru com pagamento valido em
+            // processamento. Detectado depois do Cenario 3 para que o
+            // cancelamento por data divergente tenha prioridade quando
+            // realmente fizer sentido. Calculado uma vez aqui e reutilizado
+            // no loop de profiles abaixo.
+            const processingGuruSub = findProcessingGuruSub(guru);
 
             const hasGuruAny = guru.found && guru.subscriptions.length > 0;
 
@@ -1010,7 +1104,13 @@
                 html += renderProfileCard(bp, i, profiles.length);
 
                 if (expired) {
-                    if (hasGuruAny) {
+                    if (processingGuruSub) {
+                        // Cenario 5: pagamento Guru valido em processamento
+                        // (ciclo atual em curso ou sub recem-criada). NAO
+                        // mostrar seletor de plano — pediria ao cliente pra
+                        // pagar de novo por algo que ja foi pago.
+                        html += renderProcessingState(processingGuruSub);
+                    } else if (hasGuruAny) {
                         // Cenário 2: Leona vencida + Guru vencida/cancelada
                         const invoicesHtml = renderOpenInvoices(guru.invoices);
                         if (invoicesHtml) {

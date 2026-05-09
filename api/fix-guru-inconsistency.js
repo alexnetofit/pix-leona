@@ -53,6 +53,75 @@ export default async function handler(req, res) {
     leona_unlinked: null
   };
 
+  // 0. Trava de seguranca: antes de cancelar, busca a sub na Guru e
+  //    valida que o cancelamento faz sentido. Protege contra:
+  //    - clientes recem-comprados (race condition do webhook)
+  //    - subs com ciclo atual valido (pagamento em curso, nao e divergencia)
+  //    - subs ja inativas/canceladas (nada a cancelar)
+  //
+  //    Esses casos foram mapeados depois do incidente da cliente
+  //    claricinhademelo2@gmail.com (2026-05-09): a sub foi paga, o webhook
+  //    falhou em ativar a Leona, e o front cancelou a sub achando que era
+  //    "data divergente" — efetivamente jogando fora um pagamento aprovado.
+  let guruSubData = null;
+  try {
+    const r = await fetch(
+      `https://digitalmanager.guru/api/v2/subscriptions/${encodeURIComponent(guru_subscription_id)}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${guruToken}`,
+          'Accept': 'application/json',
+          'User-Agent': 'n8n'
+        }
+      }
+    );
+    if (r.ok) {
+      guruSubData = await r.json();
+    } else {
+      console.error(`fix-guru-inconsistency: nao foi possivel buscar sub Guru ${guru_subscription_id} (status ${r.status})`);
+      return res.status(503).json({
+        error: `nao foi possivel validar a sub Guru antes de cancelar (Guru retornou ${r.status})`
+      });
+    }
+  } catch (e) {
+    console.error(`fix-guru-inconsistency: erro buscando sub Guru ${guru_subscription_id}: ${e.message}`);
+    return res.status(503).json({
+      error: `nao foi possivel validar a sub Guru antes de cancelar: ${e.message}`
+    });
+  }
+
+  if (guruSubData.last_status !== 'active') {
+    console.log(`fix-guru-inconsistency: sub ${guru_subscription_id} nao esta ativa (status=${guruSubData.last_status}), abortando cancelamento`);
+    return res.status(409).json({
+      error: `sub Guru nao esta ativa (status=${guruSubData.last_status}) — nada a cancelar`,
+      guru_status: guruSubData.last_status
+    });
+  }
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const cycleEnd = guruSubData.cycle_end_date || null;
+  if (cycleEnd && cycleEnd >= todayStr) {
+    console.log(`fix-guru-inconsistency: sub ${guru_subscription_id} com ciclo valido (cycle_end=${cycleEnd}, hoje=${todayStr}), abortando cancelamento`);
+    return res.status(409).json({
+      error: `ciclo Guru ainda valido (cycle_end=${cycleEnd}, hoje=${todayStr}) — nao e data divergente, cancelamento abortado`,
+      guru_cycle_end: cycleEnd,
+      today: todayStr
+    });
+  }
+
+  const startedAt = typeof guruSubData.started_at === 'number' ? guruSubData.started_at : null;
+  if (startedAt) {
+    const ageSeconds = Math.floor(Date.now() / 1000 - startedAt);
+    if (ageSeconds < 600) {
+      console.log(`fix-guru-inconsistency: sub ${guru_subscription_id} recem-criada (${ageSeconds}s atras), abortando cancelamento`);
+      return res.status(409).json({
+        error: `sub Guru recem-criada (${ageSeconds}s atras) — webhook ainda pode estar processando, cancelamento abortado`,
+        guru_started_at: startedAt,
+        age_seconds: ageSeconds
+      });
+    }
+  }
+
   // 1. Cancela a sub Guru (imediato).
   try {
     const cancelRes = await cancelGuruSubscription(guru_subscription_id, guruToken, {
