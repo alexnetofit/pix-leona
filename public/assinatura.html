@@ -695,6 +695,61 @@
             return null;
         }
 
+        function findActiveValidGuruSub(guru) {
+            // Sub Guru capaz de renovar automaticamente: status active e
+            // ciclo atual ainda valido. Quando existe uma dessas, NAO
+            // alertamos sobre renovacao.
+            if (!guru.found || !guru.subscriptions) return null;
+            for (const sub of guru.subscriptions) {
+                if (sub.status === 'active' && isGuruCycleStillValid(sub)) return sub;
+            }
+            return null;
+        }
+
+        function daysUntilLeonaExpiry(bp) {
+            if (!bp.current_period_end) return null;
+            const end = new Date(bp.current_period_end);
+            if (!Number.isFinite(end.getTime())) return null;
+            const diffMs = end.getTime() - Date.now();
+            return Math.ceil(diffMs / 86400000);
+        }
+
+        function needsRenewalAlert(bp, guru) {
+            // Cenario 6: Leona ainda ativa, mas perto de vencer, e nao ha
+            // sub Guru ativa-valida pra renovar automaticamente.
+            //
+            // So alertamos quando o cliente JA passou pela Guru no passado
+            // (guru.subscriptions.length > 0). Isso evita falso positivo
+            // pra clientes que assinam por outros gateways (ex: Paddle) —
+            // pra eles, "sem Guru ativa" e estado normal e quem renova e
+            // o gateway proprio.
+            if (isLeonaExpired(bp)) return false;
+            const days = daysUntilLeonaExpiry(bp);
+            if (days === null || days > 5) return false;
+            const hasGuruHistory = guru && guru.found && Array.isArray(guru.subscriptions) && guru.subscriptions.length > 0;
+            if (!hasGuruHistory) return false;
+            return findActiveValidGuruSub(guru) === null;
+        }
+
+        function renderRenewalAlert(bp, days) {
+            const venceTexto = days <= 0
+                ? 'venceu (acesso pode ser interrompido a qualquer momento)'
+                : days === 1
+                    ? 'vence amanhã'
+                    : `vence em ${days} dias`;
+            return `
+                <div class="card" style="border-color: var(--orange); box-shadow: 0 0 20px var(--glow-orange); margin-bottom: 16px;">
+                    <h3 style="color: var(--orange); margin-bottom: 12px;">⚠️ Sua assinatura ${venceTexto}</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; margin-bottom: 8px;">
+                        Sua cobrança recorrente foi cancelada e <strong style="color: var(--text-primary);">não há renovação automática agendada</strong>.
+                    </p>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5;">
+                        Pra continuar usando a Leona, contrate um novo plano abaixo. A quantidade já vem preenchida com a do seu plano atual, mas você pode ajustar.
+                    </p>
+                </div>
+            `;
+        }
+
         function renderProcessingState(sub) {
             const planLabel = sub.offer_name || sub.product_name || 'sua assinatura';
             const cycleEnd = sub.cycle_end ? formatDate(sub.cycle_end) : null;
@@ -820,7 +875,7 @@
             `;
         }
 
-        function renderQtySelector(offers, email, slot, accountId) {
+        function renderQtySelector(offers, email, slot, accountId, defaultQty) {
             if (!offers || offers.length === 0) return '';
             const qtys = [];
             for (const o of offers) {
@@ -833,7 +888,10 @@
             qtys.sort((a, b) => a - b);
             if (qtys.length === 0) return '';
             const slotId = slot || 'g';
-            const initialQty = qtys[0];
+            // Se veio defaultQty (>0), usa como inicial — mesmo que nao exista
+            // oferta exata pra ela. Aí o cliente ve "Plano indisponivel" e pode
+            // ajustar com +/-. Caso contrario, comeca no menor plano disponivel.
+            const initialQty = (Number.isFinite(defaultQty) && defaultQty > 0) ? defaultQty : qtys[0];
             const initialOffer = getOfferForQty(offers, initialQty);
 
             _qtySelStates[slotId] = { offers, email, accountId: accountId || null };
@@ -1140,7 +1198,20 @@
                     if (pendingInvoice) {
                         html += renderPendingInvoice(pendingInvoice);
                     }
-                    html += renderUpgradePanel(bp, i);
+
+                    if (needsRenewalAlert(bp, guru)) {
+                        // Cenario 6: Leona ainda ativa, mas perto de vencer e
+                        // sem renovacao Guru garantida (cliente teve sub Guru
+                        // no passado mas nenhuma esta active+valida agora).
+                        // Mostra alerta + seletor pre-preenchido com a qty
+                        // atual em vez do upgrade panel — o seletor ja
+                        // permite ajustar a qty pra cima ou pra baixo.
+                        const days = daysUntilLeonaExpiry(bp);
+                        html += renderRenewalAlert(bp, days);
+                        html += renderQtySelector(offers, email, `renew${i}`, bp.account_id, bp.starter_instances || 0);
+                    } else {
+                        html += renderUpgradePanel(bp, i);
+                    }
                 }
             }
 
