@@ -569,7 +569,7 @@
             return new Intl.NumberFormat('pt-BR', {
                 style: 'currency',
                 currency: 'BRL'
-            }).format(Number(v) || 0).replace(/\s/g, '');
+            }).format(Number(v) || 0).replace(/\s/g, '\u00a0');
         }
 
         function showError(msg) {
