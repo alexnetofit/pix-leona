@@ -49,7 +49,7 @@
         }
 
         .container {
-            max-width: 720px;
+            max-width: 980px;
             margin: 0 auto;
             padding: 40px 20px 60px;
             position: relative;
@@ -181,10 +181,12 @@
             margin-bottom: 6px;
         }
         .metric .value {
-            font-size: 1.7rem;
+            font-size: clamp(1.45rem, 3.2vw, 1.7rem);
             font-weight: 700;
             color: var(--text-primary);
-            word-break: break-word;
+            line-height: 1.15;
+            white-space: nowrap;
+            letter-spacing: -0.04em;
         }
         .metric.gross .value { color: var(--accent); }
         .metric.net .value { color: var(--green); }
@@ -567,7 +569,7 @@
             return new Intl.NumberFormat('pt-BR', {
                 style: 'currency',
                 currency: 'BRL'
-            }).format(Number(v) || 0);
+            }).format(Number(v) || 0).replace(/\s/g, '');
         }
 
         function showError(msg) {
