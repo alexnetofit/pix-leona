@@ -66,9 +66,18 @@ function daysBetween(startIso, endIso) {
   return out;
 }
 
-function toSPDate(iso) {
-  if (!iso) return null;
-  const d = new Date(iso);
+function toSPDate(value) {
+  if (value == null || value === '') return null;
+
+  // A Guru retorna algumas datas como ISO string e outras como Unix
+  // timestamp em segundos (ex: dates.ordered_at). Date(number) espera
+  // milissegundos, entao normalizamos antes.
+  const rawNumber = typeof value === 'number'
+    ? value
+    : (/^\d+$/.test(String(value)) ? Number(value) : null);
+  const d = rawNumber != null
+    ? new Date(rawNumber < 100000000000 ? rawNumber * 1000 : rawNumber)
+    : new Date(value);
   if (Number.isNaN(d.getTime())) return null;
   return SP_DATE_FMT.format(d);
 }
@@ -150,7 +159,9 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'start não pode ser maior que end' });
   }
 
-  const guruIni = shiftDays(start, -1);
+  // Para cobrir o dia BR, basta buscar o proprio dia UTC e o dia UTC
+  // seguinte. Ex: 11/05 BR termina em 12/05 02:59 UTC.
+  const guruIni = start;
   const guruEnd = shiftDays(end, 1);
   const days = daysBetween(guruIni, guruEnd);
 
