@@ -20,7 +20,7 @@ import { GURU_BASE, LEONA_GURU_PRODUCT_ID, guruHeaders } from '../lib/guru.js';
 
 const APPROVED_STATUSES = ['approved', 'completed'];
 const REFUND_STATUSES = ['refunded', 'chargeback'];
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 250;
 const MAX_PAGES = 200;
 
 function isValidDate(s) {
