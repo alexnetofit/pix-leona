@@ -19,10 +19,31 @@ import { GURU_BASE, LEONA_GURU_PRODUCT_ID, guruHeaders } from '../lib/guru.js';
 const APPROVED_STATUSES = ['approved', 'completed'];
 const REFUND_STATUSES = ['refunded', 'chargeback'];
 const PAGE_SIZE = 100;
-const MAX_PAGES = 200;
+const MAX_PAGES_PER_DAY = 20;
+const MAX_DAYS = 62;
 
 function isValidDate(s) {
   return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
+
+function shiftDays(iso, n) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + n);
+  const yy = dt.getUTCFullYear();
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getUTCDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
+function daysBetween(start, end) {
+  const days = [];
+  let cur = start;
+  while (cur <= end && days.length <= MAX_DAYS) {
+    days.push(cur);
+    cur = shiftDays(cur, 1);
+  }
+  return days;
 }
 
 function buildUrl(start, end, cursor) {
@@ -36,6 +57,32 @@ function buildUrl(start, end, cursor) {
   }
   if (cursor) u.searchParams.set('cursor', cursor);
   return u.toString();
+}
+
+async function fetchDay(day, headers) {
+  let pages = 0;
+  let cursor = null;
+  const transactions = [];
+
+  while (pages < MAX_PAGES_PER_DAY) {
+    pages++;
+    const r = await fetch(buildUrl(day, day, cursor), { headers });
+    if (!r.ok) {
+      const errBody = await r.text().catch(() => '');
+      const err = new Error(`Guru retornou ${r.status} ao buscar transações`);
+      err.status = 502;
+      err.detail = errBody.slice(0, 500);
+      err.day = day;
+      throw err;
+    }
+
+    const body = await r.json();
+    if (Array.isArray(body.data)) transactions.push(...body.data);
+    if (!body.has_more_pages || !body.next_cursor) break;
+    cursor = body.next_cursor;
+  }
+
+  return { day, pages, transactions };
 }
 
 export default async function handler(req, res) {
@@ -69,6 +116,11 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'start não pode ser maior que end' });
   }
 
+  const days = daysBetween(start, end);
+  if (days.length > MAX_DAYS) {
+    return res.status(400).json({ error: `Intervalo grande demais. Máximo: ${MAX_DAYS} dias.` });
+  }
+
   const headers = guruHeaders(guruToken);
 
   let gross = 0;
@@ -78,28 +130,15 @@ export default async function handler(req, res) {
   let refundNet = 0;
   let refundCount = 0;
   let scanned = 0;
-  let pages = 0;
-  let cursor = null;
+  let totalPages = 0;
 
   try {
     const t0 = Date.now();
     const seen = new Set(); // dedup por id (transacoes podem repetir entre dias)
+    const results = await Promise.all(days.map(day => fetchDay(day, headers)));
 
-    while (pages < MAX_PAGES) {
-      pages++;
-      const r = await fetch(buildUrl(start, end, cursor), { headers });
-      if (!r.ok) {
-        const errBody = await r.text().catch(() => '');
-        return res.status(502).json({
-          error: `Guru retornou ${r.status} ao buscar transações`,
-          detail: errBody.slice(0, 500),
-          page: pages
-        });
-      }
-
-      const body = await r.json();
-      const transactions = Array.isArray(body.data) ? body.data : [];
-
+    for (const { pages, transactions } of results) {
+      totalPages += pages;
       for (const t of transactions) {
         if (t?.product?.internal_id !== LEONA_GURU_PRODUCT_ID) continue;
         const id = t?.id || t?.invoice?.id || JSON.stringify([t?.subscription?.id, t?.payment?.marketplace_id]);
@@ -121,9 +160,6 @@ export default async function handler(req, res) {
           refundCount++;
         }
       }
-
-      if (!body.has_more_pages || !body.next_cursor) break;
-      cursor = body.next_cursor;
     }
     const fetchMs = Date.now() - t0;
 
@@ -140,12 +176,13 @@ export default async function handler(req, res) {
         net: Math.round(refundNet * 100) / 100,
         count: refundCount
       },
-      pages_fetched: pages,
+      pages_fetched: totalPages,
+      days_queried: days.length,
       transactions_in_range: scanned,
       fetch_ms: fetchMs
     });
   } catch (e) {
     console.error('guru-revenue error:', e);
-    return res.status(e.status || 500).json({ error: e.message });
+    return res.status(e.status || 500).json({ error: e.message, detail: e.detail, day: e.day });
   }
 }
