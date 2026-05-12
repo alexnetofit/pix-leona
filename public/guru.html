@@ -157,10 +157,10 @@
 
         .results {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(3, 1fr);
             gap: 14px;
         }
-        @media (max-width: 520px) {
+        @media (max-width: 760px) {
             .results { grid-template-columns: 1fr; }
         }
 
@@ -172,6 +172,7 @@
         }
         .metric.gross { border-color: rgba(139, 92, 246, 0.4); box-shadow: 0 0 24px rgba(139, 92, 246, 0.08); }
         .metric.net { border-color: rgba(16, 185, 129, 0.4); box-shadow: 0 0 24px rgba(16, 185, 129, 0.08); }
+        .metric.active-subs { border-color: rgba(245, 158, 11, 0.4); box-shadow: 0 0 24px rgba(245, 158, 11, 0.08); }
         .metric .label {
             font-size: 0.75rem;
             color: var(--text-secondary);
@@ -187,6 +188,7 @@
         }
         .metric.gross .value { color: var(--accent); }
         .metric.net .value { color: var(--green); }
+        .metric.active-subs .value { color: var(--orange); }
         .metric .sub {
             font-size: 0.75rem;
             color: var(--text-muted);
@@ -375,6 +377,11 @@
                     <div class="label">Faturamento Líquido</div>
                     <div class="value" id="netValue">—</div>
                     <div class="sub" id="netSub"></div>
+                </div>
+                <div class="metric active-subs">
+                    <div class="label">Assinantes Ativos</div>
+                    <div class="value" id="activeSubsValue">—</div>
+                    <div class="sub">Leona Flow</div>
                 </div>
             </div>
 
@@ -638,6 +645,7 @@
             const ref = body.refunded || {};
             document.getElementById('grossValue').textContent = formatBRL(a.gross);
             document.getElementById('netValue').textContent = formatBRL(a.net);
+            document.getElementById('activeSubsValue').textContent = String(body.active_subscribers?.count ?? '—');
 
             const taxa = a.gross > 0 ? ((a.gross - a.net) / a.gross * 100) : 0;
             document.getElementById('grossSub').textContent = `${a.count || 0} venda(s) aprovada(s)`;
