@@ -48,7 +48,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Método não permitido' });
   }
 
-  const expectedToken = process.env.SUPPORT_CHAT_TOKEN;
+  const expectedToken = process.env.SUPPORT_CHAT_TOKEN?.trim();
   if (!expectedToken) return res.status(500).json({ error: 'SUPPORT_CHAT_TOKEN não configurado' });
 
   const auth = req.headers.authorization || '';
