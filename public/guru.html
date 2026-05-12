@@ -253,11 +253,83 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
         .loading-state { text-align: center; padding: 40px 20px; }
+
+        .login-wrap {
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: var(--bg-primary);
+        }
+        .login-card {
+            width: 100%;
+            max-width: 380px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 24px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+        }
+        .login-card h1 {
+            font-size: 1.3rem;
+            margin-bottom: 6px;
+        }
+        .login-card p {
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+            margin-bottom: 20px;
+        }
+        .login-card input {
+            width: 100%;
+            padding: 13px 14px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            outline: none;
+            margin-bottom: 10px;
+        }
+        .login-card input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--glow-purple);
+        }
+        .login-card button {
+            width: 100%;
+            padding: 13px 16px;
+            background: linear-gradient(135deg, var(--accent), #a78bfa);
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .login-error {
+            display: none;
+            color: var(--error);
+            font-size: 0.82rem;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
+    <div class="login-wrap" id="loginWrap">
+        <div class="login-card">
+            <h1>Faturamento Guru</h1>
+            <p>Acesso restrito. Use o mesmo token da área de chat.</p>
+            <input id="tokenInput" type="password" placeholder="Token de suporte" autocomplete="off">
+            <button id="loginBtn">Entrar</button>
+            <div class="login-error" id="loginError"></div>
+        </div>
+    </div>
+
     <div class="top-loader" id="topLoader"></div>
-    <div class="container" id="appContent">
+    <div class="container" id="appContent" style="display: none;">
         <header>
             <img src="/logo-leona.png" alt="Leona" class="logo-img">
             <h1 class="title">Faturamento Guru</h1>
@@ -333,6 +405,48 @@
     </div>
 
     <script>
+        const TOKEN_KEY = 'leona_support_chat_token';
+        const loginWrap = document.getElementById('loginWrap');
+        const appContent = document.getElementById('appContent');
+        const tokenInput = document.getElementById('tokenInput');
+        const loginBtn = document.getElementById('loginBtn');
+        const loginError = document.getElementById('loginError');
+        let supportToken = localStorage.getItem(TOKEN_KEY) || '';
+
+        function showLogin(message = '') {
+            appContent.style.display = 'none';
+            loginWrap.style.display = 'flex';
+            if (message) {
+                loginError.textContent = message;
+                loginError.style.display = 'block';
+            } else {
+                loginError.style.display = 'none';
+            }
+            setTimeout(() => tokenInput.focus(), 0);
+        }
+
+        function showApp() {
+            loginWrap.style.display = 'none';
+            appContent.style.display = 'block';
+        }
+
+        loginBtn.addEventListener('click', () => {
+            const value = tokenInput.value.trim();
+            if (!value) {
+                showLogin('Cole o token primeiro.');
+                return;
+            }
+            supportToken = value;
+            localStorage.setItem(TOKEN_KEY, supportToken);
+            showApp();
+            updateRangeInfo();
+            fetchRevenue();
+        });
+
+        tokenInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') loginBtn.click();
+        });
+
         // ============================================
         // DATE HELPERS — sempre em America/Sao_Paulo (UTC-3)
         // ============================================
@@ -478,11 +592,20 @@
             try {
                 const r = await fetch('/api/guru-revenue', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${supportToken}`
+                    },
                     body: JSON.stringify({ start, end })
                 });
                 if (seq !== fetchSeq) return;
                 const body = await r.json();
+                if (r.status === 401) {
+                    localStorage.removeItem(TOKEN_KEY);
+                    supportToken = '';
+                    showLogin('Token inválido. Cole novamente.');
+                    return;
+                }
                 if (!r.ok) {
                     showError(body.error || `Erro ${r.status}`);
                     return;
@@ -500,9 +623,15 @@
             }
         }
 
-        // Dispara a primeira busca automaticamente ao abrir.
-        updateRangeInfo();
-        fetchRevenue();
+        // Dispara a primeira busca automaticamente ao abrir, se ja houver
+        // token salvo da area de chat.
+        if (supportToken) {
+            showApp();
+            updateRangeInfo();
+            fetchRevenue();
+        } else {
+            showLogin();
+        }
 
         function renderResult(body) {
             const a = body.approved || {};

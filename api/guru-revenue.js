@@ -41,11 +41,20 @@ function buildUrl(start, end, cursor) {
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido' });
+  }
+
+  const expectedToken = process.env.SUPPORT_CHAT_TOKEN;
+  if (!expectedToken) return res.status(500).json({ error: 'SUPPORT_CHAT_TOKEN não configurado' });
+
+  const auth = req.headers.authorization || '';
+  const providedToken = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  if (providedToken !== expectedToken) {
+    return res.status(401).json({ error: 'Token inválido' });
   }
 
   const guruToken = process.env.GURU_TOKEN;
