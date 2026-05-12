@@ -50,17 +50,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Método não permitido' });
   }
 
-  const adminToken = process.env.TOKEN_ADMIN;
   const guruToken = process.env.GURU_TOKEN;
-
-  if (!adminToken) return res.status(500).json({ error: 'TOKEN_ADMIN não configurado' });
   if (!guruToken) return res.status(500).json({ error: 'GURU_TOKEN não configurado' });
 
-  const { token, start, end } = req.body || {};
+  const { start, end } = req.body || {};
 
-  if (!token || token !== adminToken) {
-    return res.status(401).json({ error: 'Token inválido' });
-  }
   if (!isValidDate(start) || !isValidDate(end)) {
     return res.status(400).json({ error: 'Informe start e end no formato YYYY-MM-DD' });
   }

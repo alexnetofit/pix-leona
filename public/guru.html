@@ -155,29 +155,6 @@
             margin-bottom: 14px;
         }
 
-        .btn {
-            padding: 13px 22px;
-            border: none;
-            border-radius: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            font-size: 0.95rem;
-            white-space: nowrap;
-            transition: all 0.25s ease;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            width: 100%;
-        }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
-        .btn-primary {
-            background: linear-gradient(135deg, var(--accent), #a78bfa);
-            color: #fff;
-            box-shadow: 0 2px 12px var(--glow-purple);
-        }
-        .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 20px var(--glow-purple); }
-
         .results {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -248,55 +225,10 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
         .loading-state { text-align: center; padding: 40px 20px; }
-
-        /* Tela de bloqueio */
-        .lock-overlay {
-            position: fixed;
-            inset: 0;
-            background: var(--bg-primary);
-            z-index: 9999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .lock-box { width: 100%; max-width: 380px; padding: 20px; text-align: center; }
-        .lock-box input {
-            flex: 1;
-            padding: 14px 16px;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            color: var(--text-primary);
-            font-size: 1rem;
-            outline: none;
-        }
-        .lock-box button {
-            padding: 14px 24px;
-            background: var(--accent);
-            color: #fff;
-            border: none;
-            border-radius: 10px;
-            font-weight: 600;
-            cursor: pointer;
-            font-size: 1rem;
-        }
     </style>
 </head>
 <body>
-    <!-- Tela de bloqueio -->
-    <div id="lockScreen" class="lock-overlay">
-        <div class="lock-box">
-            <h1 style="font-size: 1.4rem; margin-bottom: 8px;">Faturamento Guru</h1>
-            <p style="color: var(--text-secondary); margin-bottom: 32px; font-size: 0.9rem;">Acesso restrito</p>
-            <div style="display: flex; gap: 10px;">
-                <input type="password" id="tokenInput" placeholder="Token de acesso" onkeydown="if(event.key==='Enter')validateToken()">
-                <button onclick="validateToken()">Entrar</button>
-            </div>
-            <div id="lockError" style="color: var(--error); margin-top: 12px; font-size: 0.85rem; display: none;">Token inválido</div>
-        </div>
-    </div>
-
-    <div class="container" id="appContent" style="display: none;">
+    <div class="container" id="appContent">
         <header>
             <img src="/logo-leona.png" alt="Leona" class="logo-img">
             <h1 class="title">Faturamento Guru</h1>
@@ -329,10 +261,6 @@
             </div>
 
             <div class="range-info" id="rangeInfo"></div>
-
-            <button class="btn btn-primary" id="searchBtn" onclick="fetchRevenue()">
-                Buscar faturamento
-            </button>
         </section>
 
         <section id="resultSection" style="display: none;">
@@ -381,65 +309,6 @@
     </div>
 
     <script>
-        // ============================================
-        // AUTH
-        // ============================================
-        const STORAGE_KEY = 'leona_token';
-
-        function getStoredToken() { return localStorage.getItem(STORAGE_KEY); }
-
-        async function authCheck(token) {
-            try {
-                const r = await fetch('/api/auth', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token })
-                });
-                return r.ok;
-            } catch (_) { return false; }
-        }
-
-        async function validateToken() {
-            const input = document.getElementById('tokenInput');
-            const errEl = document.getElementById('lockError');
-            const token = input.value.trim();
-            if (!token) { errEl.style.display = 'block'; return; }
-            const ok = await authCheck(token);
-            if (ok) {
-                localStorage.setItem(STORAGE_KEY, token);
-                document.getElementById('lockScreen').style.display = 'none';
-                document.getElementById('appContent').style.display = 'block';
-                updateRangeInfo();
-            } else {
-                errEl.style.display = 'block';
-                input.value = '';
-                input.focus();
-            }
-        }
-
-        (async function checkAuth() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlToken = (urlParams.get('token') || '').trim();
-            const saved = getStoredToken();
-            const candidate = urlToken || saved;
-            if (!candidate) return;
-            const ok = await authCheck(candidate);
-            if (ok) {
-                localStorage.setItem(STORAGE_KEY, candidate);
-                document.getElementById('lockScreen').style.display = 'none';
-                document.getElementById('appContent').style.display = 'block';
-                updateRangeInfo();
-                if (urlToken) {
-                    urlParams.delete('token');
-                    const q = urlParams.toString();
-                    const newUrl = window.location.pathname + (q ? `?${q}` : '') + window.location.hash;
-                    window.history.replaceState({}, document.title, newUrl);
-                }
-            } else {
-                localStorage.removeItem(STORAGE_KEY);
-            }
-        })();
-
         // ============================================
         // DATE HELPERS (datas no fuso local do navegador)
         // ============================================
@@ -514,10 +383,11 @@
                 customRow.classList.remove('visible');
             }
             updateRangeInfo();
+            if (activePreset !== 'custom') fetchRevenue();
         });
 
-        document.getElementById('dateStart').addEventListener('change', updateRangeInfo);
-        document.getElementById('dateEnd').addEventListener('change', updateRangeInfo);
+        document.getElementById('dateStart').addEventListener('change', () => { updateRangeInfo(); fetchRevenue(); });
+        document.getElementById('dateEnd').addEventListener('change', () => { updateRangeInfo(); fetchRevenue(); });
 
         function updateRangeInfo() {
             const { start, end } = rangeForPreset(activePreset);
@@ -553,27 +423,17 @@
         // ============================================
         // FETCH
         // ============================================
+        let fetchSeq = 0;
         async function fetchRevenue() {
             clearError();
-            const token = getStoredToken();
-            if (!token) {
-                location.reload();
-                return;
-            }
-
             const { start, end } = rangeForPreset(activePreset);
-            if (!start || !end) {
-                showError('Informe um período válido.');
-                return;
-            }
+            if (!start || !end) return;
             if (start > end) {
                 showError('A data inicial não pode ser maior que a final.');
                 return;
             }
 
-            const btn = document.getElementById('searchBtn');
-            btn.disabled = true;
-            btn.textContent = 'Buscando...';
+            const seq = ++fetchSeq;
             document.getElementById('loadingSection').style.display = 'block';
             document.getElementById('resultSection').style.display = 'none';
 
@@ -581,8 +441,9 @@
                 const r = await fetch('/api/guru-revenue', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token, start, end })
+                    body: JSON.stringify({ start, end })
                 });
+                if (seq !== fetchSeq) return;
                 const body = await r.json();
                 if (!r.ok) {
                     showError(body.error || `Erro ${r.status}`);
@@ -590,13 +451,18 @@
                 }
                 renderResult(body);
             } catch (e) {
+                if (seq !== fetchSeq) return;
                 showError('Erro ao buscar: ' + e.message);
             } finally {
-                btn.disabled = false;
-                btn.textContent = 'Buscar faturamento';
-                document.getElementById('loadingSection').style.display = 'none';
+                if (seq === fetchSeq) {
+                    document.getElementById('loadingSection').style.display = 'none';
+                }
             }
         }
+
+        // Dispara a primeira busca automaticamente ao abrir.
+        updateRangeInfo();
+        fetchRevenue();
 
         function renderResult(body) {
             const a = body.approved || {};
