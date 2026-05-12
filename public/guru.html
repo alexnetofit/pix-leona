@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faturamento Guru — Leona</title>
+    <link rel="icon" type="image/png" href="/logo-leona.png">
+    <style>
+        :root {
+            --bg-primary: #0c0a12;
+            --bg-secondary: #151120;
+            --bg-card: #1e1830;
+            --bg-elevated: #261f3a;
+            --accent: #8b5cf6;
+            --accent-hover: #7c3aed;
+            --accent-soft: rgba(139, 92, 246, 0.12);
+            --green: #10b981;
+            --green-soft: rgba(16, 185, 129, 0.12);
+            --orange: #f59e0b;
+            --orange-soft: rgba(245, 158, 11, 0.12);
+            --text-primary: #f0ecf7;
+            --text-secondary: #9589ad;
+            --text-muted: #6b5f82;
+            --error: #ef4444;
+            --error-soft: rgba(239, 68, 68, 0.1);
+            --border: #2a2240;
+            --glow-purple: rgba(139, 92, 246, 0.25);
+            --glow-green: rgba(16, 185, 129, 0.25);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: 400px;
+            background: radial-gradient(ellipse at 50% -20%, rgba(139, 92, 246, 0.08) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 40px 20px 60px;
+            position: relative;
+            z-index: 1;
+        }
+
+        header { text-align: center; margin-bottom: 32px; }
+        .logo-img {
+            height: 60px;
+            width: auto;
+            margin-bottom: 8px;
+            filter: drop-shadow(0 4px 20px var(--glow-purple));
+        }
+        h1.title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 22px;
+            margin-bottom: 16px;
+        }
+
+        .card h3 {
+            font-size: 0.95rem;
+            margin-bottom: 14px;
+            color: var(--accent);
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+
+        .preset-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        .preset-btn {
+            padding: 8px 14px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+        .preset-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .preset-btn.active {
+            background: var(--accent-soft);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .custom-row {
+            display: none;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+        .custom-row.visible { display: flex; }
+        .custom-row .field {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .custom-row label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+        .custom-row input[type="date"] {
+            padding: 11px 14px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            outline: none;
+            color-scheme: dark;
+        }
+        .custom-row input[type="date"]:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--glow-purple);
+        }
+
+        .range-info {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 14px;
+        }
+
+        .btn {
+            padding: 13px 22px;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.95rem;
+            white-space: nowrap;
+            transition: all 0.25s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            width: 100%;
+        }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), #a78bfa);
+            color: #fff;
+            box-shadow: 0 2px 12px var(--glow-purple);
+        }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 20px var(--glow-purple); }
+
+        .results {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+        @media (max-width: 520px) {
+            .results { grid-template-columns: 1fr; }
+        }
+
+        .metric {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 18px;
+        }
+        .metric.gross { border-color: rgba(139, 92, 246, 0.4); box-shadow: 0 0 24px rgba(139, 92, 246, 0.08); }
+        .metric.net { border-color: rgba(16, 185, 129, 0.4); box-shadow: 0 0 24px rgba(16, 185, 129, 0.08); }
+        .metric .label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        .metric .value {
+            font-size: 1.7rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            word-break: break-word;
+        }
+        .metric.gross .value { color: var(--accent); }
+        .metric.net .value { color: var(--green); }
+        .metric .sub {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.88rem;
+        }
+        .info-row:last-child { border-bottom: none; }
+        .info-label { color: var(--text-secondary); }
+        .info-value { font-weight: 600; }
+
+        .alert {
+            padding: 14px 16px;
+            border-radius: 12px;
+            margin-bottom: 14px;
+            font-size: 0.88rem;
+            line-height: 1.5;
+        }
+        .alert-error { background: var(--error-soft); border: 1px solid rgba(239, 68, 68, 0.25); color: var(--error); }
+
+        .spinner {
+            width: 26px;
+            height: 26px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-state { text-align: center; padding: 40px 20px; }
+
+        /* Tela de bloqueio */
+        .lock-overlay {
+            position: fixed;
+            inset: 0;
+            background: var(--bg-primary);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .lock-box { width: 100%; max-width: 380px; padding: 20px; text-align: center; }
+        .lock-box input {
+            flex: 1;
+            padding: 14px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            outline: none;
+        }
+        .lock-box button {
+            padding: 14px 24px;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Tela de bloqueio -->
+    <div id="lockScreen" class="lock-overlay">
+        <div class="lock-box">
+            <h1 style="font-size: 1.4rem; margin-bottom: 8px;">Faturamento Guru</h1>
+            <p style="color: var(--text-secondary); margin-bottom: 32px; font-size: 0.9rem;">Acesso restrito</p>
+            <div style="display: flex; gap: 10px;">
+                <input type="password" id="tokenInput" placeholder="Token de acesso" onkeydown="if(event.key==='Enter')validateToken()">
+                <button onclick="validateToken()">Entrar</button>
+            </div>
+            <div id="lockError" style="color: var(--error); margin-top: 12px; font-size: 0.85rem; display: none;">Token inválido</div>
+        </div>
+    </div>
+
+    <div class="container" id="appContent" style="display: none;">
+        <header>
+            <img src="/logo-leona.png" alt="Leona" class="logo-img">
+            <h1 class="title">Faturamento Guru</h1>
+            <p class="subtitle">Produto Leona</p>
+        </header>
+
+        <div id="message"></div>
+
+        <section class="card">
+            <h3>Período</h3>
+            <div class="preset-row" id="presetRow">
+                <button class="preset-btn" data-preset="hoje">Hoje</button>
+                <button class="preset-btn" data-preset="ontem">Ontem</button>
+                <button class="preset-btn active" data-preset="7d">7 dias</button>
+                <button class="preset-btn" data-preset="30d">30 dias</button>
+                <button class="preset-btn" data-preset="mes">Mês</button>
+                <button class="preset-btn" data-preset="mes_passado">Mês passado</button>
+                <button class="preset-btn" data-preset="custom">Personalizado</button>
+            </div>
+
+            <div class="custom-row" id="customRow">
+                <div class="field">
+                    <label for="dateStart">Início</label>
+                    <input type="date" id="dateStart">
+                </div>
+                <div class="field">
+                    <label for="dateEnd">Fim</label>
+                    <input type="date" id="dateEnd">
+                </div>
+            </div>
+
+            <div class="range-info" id="rangeInfo"></div>
+
+            <button class="btn btn-primary" id="searchBtn" onclick="fetchRevenue()">
+                Buscar faturamento
+            </button>
+        </section>
+
+        <section id="resultSection" style="display: none;">
+            <div class="results">
+                <div class="metric gross">
+                    <div class="label">Faturamento Bruto</div>
+                    <div class="value" id="grossValue">—</div>
+                    <div class="sub" id="grossSub"></div>
+                </div>
+                <div class="metric net">
+                    <div class="label">Faturamento Líquido</div>
+                    <div class="value" id="netValue">—</div>
+                    <div class="sub" id="netSub"></div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top: 16px;">
+                <h3>Detalhes</h3>
+                <div class="info-row">
+                    <span class="info-label">Vendas aprovadas</span>
+                    <span class="info-value" id="approvedCount">—</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Reembolsos / chargebacks</span>
+                    <span class="info-value" id="refundedCount">—</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Valor reembolsado (bruto)</span>
+                    <span class="info-value" id="refundedGross">—</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Período</span>
+                    <span class="info-value" id="periodInfo">—</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Páginas processadas</span>
+                    <span class="info-value" id="pagesInfo">—</span>
+                </div>
+            </div>
+        </section>
+
+        <div id="loadingSection" class="loading-state" style="display: none;">
+            <div class="spinner"></div>
+            <p style="margin-top: 12px; color: var(--text-secondary);">Buscando transações na Guru…</p>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // AUTH
+        // ============================================
+        const STORAGE_KEY = 'leona_token';
+
+        function getStoredToken() { return localStorage.getItem(STORAGE_KEY); }
+
+        async function authCheck(token) {
+            try {
+                const r = await fetch('/api/auth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token })
+                });
+                return r.ok;
+            } catch (_) { return false; }
+        }
+
+        async function validateToken() {
+            const input = document.getElementById('tokenInput');
+            const errEl = document.getElementById('lockError');
+            const token = input.value.trim();
+            if (!token) { errEl.style.display = 'block'; return; }
+            const ok = await authCheck(token);
+            if (ok) {
+                localStorage.setItem(STORAGE_KEY, token);
+                document.getElementById('lockScreen').style.display = 'none';
+                document.getElementById('appContent').style.display = 'block';
+                updateRangeInfo();
+            } else {
+                errEl.style.display = 'block';
+                input.value = '';
+                input.focus();
+            }
+        }
+
+        (async function checkAuth() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlToken = (urlParams.get('token') || '').trim();
+            const saved = getStoredToken();
+            const candidate = urlToken || saved;
+            if (!candidate) return;
+            const ok = await authCheck(candidate);
+            if (ok) {
+                localStorage.setItem(STORAGE_KEY, candidate);
+                document.getElementById('lockScreen').style.display = 'none';
+                document.getElementById('appContent').style.display = 'block';
+                updateRangeInfo();
+                if (urlToken) {
+                    urlParams.delete('token');
+                    const q = urlParams.toString();
+                    const newUrl = window.location.pathname + (q ? `?${q}` : '') + window.location.hash;
+                    window.history.replaceState({}, document.title, newUrl);
+                }
+            } else {
+                localStorage.removeItem(STORAGE_KEY);
+            }
+        })();
+
+        // ============================================
+        // DATE HELPERS (datas no fuso local do navegador)
+        // ============================================
+        function pad(n) { return String(n).padStart(2, '0'); }
+        function fmtISO(d) {
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        }
+        function startOfDay(d) {
+            const x = new Date(d);
+            x.setHours(0, 0, 0, 0);
+            return x;
+        }
+        function addDays(d, n) {
+            const x = new Date(d);
+            x.setDate(x.getDate() + n);
+            return x;
+        }
+
+        function rangeForPreset(preset) {
+            const today = startOfDay(new Date());
+            switch (preset) {
+                case 'hoje':
+                    return { start: fmtISO(today), end: fmtISO(today) };
+                case 'ontem': {
+                    const y = addDays(today, -1);
+                    return { start: fmtISO(y), end: fmtISO(y) };
+                }
+                case '7d':
+                    return { start: fmtISO(addDays(today, -6)), end: fmtISO(today) };
+                case '30d':
+                    return { start: fmtISO(addDays(today, -29)), end: fmtISO(today) };
+                case 'mes': {
+                    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+                    return { start: fmtISO(start), end: fmtISO(today) };
+                }
+                case 'mes_passado': {
+                    const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                    const end = new Date(today.getFullYear(), today.getMonth(), 0);
+                    return { start: fmtISO(start), end: fmtISO(end) };
+                }
+                case 'custom': {
+                    const s = document.getElementById('dateStart').value;
+                    const e = document.getElementById('dateEnd').value;
+                    return { start: s, end: e };
+                }
+                default:
+                    return { start: fmtISO(today), end: fmtISO(today) };
+            }
+        }
+
+        // ============================================
+        // UI
+        // ============================================
+        let activePreset = '7d';
+
+        document.getElementById('presetRow').addEventListener('click', (e) => {
+            const btn = e.target.closest('.preset-btn');
+            if (!btn) return;
+            document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            activePreset = btn.dataset.preset;
+
+            const customRow = document.getElementById('customRow');
+            if (activePreset === 'custom') {
+                customRow.classList.add('visible');
+                if (!document.getElementById('dateStart').value) {
+                    const today = startOfDay(new Date());
+                    document.getElementById('dateStart').value = fmtISO(addDays(today, -6));
+                    document.getElementById('dateEnd').value = fmtISO(today);
+                }
+            } else {
+                customRow.classList.remove('visible');
+            }
+            updateRangeInfo();
+        });
+
+        document.getElementById('dateStart').addEventListener('change', updateRangeInfo);
+        document.getElementById('dateEnd').addEventListener('change', updateRangeInfo);
+
+        function updateRangeInfo() {
+            const { start, end } = rangeForPreset(activePreset);
+            const info = document.getElementById('rangeInfo');
+            if (!start || !end) {
+                info.textContent = 'Selecione as datas inicial e final.';
+                return;
+            }
+            info.textContent = `De ${formatDateBR(start)} até ${formatDateBR(end)}`;
+        }
+
+        function formatDateBR(iso) {
+            if (!iso) return '';
+            const [y, m, d] = iso.split('-');
+            return `${d}/${m}/${y}`;
+        }
+
+        function formatBRL(v) {
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL'
+            }).format(Number(v) || 0);
+        }
+
+        function showError(msg) {
+            const box = document.getElementById('message');
+            box.innerHTML = `<div class="alert alert-error">${msg}</div>`;
+        }
+        function clearError() {
+            document.getElementById('message').innerHTML = '';
+        }
+
+        // ============================================
+        // FETCH
+        // ============================================
+        async function fetchRevenue() {
+            clearError();
+            const token = getStoredToken();
+            if (!token) {
+                location.reload();
+                return;
+            }
+
+            const { start, end } = rangeForPreset(activePreset);
+            if (!start || !end) {
+                showError('Informe um período válido.');
+                return;
+            }
+            if (start > end) {
+                showError('A data inicial não pode ser maior que a final.');
+                return;
+            }
+
+            const btn = document.getElementById('searchBtn');
+            btn.disabled = true;
+            btn.textContent = 'Buscando...';
+            document.getElementById('loadingSection').style.display = 'block';
+            document.getElementById('resultSection').style.display = 'none';
+
+            try {
+                const r = await fetch('/api/guru-revenue', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token, start, end })
+                });
+                const body = await r.json();
+                if (!r.ok) {
+                    showError(body.error || `Erro ${r.status}`);
+                    return;
+                }
+                renderResult(body);
+            } catch (e) {
+                showError('Erro ao buscar: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Buscar faturamento';
+                document.getElementById('loadingSection').style.display = 'none';
+            }
+        }
+
+        function renderResult(body) {
+            const a = body.approved || {};
+            const ref = body.refunded || {};
+            document.getElementById('grossValue').textContent = formatBRL(a.gross);
+            document.getElementById('netValue').textContent = formatBRL(a.net);
+
+            const taxa = a.gross > 0 ? ((a.gross - a.net) / a.gross * 100) : 0;
+            document.getElementById('grossSub').textContent = `${a.count || 0} venda(s) aprovada(s)`;
+            document.getElementById('netSub').textContent = `Taxa média: ${taxa.toFixed(2)}%`;
+
+            document.getElementById('approvedCount').textContent = String(a.count || 0);
+            document.getElementById('refundedCount').textContent = String(ref.count || 0);
+            document.getElementById('refundedGross').textContent = formatBRL(ref.gross);
+            document.getElementById('periodInfo').textContent = `${formatDateBR(body.range.start)} → ${formatDateBR(body.range.end)}`;
+            document.getElementById('pagesInfo').textContent = String(body.pages_fetched || 0);
+
+            document.getElementById('resultSection').style.display = 'block';
+        }
+    </script>
+</body>
+</html>
