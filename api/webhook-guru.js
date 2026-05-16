@@ -1,4 +1,4 @@
-import { updateGuruContact } from '../lib/guru.js';
+import { updateGuruContact, cancelGuruSubscription } from '../lib/guru.js';
 
 const LEONA_PRODUCT_ID = 'a1869b83-b28d-4257-a986-1df94558a152';
 const LEONA_BASE = 'https://apiaws.leonasolutions.io/api/v1/integration';
@@ -253,6 +253,19 @@ export default async function handler(req, res) {
 
     const accountId = match.account_id;
 
+    // Captura o guru_account_id ANTERIOR antes do update. Se ele existir,
+    // for diferente da sub nova e estivermos re-vinculando (firstLink=true),
+    // o cliente acabou de pagar um link "replace" gerado por
+    // /api/guru-replace-subscription (rota usada quando a Guru bloqueia
+    // upgrade tradicional por causa de fatura cycle em aberto). A sub
+    // antiga vai ficar orfa se a gente nao cancelar — entao cancelamos
+    // depois que a Leona for atualizada com sucesso (logo abaixo).
+    const previousGuruSubId = match.guru_account_id || null;
+    const shouldCancelOldSub = firstLink
+      && previousGuruSubId
+      && previousGuruSubId !== guruSubId
+      && previousGuruSubId !== guruSubCode;
+
     const updateData = {
       starter_instances: instances,
       status: 'active'
@@ -301,6 +314,33 @@ export default async function handler(req, res) {
         await syncGuruCycleDate(guruSubId, existingPeriodEnd, accountId, leonaHeaders);
       }
 
+      // Cancela a sub Guru antiga quando o cliente paga um link "replace"
+      // (cenario do api/guru-replace-subscription). Sem isso, a sub antiga
+      // continua active e a Guru pode tentar cobrar a renovacao em paralelo.
+      let oldSubCancel = null;
+      if (shouldCancelOldSub) {
+        try {
+          const cancelRes = await cancelGuruSubscription(previousGuruSubId, process.env.GURU_TOKEN, {
+            cancel_at_cycle_end: false,
+            comment: `Substituida pela sub ${guruSubId} (cliente pagou link replace via /assinatura)`
+          });
+          oldSubCancel = {
+            old_subscription_id: previousGuruSubId,
+            ok: cancelRes.ok,
+            status: cancelRes.status || null,
+            error: cancelRes.ok ? null : (cancelRes.body?.message || cancelRes.error || 'erro desconhecido')
+          };
+          if (cancelRes.ok) {
+            console.log(`webhook-guru: sub Guru antiga ${previousGuruSubId} cancelada com sucesso (substituida por ${guruSubId})`);
+          } else {
+            console.error(`webhook-guru: falha ao cancelar sub Guru antiga ${previousGuruSubId}: ${JSON.stringify(cancelRes.body || {}).slice(0, 200)}`);
+          }
+        } catch (e) {
+          oldSubCancel = { old_subscription_id: previousGuruSubId, ok: false, error: e.message };
+          console.error(`webhook-guru: erro inesperado ao cancelar sub Guru antiga ${previousGuruSubId}:`, e.message);
+        }
+      }
+
       // Sincronia de email Leona -> Guru: quando o cliente compra via /assinatura
       // com um src valido, podemos ter uma conta Leona com email diferente do
       // que foi usado na Guru. Nesse caso, atualizamos o contato Guru pra que
@@ -322,6 +362,7 @@ export default async function handler(req, res) {
         received: true,
         processed: true,
         email_sync: emailSync,
+        old_sub_cancel: oldSubCancel,
         account_id: accountId,
         instances,
         is_upgrade_downgrade: isUpgradeOrDowngrade,

@@ -997,6 +997,122 @@
             `;
         }
 
+        // Estado dos seletores de "Gerar link" (substituicao de fatura cycle).
+        const _replaceStates = {};
+
+        function openReplaceSelector(slot, accountId, currentQty) {
+            if (!accountId) return;
+            const panel = document.getElementById(`replacePanel-${slot}`);
+            const openBtn = document.getElementById(`replaceOpenBtn-${slot}`);
+            if (!panel) return;
+            _replaceStates[slot] = { accountId, qty: currentQty || 1 };
+            if (openBtn) openBtn.style.display = 'none';
+            panel.innerHTML = `
+                <div style="background: var(--bg-secondary); padding: 16px; border-radius: 12px; border: 1px solid var(--border);">
+                    <div style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 12px;">Quantas conexões você quer no novo plano?</div>
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 14px;">
+                        <button onclick="replaceAdjust('${slot}', -1)" style="width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); font-size: 1.2rem; font-weight: 700; cursor: pointer;">−</button>
+                        <input type="number" id="replaceQty-${slot}" value="${currentQty || 1}" min="1"
+                            style="width: 70px; padding: 8px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; color: var(--text-primary); font-size: 1.2rem; font-weight: 700; text-align: center; outline: none;"
+                            oninput="replaceUpdate('${slot}')">
+                        <button onclick="replaceAdjust('${slot}', +1)" style="width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); font-size: 1.2rem; font-weight: 700; cursor: pointer;">+</button>
+                    </div>
+                    <div id="replaceHint-${slot}" style="text-align: center; margin-top: 10px; font-size: 0.85rem; color: var(--text-muted);">
+                        ${currentQty ? `Atual: ${currentQty} conex${currentQty !== 1 ? 'ões' : 'ão'}` : ''}
+                    </div>
+                    <button class="btn-orange" id="replaceGoBtn-${slot}" style="width: 100%; padding: 12px; margin-top: 12px; font-size: 0.92rem;"
+                        onclick="replaceGenerate('${slot}')">
+                        Confirmar e gerar link
+                    </button>
+                </div>
+            `;
+        }
+
+        function replaceAdjust(slot, delta) {
+            const input = document.getElementById(`replaceQty-${slot}`);
+            if (!input) return;
+            const val = parseInt(input.value) || 1;
+            input.value = Math.max(1, val + delta);
+            replaceUpdate(slot);
+        }
+
+        function replaceUpdate(slot) {
+            const state = _replaceStates[slot];
+            if (!state) return;
+            const input = document.getElementById(`replaceQty-${slot}`);
+            const hint = document.getElementById(`replaceHint-${slot}`);
+            const qty = Math.max(1, parseInt(input.value) || 1);
+            const current = state.qty;
+            if (hint) {
+                const diff = qty - current;
+                if (diff === 0) {
+                    hint.innerHTML = `<span style="color: var(--text-muted);">Mesmo plano atual (${current} conex${current !== 1 ? 'ões' : 'ão'})</span>`;
+                } else if (diff > 0) {
+                    hint.innerHTML = `<span style="color: var(--success);">+${diff} conex${diff !== 1 ? 'ões' : 'ão'}</span> · <span style="color: var(--text-secondary);">de ${current} para ${qty}</span>`;
+                } else {
+                    hint.innerHTML = `<span style="color: var(--orange);">${diff} conex${Math.abs(diff) !== 1 ? 'ões' : 'ão'}</span> · <span style="color: var(--text-secondary);">de ${current} para ${qty}</span>`;
+                }
+            }
+        }
+
+        async function replaceGenerate(slot) {
+            const state = _replaceStates[slot];
+            if (!state) return;
+            const input = document.getElementById(`replaceQty-${slot}`);
+            const btn = document.getElementById(`replaceGoBtn-${slot}`);
+            const panel = document.getElementById(`replacePanel-${slot}`);
+            const qty = Math.max(1, parseInt(input.value) || 1);
+
+            if (btn) { btn.disabled = true; btn.textContent = 'Gerando link...'; }
+
+            try {
+                const r = await fetch('/api/guru-replace-subscription', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ account_id: state.accountId, qty, email: _email })
+                });
+                const data = await r.json();
+
+                if (!r.ok || !data.success) {
+                    panel.innerHTML = `
+                        <div class="alert alert-error">
+                            <strong>Não foi possível gerar o link</strong>
+                            ${data.error || `HTTP ${r.status}`}
+                        </div>
+                    `;
+                    return;
+                }
+
+                panel.innerHTML = `
+                    <div style="background: var(--bg-secondary); padding: 16px; border-radius: 12px; border: 1px solid rgba(16,185,129,0.3);">
+                        <div style="color: var(--success); font-weight: 700; margin-bottom: 10px;">✅ Link de pagamento gerado</div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px;">
+                            <span style="color: var(--text-secondary);">Plano:</span>
+                            <span style="font-weight: 600;">${data.offer_name || `${data.qty} conex${data.qty !== 1 ? 'ões' : 'ão'}`}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 14px;">
+                            <span style="color: var(--text-secondary);">Valor:</span>
+                            <span style="color: var(--orange); font-weight: 700;">${fmtCurrency(data.value)}/mês</span>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" value="${data.checkout_url}" readonly
+                                style="flex: 1; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; color: var(--text-primary); font-size: 0.78rem; font-family: monospace;"
+                                onclick="this.select()">
+                            <button class="btn-orange" style="padding: 10px 14px; font-size: 0.85rem; white-space: nowrap;"
+                                onclick="navigator.clipboard.writeText('${data.checkout_url}').then(() => { this.textContent = 'Copiado!'; setTimeout(() => this.textContent = 'Copiar', 2000); })">
+                                Copiar
+                            </button>
+                        </div>
+                        <a href="${data.checkout_url}" target="_blank" rel="noopener" class="btn-orange" style="display: block; text-align: center; padding: 12px; margin-top: 12px; font-size: 0.92rem; text-decoration: none; border-radius: 10px;">
+                            Abrir link de pagamento →
+                        </a>
+                    </div>
+                `;
+            } catch (err) {
+                panel.innerHTML = `<div class="alert alert-error">Erro: ${err.message}</div>`;
+            }
+        }
+
         function findPendingInvoice(guru) {
             if (!guru.found || !guru.subscriptions) return null;
             for (const sub of guru.subscriptions) {
@@ -1008,19 +1124,72 @@
             return null;
         }
 
-        function renderPendingInvoice(inv) {
+        function renderPendingInvoice(inv, bp) {
+            // Renderiza a fatura Guru em aberto. Tres casos:
+            //   - upgrade/downgrade: cliente ja gerou e nao pagou — mostra
+            //     o link normalmente.
+            //   - cycle (renovacao) com charge_at hoje/passado: link da Guru
+            //     ja deve funcionar, mostra normalmente.
+            //   - cycle com charge_at futuro: a Guru so libera o link no
+            //     dia da cobranca as 10h (UTC-3). Mostramos info da
+            //     renovacao + bot\u00e3o "Gerar link agora" que dispara
+            //     /api/guru-replace-subscription (cancela+re-vincula
+            //     automatico via webhook quando o cliente pagar).
             const typeLabel = inv.type === 'downgrade'
                 ? 'Pagamento pendente do seu downgrade'
-                : 'Pagamento pendente do seu upgrade';
+                : inv.type === 'upgrade'
+                    ? 'Pagamento pendente do seu upgrade'
+                    : 'Próxima renovação';
+            const today = todayStrUTC();
+            const isFutureCycle = inv.type === 'cycle' && inv.charge_at && inv.charge_at > today;
+            const valueFmt = `R$ ${Number(inv.value).toFixed(2)}`;
+            const chargeAtFmt = inv.charge_at ? formatDate(inv.charge_at) : null;
+            const currentQty = bp ? (Number(bp.starter_instances) || 0) : 0;
+
+            if (isFutureCycle) {
+                const slotId = `cyc-${bp?.account_id || 'x'}`;
+                _qtySelStates[slotId] = null;
+                return `
+                    <div style="background: var(--bg-card); padding: 20px; border-radius: 14px; border: 1px solid rgba(245,158,11,0.3); margin-bottom: 16px; box-shadow: 0 0 20px var(--glow-orange);">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
+                            <span style="color: var(--orange); font-size: 1.2rem;">📅</span>
+                            <strong style="color: var(--orange);">${typeLabel}</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span style="color: var(--text-secondary);">Próxima cobrança:</span>
+                            <span style="font-weight: 600;">${chargeAtFmt || '—'}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 14px;">
+                            <span style="color: var(--text-secondary);">Valor:</span>
+                            <span style="font-weight: 700; color: var(--orange);">${valueFmt}</span>
+                        </div>
+                        <div style="background: rgba(245,158,11,0.08); padding: 12px; border-radius: 10px; color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 14px; line-height: 1.5;">
+                            O link de pagamento da Guru só fica disponível no dia da cobrança às 10h. Se quiser pagar antes ou mudar de plano, gere um link de pagamento agora.
+                        </div>
+                        <button class="btn-orange" id="replaceOpenBtn-${slotId}" style="width: 100%; padding: 14px; font-size: 0.95rem;"
+                            onclick="openReplaceSelector('${slotId}', ${bp?.account_id || 'null'}, ${currentQty})">
+                            Gerar link de pagamento agora
+                        </button>
+                        <div id="replacePanel-${slotId}" style="margin-top: 16px;"></div>
+                    </div>
+                `;
+            }
+
             return `
                 <div style="background: var(--bg-card); padding: 20px; border-radius: 14px; border: 1px solid rgba(245,158,11,0.3); margin-bottom: 16px; box-shadow: 0 0 20px var(--glow-orange);">
                     <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
                         <span style="color: var(--orange); font-size: 1.2rem;">⚠️</span>
                         <strong style="color: var(--orange);">${typeLabel}</strong>
                     </div>
+                    ${chargeAtFmt ? `
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span style="color: var(--text-secondary);">Vencimento:</span>
+                            <span style="font-weight: 600;">${chargeAtFmt}</span>
+                        </div>
+                    ` : ''}
                     <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
                         <span style="color: var(--text-secondary);">Valor:</span>
-                        <span style="font-weight: 700; color: var(--orange);">R$ ${Number(inv.value).toFixed(2)}</span>
+                        <span style="font-weight: 700; color: var(--orange);">${valueFmt}</span>
                     </div>
                     ${inv.payment_url ? `
                         <div style="margin-top: 14px;">
@@ -1196,7 +1365,7 @@
                     // Cenário 4: Leona ativa — upgrade/downgrade
                     const pendingInvoice = findPendingInvoice(guru);
                     if (pendingInvoice) {
-                        html += renderPendingInvoice(pendingInvoice);
+                        html += renderPendingInvoice(pendingInvoice, bp);
                     }
 
                     if (needsRenewalAlert(bp, guru)) {
@@ -1308,38 +1477,77 @@
             if (hasGuru) {
                 const activeSub = data.guru.subscriptions.find(s => s.status === 'active') || data.guru.subscriptions[0];
                 const subId = activeSub?.id;
+                // Quando ja existe uma fatura cycle/upgrade em aberto na Guru,
+                // a rota PUT /subscriptions/:id/plans (upgrade tradicional)
+                // retorna erro. Nesse caso usamos o fluxo "replace": gera um
+                // link de checkout novo com a qty escolhida; quando o cliente
+                // pagar, o webhook-guru re-vincula a conta e cancela a sub
+                // antiga automaticamente.
+                const hasOpenInvoice = activeSub?.current_invoice
+                    && (activeSub.current_invoice.status === 'waiting_payment'
+                        || activeSub.current_invoice.status === 'pending');
 
-                resultDiv.innerHTML = `
-                    <div style="background: var(--bg-card); padding: 20px; border-radius: 14px; border: 1px solid rgba(16,185,129,0.3);">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-                            <span style="color: var(--text-secondary);">Alteração:</span>
-                            <span style="color: var(--success); font-weight: 700;">⬆️ UPGRADE (+${diff})</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                            <span style="color: var(--text-secondary);">Conexões:</span>
-                            <span style="font-weight: 600;">${currentQty} → ${newQty}</span>
-                        </div>
-                        <div style="background: var(--bg-secondary); padding: 14px; border-radius: 10px; margin-bottom: 14px;">
-                            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">Estimativa pro rata:</div>
-                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; padding: 6px 0; border-bottom: 1px solid var(--border);">
-                                <span style="color: var(--text-secondary);">Crédito (${currentQty}x, ${diasRestantes}d)</span>
-                                <span style="color: var(--error);">-${fmtCurrency(currentValue * diasRestantes / diasNoCiclo)}</span>
+                if (hasOpenInvoice) {
+                    const replaceSlot = `up-${bp.account_id}-${bpIdx}`;
+                    _replaceStates[replaceSlot] = { accountId: bp.account_id, qty: currentQty };
+                    resultDiv.innerHTML = `
+                        <div style="background: var(--bg-card); padding: 20px; border-radius: 14px; border: 1px solid rgba(245,158,11,0.3);">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                                <span style="color: var(--text-secondary);">Alteração:</span>
+                                <span style="color: var(--success); font-weight: 700;">⬆️ UPGRADE (+${diff})</span>
                             </div>
-                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; padding: 6px 0; border-bottom: 1px solid var(--border);">
-                                <span style="color: var(--text-secondary);">Cobrança (${newQty}x, ${diasRestantes}d)</span>
-                                <span style="color: var(--success);">+${fmtCurrency(newValue * diasRestantes / diasNoCiclo)}</span>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="color: var(--text-secondary);">Conexões:</span>
+                                <span style="font-weight: 600;">${currentQty} → ${newQty}</span>
                             </div>
-                            <div style="display: flex; justify-content: space-between; font-size: 1rem; padding-top: 8px;">
-                                <span style="font-weight: 600;">Pro rata estimado:</span>
-                                <span style="color: var(--orange); font-weight: 700;">${fmtCurrency(proRata)}</span>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                                <span style="color: var(--text-secondary);">Novo valor mensal:</span>
+                                <span style="color: var(--orange); font-weight: 700;">${fmtCurrency(newValue)}</span>
                             </div>
-                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px; font-style: italic;">Valor exato calculado pela Guru na execução.</div>
+                            <div style="background: rgba(245,158,11,0.08); padding: 12px; border-radius: 10px; color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 14px; line-height: 1.5;">
+                                Sua renovação está próxima e a Guru não permite upgrade com pro-rata nesse momento. Vamos gerar um link de pagamento direto com o valor cheio do novo plano — quando você pagar, a assinatura atual é substituída automaticamente.
+                            </div>
+                            <input type="hidden" id="replaceQty-${replaceSlot}" value="${newQty}">
+                            <button class="btn-orange" id="replaceGoBtn-${replaceSlot}" style="width: 100%; padding: 14px; font-size: 0.95rem;"
+                                onclick="replaceGenerate('${replaceSlot}')">
+                                Gerar link de pagamento para ${newQty} conex${newQty !== 1 ? 'ões' : 'ão'}
+                            </button>
+                            <div id="replacePanel-${replaceSlot}" style="margin-top: 14px;"></div>
                         </div>
-                        <button class="btn-orange" id="execUpgrade-${bpIdx}" onclick="executeGuruUpgrade('${subId}', '${newOffer.id}', ${bpIdx})" style="width: 100%; padding: 14px;">
-                            Executar Upgrade para ${newOffer.name}
-                        </button>
-                    </div>
-                `;
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div style="background: var(--bg-card); padding: 20px; border-radius: 14px; border: 1px solid rgba(16,185,129,0.3);">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                                <span style="color: var(--text-secondary);">Alteração:</span>
+                                <span style="color: var(--success); font-weight: 700;">⬆️ UPGRADE (+${diff})</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="color: var(--text-secondary);">Conexões:</span>
+                                <span style="font-weight: 600;">${currentQty} → ${newQty}</span>
+                            </div>
+                            <div style="background: var(--bg-secondary); padding: 14px; border-radius: 10px; margin-bottom: 14px;">
+                                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">Estimativa pro rata:</div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; padding: 6px 0; border-bottom: 1px solid var(--border);">
+                                    <span style="color: var(--text-secondary);">Crédito (${currentQty}x, ${diasRestantes}d)</span>
+                                    <span style="color: var(--error);">-${fmtCurrency(currentValue * diasRestantes / diasNoCiclo)}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; padding: 6px 0; border-bottom: 1px solid var(--border);">
+                                    <span style="color: var(--text-secondary);">Cobrança (${newQty}x, ${diasRestantes}d)</span>
+                                    <span style="color: var(--success);">+${fmtCurrency(newValue * diasRestantes / diasNoCiclo)}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 1rem; padding-top: 8px;">
+                                    <span style="font-weight: 600;">Pro rata estimado:</span>
+                                    <span style="color: var(--orange); font-weight: 700;">${fmtCurrency(proRata)}</span>
+                                </div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px; font-style: italic;">Valor exato calculado pela Guru na execução.</div>
+                            </div>
+                            <button class="btn-orange" id="execUpgrade-${bpIdx}" onclick="executeGuruUpgrade('${subId}', '${newOffer.id}', ${bpIdx})" style="width: 100%; padding: 14px;">
+                                Executar Upgrade para ${newOffer.name}
+                            </button>
+                        </div>
+                    `;
+                }
             } else {
                 const discountPct = newValue > 0 ? (1 - proRata / newValue) * 100 : 0;
                 let couponPct = Math.round(discountPct / 5) * 5;
