@@ -173,6 +173,9 @@ export default async function handler(req, res) {
                       status: ci.status,
                       type: ci.type,
                       value: ci.value,
+                      charge_at: ci.charge_at || null,
+                      period_start: ci.period_start || null,
+                      period_end: ci.period_end || null,
                       payment_url: ci.payment_url || null
                     };
                   }
