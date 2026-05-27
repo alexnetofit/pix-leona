@@ -9,14 +9,12 @@
  * sem precisar distribuir o LEONA_BILLING_TOKEN.
  */
 
+import { applyCors } from '../lib/auth.js';
+
 const LEONA_BASE = 'https://apiaws.leonasolutions.io/api/v1/integration';
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
-
-  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (applyCors(req, res)) return;
   if (req.method !== 'GET') return res.status(405).json({ error: 'Método não permitido' });
 
   const lookupToken = process.env.LEONA_LOOKUP_TOKEN;

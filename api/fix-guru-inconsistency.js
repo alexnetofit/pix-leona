@@ -17,13 +17,10 @@
 
 import { cancelGuruSubscription } from '../lib/guru.js';
 import { updateLeonaBillingProfile } from '../lib/leona.js';
+import { applyCors } from '../lib/auth.js';
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (applyCors(req, res)) return;
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido' });
   }

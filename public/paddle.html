@@ -491,9 +491,8 @@
         }
 
         function getAccountIdFromUrl() {
-            const v = new URLSearchParams(window.location.search).get('account_id');
-            const n = v ? parseInt(v, 10) : null;
-            return Number.isFinite(n) ? n : null;
+            const v = (new URLSearchParams(window.location.search).get('account_id') || '').trim();
+            return v || null;
         }
 
         function isExpired(bp) {
@@ -646,12 +645,12 @@
             let activeProfile = null;
 
             if (wantedId) {
-                activeProfile = profiles.find(p => p.account_id === wantedId) || null;
+                activeProfile = profiles.find(p => String(p.account_id) === String(wantedId)) || null;
                 if (!activeProfile) {
                     content.innerHTML = `
                         <div class="alert alert-error" style="margin-bottom:14px;">
                             <strong>Conta nao encontrada</strong>
-                            Nao localizamos a conta <strong>#${wantedId}</strong> para o e-mail <strong>${escapeHtml(email)}</strong>.
+                            Nao localizamos a conta <strong>#${escapeHtml(String(wantedId))}</strong> para o e-mail <strong>${escapeHtml(email)}</strong>.
                             Confira se o link recebido esta correto ou fale com o suporte.
                         </div>
                     `;
@@ -898,7 +897,7 @@
                     ${warning}
 
                     <button class="btn btn-paddle" id="renew-btn" style="width: 100%; margin-top: 14px;"
-                            onclick="renewCheckout('${escapeHtml(priceId)}', ${accountId})" disabled>
+                            onclick="renewCheckout('${escapeHtml(priceId)}', '${String(accountId).replace(/'/g, "\\'")}')" disabled>
                         ${m.buttonLabel}
                     </button>
 
@@ -935,7 +934,7 @@
                         ${subList}
                     </ul>
                     <button class="btn btn-paddle" id="db-cancel-btn" style="width: 100%; margin-top: 14px;"
-                            onclick="cancelGuruNow(${accountId})">
+                            onclick="cancelGuruNow('${String(accountId).replace(/'/g, "\\'")}')">
                         Cancelar assinatura Guru agora
                     </button>
                     <div id="db-cancel-result" style="margin-top: 10px; font-size: 0.85rem;"></div>

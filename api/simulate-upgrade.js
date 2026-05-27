@@ -1,19 +1,17 @@
 // API para simular upgrade/downgrade de assinatura
 // Usa a API invoices/upcoming da Stripe para calcular valores exatos
 
-export default async function handler(req, res) {
-  // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+import { applyCors, requireAdmin, enforceAuth } from '../lib/auth.js';
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+export default async function handler(req, res) {
+  if (applyCors(req, res)) return;
 
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido' });
   }
+
+  const auth = requireAdmin(req);
+  if (enforceAuth(req, res, auth, { route: '/api/simulate-upgrade' })) return;
 
   const stripeSecret = process.env.STRIPE_SECRET;
 

@@ -1,3 +1,5 @@
+import { applyCors } from '../lib/auth.js';
+
 const GURU_BASE = 'https://digitalmanager.guru/api/v2';
 const GURU_HEADERS = (token) => ({
   'Authorization': `Bearer ${token}`,
@@ -9,11 +11,7 @@ const GURU_HEADERS = (token) => ({
 const LEONA_PRODUCT_ID = 'a1869b83-b28d-4257-a986-1df94558a152';
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (applyCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
 
   const guruToken = process.env.GURU_TOKEN;
@@ -22,9 +20,11 @@ export default async function handler(req, res) {
   if (!guruToken) return res.status(500).json({ error: 'GURU_TOKEN não configurado' });
 
   const { email, account_id } = req.body || {};
-  const accountIdNum = account_id != null && /^\d+$/.test(String(account_id)) ? Number(account_id) : null;
+  // account_id aceita int (legado) ou UUID. Tratamos como string opaca.
+  const accountIdRaw = account_id != null ? String(account_id).trim() : '';
+  const hasAccountId = accountIdRaw.length > 0;
 
-  if (!accountIdNum && (!email || !email.trim())) {
+  if (!hasAccountId && (!email || !email.trim())) {
     return res.status(400).json({ error: 'Informe um e-mail ou account_id' });
   }
 
@@ -38,10 +38,10 @@ export default async function handler(req, res) {
     let leonaPriority = null;
     let lookupEmail = email ? email.trim().toLowerCase() : null;
 
-    if (accountIdNum && leonaToken) {
+    if (hasAccountId && leonaToken) {
       try {
         const r = await fetch(
-          `https://apiaws.leonasolutions.io/api/v1/integration/accounts/${accountIdNum}/billing_profile`,
+          `https://apiaws.leonasolutions.io/api/v1/integration/accounts/${encodeURIComponent(accountIdRaw)}/billing_profile`,
           { headers: leonaAuthHeaders }
         );
         if (r.ok) {
@@ -51,9 +51,9 @@ export default async function handler(req, res) {
             lookupEmail = String(profile.user.email).trim().toLowerCase();
           }
         } else if (r.status === 404) {
-          leonaPriority = { found: false, billing_profile: null, billing_profiles: [], error: `account_id ${accountIdNum} nao encontrada` };
+          leonaPriority = { found: false, billing_profile: null, billing_profiles: [], error: `account_id ${accountIdRaw} nao encontrada` };
         } else {
-          leonaPriority = { found: false, billing_profile: null, billing_profiles: [], error: `Leona retornou ${r.status} para account_id ${accountIdNum}` };
+          leonaPriority = { found: false, billing_profile: null, billing_profiles: [], error: `Leona retornou ${r.status} para account_id ${accountIdRaw}` };
         }
       } catch (e) {
         leonaPriority = { found: false, billing_profile: null, billing_profiles: [], error: e.message };
@@ -62,8 +62,8 @@ export default async function handler(req, res) {
 
     if (!lookupEmail) {
       return res.status(400).json({
-        error: accountIdNum
-          ? `nao foi possivel determinar o email do dono da conta ${accountIdNum}`
+        error: hasAccountId
+          ? `nao foi possivel determinar o email do dono da conta ${accountIdRaw}`
           : 'Informe um e-mail'
       });
     }

@@ -121,8 +121,9 @@ export default async function handler(req, res) {
     // se o front mandou ?src=<account_id> no checkout, a Guru repassa esse
     // valor no webhook. Isso evita problemas quando o cliente compra com um
     // email diferente do cadastrado na Leona.
+    // Aceita int (legado) ou UUID — tratamos como string opaca.
     const srcRaw = extractSrc(payload);
-    const srcAccountId = srcRaw && /^\d+$/.test(srcRaw) ? Number(srcRaw) : null;
+    const srcAccountId = srcRaw ? String(srcRaw).trim() : '';
 
     let match = null;
     let firstLink = false;
@@ -131,7 +132,7 @@ export default async function handler(req, res) {
     if (srcAccountId) {
       console.log(`webhook-guru: src=${srcAccountId} detectado, buscando conta Leona direto pelo ID`);
       try {
-        const r = await fetch(`${LEONA_BASE}/accounts/${srcAccountId}/billing_profile`, { headers: leonaHeaders });
+        const r = await fetch(`${LEONA_BASE}/accounts/${encodeURIComponent(srcAccountId)}/billing_profile`, { headers: leonaHeaders });
         if (r.ok) {
           const profile = await r.json();
           match = profile;

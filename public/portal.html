@@ -1496,7 +1496,10 @@
             try {
                 const response = await fetch('/api/simulate-upgrade', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getStoredToken() || ''}`
+                    },
                     body: JSON.stringify({
                         subscription_id: subscriptionId,
                         new_quantity: newQty
@@ -1652,7 +1655,10 @@
             try {
                 const response = await fetch('/api/update-subscription', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getStoredToken() || ''}`
+                    },
                     body: JSON.stringify({
                         subscription_id: sim.subscription_id,
                         subscription_item_id: sim.subscription_item_id,
@@ -2349,7 +2355,10 @@
             try {
                 const response = await fetch('/api/abacatepay-refund', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getStoredToken() || ''}`
+                    },
                     body: JSON.stringify({
                         amount,
                         pix_key: key,

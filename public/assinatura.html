@@ -515,9 +515,7 @@
         function getAccountIdParam() {
             const params = new URLSearchParams(window.location.search);
             const raw = (params.get('account_id') || '').trim();
-            if (!raw) return null;
-            const n = Number(raw);
-            return Number.isFinite(n) && n > 0 ? n : null;
+            return raw || null;
         }
 
         function getDisplayProfiles(data) {
@@ -526,7 +524,7 @@
 
             const accountIdParam = getAccountIdParam();
             if (accountIdParam && profiles.length > 0) {
-                const filtered = profiles.filter(p => Number(p.account_id) === accountIdParam);
+                const filtered = profiles.filter(p => String(p.account_id) === accountIdParam);
                 if (filtered.length > 0) {
                     profiles = filtered;
                 }
@@ -1167,7 +1165,7 @@
                             O link de pagamento da Guru só fica disponível no dia da cobrança às 10h. Se quiser pagar antes ou mudar de plano, gere um link de pagamento agora.
                         </div>
                         <button class="btn-orange" id="replaceOpenBtn-${slotId}" style="width: 100%; padding: 14px; font-size: 0.95rem;"
-                            onclick="openReplaceSelector('${slotId}', ${bp?.account_id || 'null'}, ${currentQty})">
+                            onclick="openReplaceSelector('${slotId}', ${bp?.account_id ? `'${String(bp.account_id).replace(/'/g, "\\'")}'` : 'null'}, ${currentQty})">
                             Gerar link de pagamento agora
                         </button>
                         <div id="replacePanel-${slotId}" style="margin-top: 16px;"></div>
@@ -1454,7 +1452,7 @@
                             <div style="background: var(--orange-soft); padding: 12px; border-radius: 10px; color: var(--orange); font-size: 0.85rem; margin-bottom: 14px;">
                                 <strong>Importante:</strong> antes de confirmar, abra o painel da Leona e <u>exclua manualmente</u> as conexões que NÃO quer manter, deixando apenas <strong>${newQty}</strong> ativa${newQty !== 1 ? 's' : ''}. Caso contrário, o sistema pode desativar conexões aleatórias.
                             </div>
-                            <button class="btn-orange" id="downBtn-${bpIdx}" style="width: 100%; padding: 14px;" onclick="askDowngradeConfirm('${subId}', '${newOffer.id}', ${bp.account_id}, ${currentQty}, ${newQty}, ${bpIdx})">
+                            <button class="btn-orange" id="downBtn-${bpIdx}" style="width: 100%; padding: 14px;" onclick="askDowngradeConfirm('${subId}', '${newOffer.id}', '${String(bp.account_id).replace(/'/g, "\\'")}', ${currentQty}, ${newQty}, ${bpIdx})">
                                 Confirmar downgrade para ${newQty} conex${newQty !== 1 ? 'ões' : 'ão'}
                             </button>
                         ` : `

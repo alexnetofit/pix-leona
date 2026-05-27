@@ -1,5 +1,6 @@
 import { findGuruActiveSubscriptionsByEmail } from '../lib/guru.js';
 import { getLeonaBillingProfile } from '../lib/leona.js';
+import { applyCors } from '../lib/auth.js';
 
 const PADDLE_BASE = 'https://api.paddle.com';
 
@@ -12,11 +13,7 @@ function paddleHeaders(token) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (applyCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
 
   const paddleToken = process.env.PADDLE_API_KEY;
@@ -26,7 +23,9 @@ export default async function handler(req, res) {
   if (!paddleToken) return res.status(500).json({ error: 'PADDLE_API_KEY não configurado' });
 
   const { email, account_id } = req.body || {};
-  const wantedAccountId = account_id != null ? parseInt(account_id, 10) : null;
+  // account_id aceita int (legado) ou UUID. Tratamos como string opaca.
+  const wantedAccountId = account_id != null ? String(account_id).trim() : '';
+  const hasAccountId = wantedAccountId.length > 0;
 
   // Resolução do email:
   // - Caso o front envie email, segue como sempre.
@@ -34,7 +33,7 @@ export default async function handler(req, res) {
   //   o billing_profile direto pelo ID e usa o email do dono da conta.
   let emailClean = (email || '').trim().toLowerCase();
 
-  if (!emailClean && Number.isFinite(wantedAccountId)) {
+  if (!emailClean && hasAccountId) {
     if (!leonaToken) {
       return res.status(400).json({ error: 'LEONA_BILLING_TOKEN não configurado para resolver account_id' });
     }
@@ -211,8 +210,9 @@ export default async function handler(req, res) {
 
     // Filtro server-side por account_id (defesa em profundidade) — quando o link
     // veio de https://client.leonaflow.com/paddle?email=...&account_id=...
-    if (Number.isFinite(wantedAccountId) && Array.isArray(leona.billing_profiles)) {
-      const match = leona.billing_profiles.find(p => p.account_id === wantedAccountId);
+    // Comparamos como string pra suportar tanto int legado quanto UUID.
+    if (hasAccountId && Array.isArray(leona.billing_profiles)) {
+      const match = leona.billing_profiles.find(p => String(p.account_id) === wantedAccountId);
       leona = match
         ? { found: true, billing_profile: match, billing_profiles: [match], error: null }
         : { found: false, billing_profile: null, billing_profiles: [], error: `account_id ${wantedAccountId} não pertence a este e-mail` };

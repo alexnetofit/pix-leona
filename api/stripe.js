@@ -5,18 +5,11 @@
  * Retorna: { "customer": {...}, "subscriptions": [...] }
  */
 
+import { applyCors } from '../lib/auth.js';
+
 export default async function handler(req, res) {
-  // Headers CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (applyCors(req, res)) return;
 
-  // Responde OPTIONS para CORS preflight
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
-  }
-
-  // Apenas POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido' });
   }

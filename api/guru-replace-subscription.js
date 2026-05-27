@@ -23,6 +23,7 @@
  */
 import { LEONA_BASE, leonaHeaders } from '../lib/leona.js';
 import { GURU_BASE, LEONA_GURU_PRODUCT_ID, guruHeaders } from '../lib/guru.js';
+import { applyCors } from '../lib/auth.js';
 
 function pickOfferByQty(offers, qty) {
   if (!Array.isArray(offers)) return null;
@@ -44,11 +45,7 @@ function appendParams(url, params) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (applyCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
 
   const guruToken = process.env.GURU_TOKEN;
@@ -59,10 +56,11 @@ export default async function handler(req, res) {
 
   const { account_id, qty, email } = req.body || {};
 
-  if (!account_id || !/^\d+$/.test(String(account_id))) {
+  // account_id aceita int (legado) ou UUID. Tratamos como string opaca.
+  const accountId = account_id != null ? String(account_id).trim() : '';
+  if (!accountId) {
     return res.status(400).json({ error: 'account_id inválido' });
   }
-  const accountId = Number(account_id);
   const qtyNum = Number(qty);
   if (!Number.isFinite(qtyNum) || qtyNum < 1) {
     return res.status(400).json({ error: 'qty deve ser >= 1' });
@@ -70,7 +68,7 @@ export default async function handler(req, res) {
 
   try {
     const profileRes = await fetch(
-      `${LEONA_BASE}/accounts/${accountId}/billing_profile`,
+      `${LEONA_BASE}/accounts/${encodeURIComponent(accountId)}/billing_profile`,
       { headers: leonaHeaders(leonaToken) }
     );
 
