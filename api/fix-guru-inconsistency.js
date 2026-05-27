@@ -16,7 +16,7 @@
  */
 
 import { cancelGuruSubscription } from '../lib/guru.js';
-import { updateLeonaBillingProfile } from '../lib/leona.js';
+import { updateLeonaBillingProfile, assertAccountAccess } from '../lib/leona.js';
 import { applyCors } from '../lib/auth.js';
 
 export default async function handler(req, res) {
@@ -40,6 +40,15 @@ export default async function handler(req, res) {
   if (!guru_subscription_id) {
     return res.status(400).json({ error: 'guru_subscription_id é obrigatório' });
   }
+
+  // Anti-IDOR: ID numerico legado exige email + match. UUID passa direto.
+  const access = await assertAccountAccess({
+    accountId: account_id,
+    queryEmail: email,
+    leonaToken,
+    route: '/api/fix-guru-inconsistency'
+  });
+  if (!access.ok) return res.status(access.status).json(access.body);
 
   const result = {
     ok: true,

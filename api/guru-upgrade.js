@@ -1,7 +1,7 @@
 import { applyCors } from '../lib/auth.js';
+import { updateLeonaBillingProfile, assertAccountAccess } from '../lib/leona.js';
 
 const GURU_BASE = 'https://digitalmanager.guru/api/v2';
-const LEONA_BASE = 'https://apiaws.leonasolutions.io/api/v1/integration';
 
 const GURU_HEADERS = (token) => ({
   'Authorization': `Bearer ${token}`,
@@ -9,27 +9,6 @@ const GURU_HEADERS = (token) => ({
   'Content-Type': 'application/json',
   'User-Agent': 'n8n'
 });
-
-const LEONA_HEADERS = (token) => ({
-  'Authorization': `Bearer ${token}`,
-  'Accept': 'application/json',
-  'Content-Type': 'application/json'
-});
-
-async function updateLeonaStarterInstances(accountId, starterInstances, leonaToken) {
-  if (!accountId || !leonaToken) return { ok: false, error: 'sem account_id ou LEONA_TOKEN' };
-  try {
-    const r = await fetch(`${LEONA_BASE}/accounts/${accountId}/billing_profile`, {
-      method: 'POST',
-      headers: LEONA_HEADERS(leonaToken),
-      body: JSON.stringify({ starter_instances: starterInstances })
-    });
-    const body = await r.json().catch(() => ({}));
-    return { ok: r.ok, status: r.status, body };
-  } catch (e) {
-    return { ok: false, error: e.message };
-  }
-}
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -41,6 +20,29 @@ export default async function handler(req, res) {
   const { subscription_id, offer_id, sync_leona } = req.body || {};
   if (!subscription_id || !offer_id) {
     return res.status(400).json({ error: 'subscription_id e offer_id são obrigatórios' });
+  }
+
+  // Anti-IDOR: se vier sync_leona, validamos acesso antes de fazer
+  // QUALQUER coisa (inclusive o upgrade Guru), pra evitar que atacante
+  // dispare upgrade pra conta alheia.
+  let validatedSyncLeona = null;
+  if (sync_leona && sync_leona.account_id && Number.isFinite(Number(sync_leona.starter_instances))) {
+    const leonaToken = process.env.LEONA_BILLING_TOKEN;
+    if (!leonaToken) {
+      return res.status(500).json({ error: 'LEONA_BILLING_TOKEN não configurado' });
+    }
+    const access = await assertAccountAccess({
+      accountId: sync_leona.account_id,
+      queryEmail: sync_leona.email,
+      leonaToken,
+      route: '/api/guru-upgrade'
+    });
+    if (!access.ok) return res.status(access.status).json(access.body);
+    validatedSyncLeona = {
+      account_id: String(sync_leona.account_id).trim(),
+      starter_instances: Number(sync_leona.starter_instances),
+      leonaToken
+    };
   }
 
   const headers = GURU_HEADERS(guruToken);
@@ -89,20 +91,18 @@ export default async function handler(req, res) {
     }
 
     let leonaSync = null;
-    if (sync_leona && sync_leona.account_id && Number.isFinite(Number(sync_leona.starter_instances))) {
-      const leonaToken = process.env.LEONA_TOKEN;
-      if (!leonaToken) {
-        leonaSync = { ok: false, error: 'LEONA_TOKEN não configurado' };
-      } else {
-        const qty = Number(sync_leona.starter_instances);
-        const result = await updateLeonaStarterInstances(sync_leona.account_id, qty, leonaToken);
-        leonaSync = {
-          ok: result.ok,
-          account_id: sync_leona.account_id,
-          starter_instances: qty,
-          error: result.ok ? null : (result.body?.error || result.error || `HTTP ${result.status || '?'}`)
-        };
-      }
+    if (validatedSyncLeona) {
+      const result = await updateLeonaBillingProfile(
+        validatedSyncLeona.account_id,
+        { starter_instances: validatedSyncLeona.starter_instances },
+        validatedSyncLeona.leonaToken
+      );
+      leonaSync = {
+        ok: result.ok,
+        account_id: validatedSyncLeona.account_id,
+        starter_instances: validatedSyncLeona.starter_instances,
+        error: result.ok ? null : (result.body?.error || result.error || `HTTP ${result.status || '?'}`)
+      };
     }
 
     return res.status(200).json({

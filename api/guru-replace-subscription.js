@@ -21,7 +21,7 @@
  * sub antiga e feito pelo webhook-guru SO depois que o cliente pagar.
  * Isso evita deixar o cliente com Leona "orfa" caso ele desista do link.
  */
-import { LEONA_BASE, leonaHeaders } from '../lib/leona.js';
+import { LEONA_BASE, leonaHeaders, assertAccountAccess } from '../lib/leona.js';
 import { GURU_BASE, LEONA_GURU_PRODUCT_ID, guruHeaders } from '../lib/guru.js';
 import { applyCors } from '../lib/auth.js';
 
@@ -66,24 +66,18 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'qty deve ser >= 1' });
   }
 
+  // Anti-IDOR: ID numerico legado exige email + match. UUID passa direto.
+  const access = await assertAccountAccess({
+    accountId,
+    queryEmail: email,
+    leonaToken,
+    route: '/api/guru-replace-subscription'
+  });
+  if (!access.ok) return res.status(access.status).json(access.body);
+
+  const { profile, profileEmail } = access;
+
   try {
-    const profileRes = await fetch(
-      `${LEONA_BASE}/accounts/${encodeURIComponent(accountId)}/billing_profile`,
-      { headers: leonaHeaders(leonaToken) }
-    );
-
-    if (!profileRes.ok) {
-      const body = await profileRes.text().catch(() => '');
-      return res.status(profileRes.status === 404 ? 404 : 502).json({
-        error: profileRes.status === 404
-          ? `conta Leona ${accountId} não encontrada`
-          : `Leona retornou ${profileRes.status} ao buscar a conta`,
-        detail: body.slice(0, 500)
-      });
-    }
-
-    const profile = await profileRes.json();
-    const profileEmail = profile?.user?.email ? String(profile.user.email).trim().toLowerCase() : null;
     const checkoutEmail = (typeof email === 'string' && email.trim())
       ? email.trim().toLowerCase()
       : profileEmail;

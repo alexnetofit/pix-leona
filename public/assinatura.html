@@ -1780,7 +1780,7 @@
                     body: JSON.stringify({
                         subscription_id: subscriptionId,
                         offer_id: offerId,
-                        sync_leona: { account_id: accountId, starter_instances: newQty }
+                        sync_leona: { account_id: accountId, starter_instances: newQty, email: _email }
                     })
                 });
                 const data = await res.json();

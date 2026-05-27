@@ -1,4 +1,4 @@
-import { findLeonaAccountByEmail, updateLeonaBillingProfile, getLeonaBillingProfile } from '../lib/leona.js';
+import { findLeonaAccountByEmail, updateLeonaBillingProfile, getLeonaBillingProfile, assertAccountAccess } from '../lib/leona.js';
 import { findGuruActiveSubscriptionsByEmail, cancelGuruSubscription } from '../lib/guru.js';
 import { applyCors } from '../lib/auth.js';
 
@@ -253,6 +253,23 @@ export default async function handler(req, res) {
   } = req.body || {};
 
   const headers = paddleHeaders(paddleToken);
+
+  // Anti-IDOR: quando o body trouxer account_id (qualquer action que
+  // mexa numa conta especifica), validamos acesso ANTES de processar.
+  // Actions sem account_id (pricing_preview, migration_preview, preview
+  // de mutacao, refund por transaction_id) passam direto.
+  if (account_id) {
+    if (!leonaToken) {
+      return res.status(500).json({ error: 'LEONA_BILLING_TOKEN não configurado' });
+    }
+    const access = await assertAccountAccess({
+      accountId: account_id,
+      queryEmail: email,
+      leonaToken,
+      route: `/api/paddle-subscription:${action || 'unknown'}`
+    });
+    if (!access.ok) return res.status(access.status).json(access.body);
+  }
 
   try {
     // ----------------------------------------------------------------
