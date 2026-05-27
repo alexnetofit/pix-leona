@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Leona</title>
+    <style>
+        :root {
+            --bg-primary: #0f0f0f;
+            --bg-secondary: #1a1a1a;
+            --bg-card: #242424;
+            --accent: #00d4aa;
+            --accent-hover: #00b894;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --error: #ff6b6b;
+            --warning: #ffc107;
+            --border: #333333;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+        .container { max-width: 1100px; margin: 0 auto; padding: 32px 20px; }
+        header { text-align: center; margin-bottom: 32px; }
+        .logo {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent) 0%, #00ff88 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 6px;
+        }
+        .subtitle { color: var(--text-secondary); font-size: 0.95rem; }
+
+        button, input, select, textarea {
+            font-family: inherit;
+        }
+        input, select, textarea {
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 0.95rem;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none; border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.12);
+        }
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-primary { background: var(--accent); color: #000; }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-success { background: rgba(0, 212, 170, 0.15); color: var(--accent); border: 1px solid rgba(0, 212, 170, 0.3); }
+        .btn-success:hover { background: rgba(0, 212, 170, 0.25); }
+        .btn-danger { background: rgba(255, 107, 107, 0.15); color: var(--error); border: 1px solid rgba(255, 107, 107, 0.3); }
+        .btn-danger:hover { background: rgba(255, 107, 107, 0.25); }
+        .btn-secondary { background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-sm { padding: 8px 14px; font-size: 0.85rem; border-radius: 8px; }
+
+        .toolbar {
+            display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .toolbar label { color: var(--text-secondary); font-size: 0.85rem; }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 18px 20px;
+            margin-bottom: 14px;
+            border: 1px solid var(--border);
+        }
+        .card-head {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            gap: 12px; margin-bottom: 12px; flex-wrap: wrap;
+        }
+        .card-title { font-size: 1.05rem; font-weight: 600; }
+        .card-meta { color: var(--text-secondary); font-size: 0.82rem; margin-top: 2px; }
+
+        .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-top: 8px; }
+        .label { color: var(--text-secondary); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
+        .value { font-size: 0.92rem; word-break: break-word; }
+
+        .reason-box {
+            background: var(--bg-secondary);
+            border-left: 3px solid var(--accent);
+            padding: 10px 14px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-size: 0.92rem;
+            color: var(--text-primary);
+            white-space: pre-wrap;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .badge-pending { background: rgba(255, 193, 7, 0.15); color: var(--warning); }
+        .badge-approved { background: rgba(0, 212, 170, 0.15); color: var(--accent); }
+        .badge-rejected { background: rgba(255, 107, 107, 0.15); color: var(--error); }
+        .badge-executed { background: rgba(0, 212, 170, 0.2); color: var(--accent); }
+        .badge-failed { background: rgba(255, 107, 107, 0.25); color: var(--error); }
+
+        .badge-type-cancel_subscription { background: rgba(255, 107, 107, 0.12); color: var(--error); }
+        .badge-type-refund_transaction { background: rgba(255, 193, 7, 0.12); color: var(--warning); }
+
+        .actions-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+        .empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-secondary);
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px dashed var(--border);
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 20px;
+            color: var(--text-primary);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            z-index: 10000;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.25s ease;
+            max-width: 360px;
+        }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.success { border-color: var(--accent); }
+        .toast.error { border-color: var(--error); }
+
+        .modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none; align-items: center; justify-content: center;
+            z-index: 9000; padding: 20px;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 16px; padding: 28px;
+            max-width: 520px; width: 100%;
+        }
+        .modal h3 { font-size: 1.15rem; margin-bottom: 8px; }
+        .modal .modal-sub { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px; line-height: 1.5; }
+        .modal textarea { width: 100%; min-height: 90px; resize: vertical; }
+        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+
+        .nav-links { text-align: center; margin-top: 28px; color: var(--text-secondary); font-size: 0.85rem; }
+        .nav-links a { color: var(--accent); text-decoration: none; }
+        .nav-links a:hover { text-decoration: underline; }
+
+        details.exec-details { margin-top: 10px; }
+        details.exec-details summary { cursor: pointer; color: var(--text-secondary); font-size: 0.85rem; }
+        details.exec-details pre {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 12px;
+            overflow: auto;
+            font-size: 0.78rem;
+            margin-top: 8px;
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+    <div id="lockScreen" style="position: fixed; inset: 0; background: var(--bg-primary); z-index: 9999; display: flex; align-items: center; justify-content: center;">
+        <div style="width: 100%; max-width: 380px; padding: 20px; text-align: center;">
+            <h1 class="logo" style="margin-bottom: 8px;">Admin Leona</h1>
+            <p style="color: var(--text-secondary); margin-bottom: 32px; font-size: 0.9rem;">Acesso restrito</p>
+            <div style="display: flex; gap: 10px;">
+                <input type="password" id="tokenInput" placeholder="Token de acesso" onkeydown="if(event.key==='Enter')validateToken()">
+                <button class="btn-primary" onclick="validateToken()">Entrar</button>
+            </div>
+            <div id="lockError" style="color: var(--error); margin-top: 12px; font-size: 0.85rem; display: none;">Token inválido</div>
+        </div>
+    </div>
+
+    <div class="container" id="appContent" style="display: none;">
+        <header>
+            <h1 class="logo">Admin Leona</h1>
+            <p class="subtitle">Revisão de cancelamentos e reembolsos</p>
+        </header>
+
+        <div class="toolbar">
+            <label>Status:</label>
+            <select id="statusFilter" onchange="loadList()">
+                <option value="pending" selected>Pendentes</option>
+                <option value="approved">Aprovados</option>
+                <option value="executed">Executados</option>
+                <option value="rejected">Rejeitados</option>
+                <option value="failed">Falhados</option>
+                <option value="">Todos</option>
+            </select>
+            <button class="btn-secondary btn-sm" onclick="loadList()">Atualizar</button>
+            <span id="countBadge" style="margin-left: auto; color: var(--text-secondary); font-size: 0.85rem;"></span>
+        </div>
+
+        <div id="list"></div>
+
+        <div class="nav-links">
+            <a href="/suporte">← Voltar para o Suporte</a>
+        </div>
+    </div>
+
+    <!-- Modal de decisão -->
+    <div class="modal-overlay" id="decisionModal">
+        <div class="modal">
+            <h3 id="decisionTitle">Decisão</h3>
+            <p class="modal-sub" id="decisionSub"></p>
+            <textarea id="decisionNote" placeholder="Observação (opcional)"></textarea>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeDecisionModal()">Cancelar</button>
+                <button id="decisionConfirm" class="btn-primary" onclick="submitDecision()">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ========== AUTH ==========
+        function getStoredToken() { return localStorage.getItem('leona_token'); }
+
+        async function validateToken() {
+            const input = document.getElementById('tokenInput');
+            const errEl = document.getElementById('lockError');
+            const token = input.value.trim();
+            if (!token) { errEl.style.display = 'block'; return; }
+            try {
+                const res = await fetch('/api/auth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token })
+                });
+                if (res.ok) {
+                    localStorage.setItem('leona_token', token);
+                    document.getElementById('lockScreen').style.display = 'none';
+                    document.getElementById('appContent').style.display = 'block';
+                    loadList();
+                } else {
+                    errEl.style.display = 'block';
+                    input.value = '';
+                    input.focus();
+                }
+            } catch (_) { errEl.style.display = 'block'; }
+        }
+
+        (function checkAuth() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlToken = (urlParams.get('token') || '').trim();
+            const saved = getStoredToken();
+            const candidate = urlToken || saved;
+            if (!candidate) return;
+
+            fetch('/api/auth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: candidate })
+            }).then(r => {
+                if (r.ok) {
+                    localStorage.setItem('leona_token', candidate);
+                    document.getElementById('lockScreen').style.display = 'none';
+                    document.getElementById('appContent').style.display = 'block';
+                    if (urlToken) {
+                        urlParams.delete('token');
+                        const q = urlParams.toString();
+                        const newUrl = window.location.pathname + (q ? '?' + q : '');
+                        window.history.replaceState({}, '', newUrl);
+                    }
+                    loadList();
+                }
+            }).catch(() => {});
+        })();
+
+        // ========== HELPERS ==========
+        function authHeaders(extra = {}) {
+            return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getStoredToken() || ''}`, ...extra };
+        }
+        function showToast(msg, kind = 'success') {
+            const el = document.getElementById('toast');
+            el.textContent = msg;
+            el.className = `toast show ${kind}`;
+            setTimeout(() => { el.className = 'toast'; }, 4000);
+        }
+        function escapeHtml(s) {
+            return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+        function fmtMoney(value, currency) {
+            if (value == null) return '—';
+            const n = Number(value);
+            if (!Number.isFinite(n)) return String(value);
+            const cur = currency || 'BRL';
+            try { return n.toLocaleString('pt-BR', { style: 'currency', currency: cur }); }
+            catch (_) { return `${cur} ${n.toFixed(2)}`; }
+        }
+        function fmtDate(iso) {
+            if (!iso) return '—';
+            try { return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }); }
+            catch (_) { return iso; }
+        }
+
+        // ========== LIST ==========
+        async function loadList() {
+            const status = document.getElementById('statusFilter').value;
+            const url = '/api/support-action' + (status ? `?status=${encodeURIComponent(status)}` : '');
+            const root = document.getElementById('list');
+            root.innerHTML = '<div class="empty">Carregando…</div>';
+            document.getElementById('countBadge').textContent = '';
+
+            try {
+                const res = await fetch(url, { headers: authHeaders() });
+                const data = await res.json();
+                if (!res.ok) {
+                    root.innerHTML = `<div class="empty">Erro: ${escapeHtml(data.error || res.status)}</div>`;
+                    return;
+                }
+                const items = data.items || [];
+                document.getElementById('countBadge').textContent = `${items.length} item(s)`;
+                if (items.length === 0) {
+                    root.innerHTML = `<div class="empty">Nenhum item${status ? ` em "${escapeHtml(status)}"` : ''}.</div>`;
+                    return;
+                }
+                root.innerHTML = items.map(renderItem).join('');
+            } catch (e) {
+                root.innerHTML = `<div class="empty">Erro: ${escapeHtml(e.message)}</div>`;
+            }
+        }
+
+        function renderItem(item) {
+            const snap = item.snapshot || {};
+            const isCancel = item.type === 'cancel_subscription';
+            const isPending = item.status === 'pending';
+
+            const subjectLine = isCancel
+                ? `Cancelar: <span style="font-weight: 400; color: var(--text-secondary);">${escapeHtml(snap.offer_name || snap.sub_code || item.guru_subscription_id || '—')}</span>`
+                : `Reembolsar: <span style="font-weight: 400; color: var(--text-secondary);">${fmtMoney(snap.value, snap.currency)} · ${escapeHtml(snap.offer_name || '—')}</span>`;
+
+            const detailFields = isCancel
+                ? `
+                    <div><div class="label">Subscription</div><div class="value" style="font-family: monospace; font-size: 0.82rem;">${escapeHtml(snap.sub_code || item.guru_subscription_id || '—')}</div></div>
+                  `
+                : `
+                    <div><div class="label">Transaction</div><div class="value" style="font-family: monospace; font-size: 0.82rem;">${escapeHtml(snap.transaction_code || item.guru_transaction_id || '—')}</div></div>
+                    <div><div class="label">Confirmada</div><div class="value">${fmtDate(snap.confirmed_at)}</div></div>
+                  `;
+
+            const decisionInfo = item.decided_at
+                ? `
+                    <div class="grid-2" style="margin-top: 12px;">
+                        <div><div class="label">Decidido em</div><div class="value">${fmtDate(item.decided_at)}</div></div>
+                        <div><div class="label">Nota</div><div class="value">${escapeHtml(item.decision_note || '—')}</div></div>
+                    </div>
+                  `
+                : '';
+
+            const execInfo = item.execution_result
+                ? `
+                    <details class="exec-details">
+                        <summary>Resultado da execução</summary>
+                        <pre>${escapeHtml(JSON.stringify(item.execution_result, null, 2))}</pre>
+                    </details>
+                  `
+                : '';
+
+            const actions = isPending
+                ? `
+                    <div class="actions-row">
+                        <button class="btn-success btn-sm" onclick="openDecision('${item.id}', 'approve')">Aprovar e executar</button>
+                        <button class="btn-danger btn-sm" onclick="openDecision('${item.id}', 'reject')">Rejeitar</button>
+                    </div>
+                  `
+                : '';
+
+            return `
+                <div class="card">
+                    <div class="card-head">
+                        <div>
+                            <div class="card-title">${subjectLine}</div>
+                            <div class="card-meta">
+                                ${escapeHtml(item.target_email)} · criado ${fmtDate(item.created_at)}
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                            <span class="badge badge-type-${item.type}">${isCancel ? 'cancel' : 'refund'}</span>
+                            <span class="badge badge-${item.status}">${escapeHtml(item.status)}</span>
+                        </div>
+                    </div>
+
+                    <div class="reason-box"><strong>Motivo:</strong> ${escapeHtml(item.reason)}</div>
+
+                    <div class="grid-2">
+                        ${detailFields}
+                        <div><div class="label">Account ID</div><div class="value" style="font-family: monospace; font-size: 0.82rem;">${escapeHtml(item.target_account_id || '—')}</div></div>
+                        <div><div class="label">ID</div><div class="value" style="font-family: monospace; font-size: 0.78rem;">${escapeHtml(item.id)}</div></div>
+                    </div>
+
+                    ${decisionInfo}
+                    ${execInfo}
+                    ${actions}
+                </div>
+            `;
+        }
+
+        // ========== DECISION MODAL ==========
+        let pendingDecision = null;
+
+        function openDecision(id, decision) {
+            pendingDecision = { id, decision };
+            const isApprove = decision === 'approve';
+            document.getElementById('decisionTitle').textContent = isApprove ? 'Aprovar e executar' : 'Rejeitar';
+            document.getElementById('decisionSub').textContent = isApprove
+                ? 'Ao confirmar, a ação será executada na Guru imediatamente. Sem volta.'
+                : 'A solicitação será marcada como rejeitada. Nenhuma ação será executada.';
+            const btn = document.getElementById('decisionConfirm');
+            btn.className = isApprove ? 'btn-success' : 'btn-danger';
+            btn.textContent = isApprove ? 'Aprovar e executar' : 'Rejeitar';
+            document.getElementById('decisionNote').value = '';
+            document.getElementById('decisionModal').classList.add('show');
+        }
+        function closeDecisionModal() {
+            document.getElementById('decisionModal').classList.remove('show');
+            pendingDecision = null;
+        }
+
+        async function submitDecision() {
+            if (!pendingDecision) return;
+            const note = document.getElementById('decisionNote').value.trim();
+
+            const btn = document.getElementById('decisionConfirm');
+            btn.disabled = true;
+            const origLabel = btn.textContent;
+            btn.textContent = 'Processando…';
+
+            try {
+                const res = await fetch('/api/support-action-decision', {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify({
+                        id: pendingDecision.id,
+                        decision: pendingDecision.decision,
+                        note: note || null
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    showToast('Erro: ' + (data.error || res.status), 'error');
+                } else {
+                    if (pendingDecision.decision === 'approve') {
+                        const ok = !!data.ok;
+                        showToast(ok ? 'Aprovado e executado.' : 'Aprovado, mas execução falhou. Veja detalhes.', ok ? 'success' : 'error');
+                    } else {
+                        showToast('Rejeitado.', 'success');
+                    }
+                    closeDecisionModal();
+                    loadList();
+                }
+            } catch (e) {
+                showToast('Erro: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = origLabel;
+            }
+        }
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeDecisionModal();
+        });
+        document.getElementById('decisionModal').addEventListener('click', e => {
+            if (e.target.id === 'decisionModal') closeDecisionModal();
+        });
+    </script>
+</body>
+</html>

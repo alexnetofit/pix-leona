@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suporte - Leona</title>
+    <style>
+        :root {
+            --bg-primary: #0f0f0f;
+            --bg-secondary: #1a1a1a;
+            --bg-card: #242424;
+            --accent: #00d4aa;
+            --accent-hover: #00b894;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --error: #ff6b6b;
+            --warning: #ffc107;
+            --border: #333333;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+
+        .container { max-width: 1100px; margin: 0 auto; padding: 32px 20px; }
+
+        header { text-align: center; margin-bottom: 40px; }
+        .logo {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent) 0%, #00ff88 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 6px;
+        }
+        .subtitle { color: var(--text-secondary); font-size: 0.95rem; }
+
+        .search-section {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid var(--border);
+        }
+        .search-section h2 {
+            font-size: 1rem;
+            margin-bottom: 16px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        .input-group { display: flex; gap: 10px; flex-wrap: wrap; }
+        input[type="email"], input[type="number"], input[type="password"], input[type="text"], textarea {
+            flex: 1;
+            min-width: 220px;
+            padding: 14px 16px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            font-family: inherit;
+        }
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.12);
+        }
+        button {
+            padding: 14px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+        .btn-primary { background: var(--accent); color: #000; }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-danger { background: rgba(255, 107, 107, 0.15); color: var(--error); border: 1px solid rgba(255, 107, 107, 0.3); }
+        .btn-danger:hover { background: rgba(255, 107, 107, 0.25); }
+        .btn-warning { background: rgba(255, 193, 7, 0.15); color: var(--warning); border: 1px solid rgba(255, 193, 7, 0.3); }
+        .btn-warning:hover { background: rgba(255, 193, 7, 0.25); }
+        .btn-secondary { background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: var(--bg-card); }
+        .btn-sm { padding: 8px 14px; font-size: 0.85rem; border-radius: 8px; }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+            border: 1px solid var(--border);
+        }
+        .card-title {
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--text-primary);
+        }
+        .card-section-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin: 24px 0 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; }
+        .row > .info { flex: 1 1 300px; min-width: 0; }
+        .row > .actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+        .label { color: var(--text-secondary); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
+        .value { font-size: 0.95rem; word-break: break-word; }
+        .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+        .badge-active { background: rgba(0, 212, 170, 0.15); color: var(--accent); }
+        .badge-canceled, .badge-cancelled, .badge-expired, .badge-rejected { background: rgba(255, 107, 107, 0.15); color: var(--error); }
+        .badge-paid, .badge-approved, .badge-executed { background: rgba(0, 212, 170, 0.15); color: var(--accent); }
+        .badge-pending, .badge-waiting_payment { background: rgba(255, 193, 7, 0.15); color: var(--warning); }
+        .badge-refunded { background: rgba(156, 39, 176, 0.2); color: #ce93d8; }
+        .badge-failed { background: rgba(255, 107, 107, 0.15); color: var(--error); }
+        .badge-default { background: rgba(160, 160, 160, 0.15); color: var(--text-secondary); }
+
+        .empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-secondary);
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px dashed var(--border);
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 20px;
+            color: var(--text-primary);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            z-index: 10000;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.25s ease;
+            max-width: 360px;
+        }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.success { border-color: var(--accent); }
+        .toast.error { border-color: var(--error); }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9000;
+            padding: 20px;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px;
+            max-width: 520px;
+            width: 100%;
+        }
+        .modal h3 { font-size: 1.15rem; margin-bottom: 8px; }
+        .modal .modal-sub { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 18px; line-height: 1.5; }
+        .modal textarea { width: 100%; min-height: 110px; resize: vertical; }
+        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+
+        .nav-links {
+            text-align: center;
+            margin-top: 32px;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        .nav-links a { color: var(--accent); text-decoration: none; }
+        .nav-links a:hover { text-decoration: underline; }
+
+        @media (max-width: 600px) {
+            .row { flex-direction: column; }
+            .row > .actions { width: 100%; }
+            .row > .actions button { flex: 1; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Tela de bloqueio -->
+    <div id="lockScreen" style="position: fixed; inset: 0; background: var(--bg-primary); z-index: 9999; display: flex; align-items: center; justify-content: center;">
+        <div style="width: 100%; max-width: 380px; padding: 20px; text-align: center;">
+            <h1 class="logo" style="margin-bottom: 8px;">Suporte Leona</h1>
+            <p style="color: var(--text-secondary); margin-bottom: 32px; font-size: 0.9rem;">Acesso restrito</p>
+            <div style="display: flex; gap: 10px;">
+                <input type="password" id="tokenInput" placeholder="Token de acesso" onkeydown="if(event.key==='Enter')validateToken()">
+                <button class="btn-primary" onclick="validateToken()">Entrar</button>
+            </div>
+            <div id="lockError" style="color: var(--error); margin-top: 12px; font-size: 0.85rem; display: none;">Token inválido</div>
+        </div>
+    </div>
+
+    <div class="container" id="appContent" style="display: none;">
+        <header>
+            <h1 class="logo">Suporte Leona</h1>
+            <p class="subtitle">Cancelamentos e reembolsos · workflow com aprovação</p>
+        </header>
+
+        <section class="search-section">
+            <h2>Buscar cliente por e-mail</h2>
+            <div class="input-group">
+                <input type="email" id="emailInput" placeholder="cliente@exemplo.com" autocomplete="email" onkeydown="if(event.key==='Enter')doSearch()">
+                <input type="number" id="daysInput" placeholder="Dias" value="60" min="1" max="365" style="max-width: 100px; flex: 0 0 100px;">
+                <button class="btn-primary" id="searchBtn" onclick="doSearch()">Buscar</button>
+            </div>
+            <p style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 10px;">
+                Faturas exibidas dos últimos N dias (default 60).
+            </p>
+        </section>
+
+        <div id="results"></div>
+
+        <div class="nav-links">
+            <a href="/admin">Ir para revisão de pendências →</a>
+        </div>
+    </div>
+
+    <!-- Modal de motivo -->
+    <div class="modal-overlay" id="reasonModal">
+        <div class="modal">
+            <h3 id="modalTitle">Motivo</h3>
+            <p class="modal-sub" id="modalSub"></p>
+            <textarea id="reasonText" placeholder="Descreva o motivo (será visível na revisão)"></textarea>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeReasonModal()">Cancelar</button>
+                <button class="btn-primary" id="modalConfirm" onclick="submitReason()">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ========== AUTH ==========
+        function getStoredToken() { return localStorage.getItem('leona_token'); }
+
+        async function validateToken() {
+            const input = document.getElementById('tokenInput');
+            const errEl = document.getElementById('lockError');
+            const token = input.value.trim();
+            if (!token) { errEl.style.display = 'block'; return; }
+            try {
+                const res = await fetch('/api/auth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token })
+                });
+                if (res.ok) {
+                    localStorage.setItem('leona_token', token);
+                    document.getElementById('lockScreen').style.display = 'none';
+                    document.getElementById('appContent').style.display = 'block';
+                } else {
+                    errEl.style.display = 'block';
+                    input.value = '';
+                    input.focus();
+                }
+            } catch (_) { errEl.style.display = 'block'; }
+        }
+
+        (function checkAuth() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlToken = (urlParams.get('token') || '').trim();
+            const saved = getStoredToken();
+            const candidate = urlToken || saved;
+            if (!candidate) return;
+
+            fetch('/api/auth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: candidate })
+            }).then(r => {
+                if (r.ok) {
+                    localStorage.setItem('leona_token', candidate);
+                    document.getElementById('lockScreen').style.display = 'none';
+                    document.getElementById('appContent').style.display = 'block';
+                    if (urlToken) {
+                        urlParams.delete('token');
+                        const q = urlParams.toString();
+                        const newUrl = window.location.pathname + (q ? '?' + q : '');
+                        window.history.replaceState({}, '', newUrl);
+                    }
+                }
+            }).catch(() => {});
+        })();
+
+        // ========== HELPERS ==========
+        function authHeaders(extra = {}) {
+            return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getStoredToken() || ''}`, ...extra };
+        }
+
+        function showToast(msg, kind = 'success') {
+            const el = document.getElementById('toast');
+            el.textContent = msg;
+            el.className = `toast show ${kind}`;
+            setTimeout(() => { el.className = 'toast'; }, 4000);
+        }
+
+        function badge(status) {
+            if (!status) return `<span class="badge badge-default">—</span>`;
+            const cls = `badge-${String(status).toLowerCase()}`;
+            return `<span class="badge ${cls}">${status}</span>`;
+        }
+
+        function fmtMoney(value, currency) {
+            if (value == null) return '—';
+            const n = Number(value);
+            if (!Number.isFinite(n)) return String(value);
+            const cur = currency || 'BRL';
+            try { return n.toLocaleString('pt-BR', { style: 'currency', currency: cur }); }
+            catch (_) { return `${cur} ${n.toFixed(2)}`; }
+        }
+
+        function fmtDate(iso) {
+            if (!iso) return '—';
+            try { return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }); }
+            catch (_) { return iso; }
+        }
+
+        function escapeHtml(s) {
+            return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        // ========== STATE ==========
+        let lastResult = null;
+
+        // ========== BUSCA ==========
+        async function doSearch() {
+            const email = document.getElementById('emailInput').value.trim();
+            const days = parseInt(document.getElementById('daysInput').value, 10) || 60;
+            if (!email) { showToast('Informe um e-mail', 'error'); return; }
+
+            const btn = document.getElementById('searchBtn');
+            btn.disabled = true;
+            btn.textContent = 'Buscando…';
+            document.getElementById('results').innerHTML = '<div class="empty">Carregando…</div>';
+
+            try {
+                const res = await fetch('/api/support-search', {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify({ email, days })
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    document.getElementById('results').innerHTML = `<div class="empty">Erro: ${escapeHtml(data.error || 'falha na busca')}</div>`;
+                    return;
+                }
+                lastResult = data;
+                renderResults(data);
+            } catch (e) {
+                document.getElementById('results').innerHTML = `<div class="empty">Erro: ${escapeHtml(e.message)}</div>`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Buscar';
+            }
+        }
+
+        function renderResults(data) {
+            const root = document.getElementById('results');
+            const parts = [];
+
+            const leona = data.leona || { billing_profiles: [] };
+            const profiles = leona.billing_profiles || [];
+            const guru = data.guru || { subscriptions: [], invoices: [], contact: null };
+
+            // ----- Cliente Leona -----
+            parts.push(`<h3 class="card-section-title">Conta Leona</h3>`);
+            if (!leona.configured) {
+                parts.push(`<div class="empty">LEONA_BILLING_TOKEN não configurado.</div>`);
+            } else if (profiles.length === 0) {
+                parts.push(`<div class="empty">Nenhuma conta Leona encontrada para ${escapeHtml(data.email)}.</div>`);
+            } else {
+                for (const p of profiles) {
+                    parts.push(renderLeonaProfile(p));
+                }
+            }
+
+            // ----- Contato Guru -----
+            parts.push(`<h3 class="card-section-title">Contato Guru</h3>`);
+            if (!guru.contact) {
+                parts.push(`<div class="empty">Nenhum contato Guru encontrado.</div>`);
+            } else {
+                parts.push(`
+                    <div class="card">
+                        <div class="grid-2">
+                            <div><div class="label">Nome</div><div class="value">${escapeHtml(guru.contact.name || '—')}</div></div>
+                            <div><div class="label">E-mail</div><div class="value">${escapeHtml(guru.contact.email || '—')}</div></div>
+                            <div><div class="label">Doc</div><div class="value">${escapeHtml(guru.contact.doc || '—')}</div></div>
+                            <div><div class="label">Telefone</div><div class="value">${escapeHtml((guru.contact.phone_local_code || '') + (guru.contact.phone_number || '') || '—')}</div></div>
+                        </div>
+                    </div>
+                `);
+            }
+
+            // ----- Assinaturas Guru -----
+            parts.push(`<h3 class="card-section-title">Assinaturas Guru</h3>`);
+            const subs = guru.subscriptions || [];
+            if (subs.length === 0) {
+                parts.push(`<div class="empty">Sem assinaturas Guru do produto Leona.</div>`);
+            } else {
+                for (const s of subs) {
+                    parts.push(renderSubscription(s, data.email));
+                }
+            }
+
+            // ----- Faturas (transações) -----
+            parts.push(`<h3 class="card-section-title">Faturas (últimos ${data.lookback_days || 60} dias)</h3>`);
+            const invoices = guru.invoices || [];
+            if (invoices.length === 0) {
+                parts.push(`<div class="empty">Nenhuma fatura no período.</div>`);
+            } else {
+                for (const inv of invoices) {
+                    parts.push(renderInvoice(inv, data.email));
+                }
+            }
+
+            root.innerHTML = parts.join('');
+        }
+
+        function renderLeonaProfile(p) {
+            const user = p.user || {};
+            const billing = p.billing || {};
+            return `
+                <div class="card">
+                    <div class="grid-2">
+                        <div><div class="label">account_id</div><div class="value">${escapeHtml(p.account_id || '—')}</div></div>
+                        <div><div class="label">E-mail</div><div class="value">${escapeHtml(user.email || '—')}</div></div>
+                        <div><div class="label">Nome</div><div class="value">${escapeHtml(user.name || '—')}</div></div>
+                        <div><div class="label">Plano</div><div class="value">${escapeHtml(billing.plan_name || billing.plan || '—')}</div></div>
+                        <div><div class="label">Status</div><div class="value">${badge(billing.status || p.status || '—')}</div></div>
+                        <div><div class="label">Vencimento</div><div class="value">${escapeHtml(billing.expiration_date || billing.next_charge_at || '—')}</div></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderSubscription(s, email) {
+            const isActive = s.status === 'active';
+            const cancelBtn = isActive
+                ? `<button class="btn-danger btn-sm" onclick='openCancel(${JSON.stringify({ subscription_id: s.id, sub_code: s.subscription_code, offer_name: s.offer_name, email }).replace(/'/g, "&apos;")})'>Cancelar</button>`
+                : `<button class="btn-secondary btn-sm" disabled>Já ${escapeHtml(s.status || 'inativa')}</button>`;
+            return `
+                <div class="card">
+                    <div class="row">
+                        <div class="info">
+                            <div class="card-title">${escapeHtml(s.offer_name || s.product_name || s.subscription_code || s.id)}</div>
+                            <div class="grid-2">
+                                <div><div class="label">Status</div><div class="value">${badge(s.status)}</div></div>
+                                <div><div class="label">Subscription</div><div class="value" style="font-family: monospace; font-size: 0.85rem;">${escapeHtml(s.subscription_code || s.id)}</div></div>
+                                <div><div class="label">Próximo ciclo</div><div class="value">${escapeHtml(s.next_cycle || '—')}</div></div>
+                                <div><div class="label">Pagamento</div><div class="value">${escapeHtml(s.payment_method || '—')}</div></div>
+                            </div>
+                        </div>
+                        <div class="actions">${cancelBtn}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderInvoice(inv, email) {
+            const refundable = inv.refundable && inv.transaction_status === 'approved';
+            const dispStatus = inv.transaction_status || inv.invoice_status || '—';
+            const refundBtn = refundable
+                ? `<button class="btn-warning btn-sm" onclick='openRefund(${JSON.stringify({
+                    transaction_id: inv.transaction_id,
+                    transaction_code: inv.transaction_code,
+                    value: inv.value,
+                    currency: inv.currency,
+                    offer_name: inv.offer_name,
+                    confirmed_at: inv.confirmed_at,
+                    subscription_id: inv.subscription_id,
+                    invoice_id: inv.invoice_id,
+                    email
+                  }).replace(/'/g, "&apos;")})'>Reembolsar</button>`
+                : `<button class="btn-secondary btn-sm" disabled>${escapeHtml(dispStatus === 'refunded' ? 'Reembolsada' : 'Não reembolsável')}</button>`;
+            return `
+                <div class="card">
+                    <div class="row">
+                        <div class="info">
+                            <div class="card-title">${fmtMoney(inv.value, inv.currency)} · ${escapeHtml(inv.offer_name || '—')}</div>
+                            <div class="grid-2">
+                                <div><div class="label">Status transação</div><div class="value">${badge(inv.transaction_status)}</div></div>
+                                <div><div class="label">Status fatura</div><div class="value">${badge(inv.invoice_status)}</div></div>
+                                <div><div class="label">Confirmada</div><div class="value">${fmtDate(inv.confirmed_at)}</div></div>
+                                <div><div class="label">Pagamento</div><div class="value">${escapeHtml(inv.payment_method || '—')}</div></div>
+                                <div><div class="label">Transaction</div><div class="value" style="font-family: monospace; font-size: 0.8rem;">${escapeHtml(inv.transaction_code || inv.transaction_id || '—')}</div></div>
+                                <div><div class="label">Ciclo</div><div class="value">${escapeHtml(String(inv.cycle ?? '—'))}</div></div>
+                            </div>
+                        </div>
+                        <div class="actions">${refundBtn}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ========== MODAL DE MOTIVO ==========
+        let pendingAction = null;
+
+        function openCancel(payload) {
+            pendingAction = { type: 'cancel_subscription', payload };
+            document.getElementById('modalTitle').textContent = 'Solicitar cancelamento';
+            document.getElementById('modalSub').innerHTML =
+                `Assinatura: <b>${escapeHtml(payload.offer_name || payload.sub_code || payload.subscription_id)}</b><br>` +
+                `Cliente: <b>${escapeHtml(payload.email || '—')}</b><br><br>` +
+                `O cancelamento <b>não será executado agora</b>. Ficará pendente em /admin para aprovação.`;
+            openReasonModal();
+        }
+
+        function openRefund(payload) {
+            pendingAction = { type: 'refund_transaction', payload };
+            const valTxt = fmtMoney(payload.value, payload.currency);
+            document.getElementById('modalTitle').textContent = 'Solicitar reembolso';
+            document.getElementById('modalSub').innerHTML =
+                `Transação: <b>${escapeHtml(payload.transaction_code || payload.transaction_id)}</b><br>` +
+                `Valor: <b>${valTxt}</b><br>` +
+                `Cliente: <b>${escapeHtml(payload.email || '—')}</b><br><br>` +
+                `O reembolso <b>não será executado agora</b>. Ficará pendente em /admin para aprovação.`;
+            openReasonModal();
+        }
+
+        function openReasonModal() {
+            document.getElementById('reasonText').value = '';
+            document.getElementById('reasonModal').classList.add('show');
+            setTimeout(() => document.getElementById('reasonText').focus(), 50);
+        }
+        function closeReasonModal() {
+            document.getElementById('reasonModal').classList.remove('show');
+            pendingAction = null;
+        }
+
+        async function submitReason() {
+            const reason = document.getElementById('reasonText').value.trim();
+            if (!reason) { showToast('Informe o motivo', 'error'); return; }
+            if (!pendingAction) { closeReasonModal(); return; }
+
+            const btn = document.getElementById('modalConfirm');
+            btn.disabled = true;
+            btn.textContent = 'Enviando…';
+
+            const { type, payload } = pendingAction;
+            const body = {
+                type,
+                target_email: payload.email,
+                reason,
+                snapshot: payload
+            };
+            if (type === 'cancel_subscription') {
+                body.guru_subscription_id = payload.subscription_id;
+            } else if (type === 'refund_transaction') {
+                body.guru_transaction_id = payload.transaction_id;
+                body.guru_invoice_id = payload.invoice_id || null;
+            }
+
+            try {
+                const res = await fetch('/api/support-action', {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    showToast('Erro: ' + (data.error || res.status), 'error');
+                } else {
+                    showToast(type === 'cancel_subscription'
+                        ? 'Cancelamento solicitado. Aguardando aprovação em /admin.'
+                        : 'Reembolso solicitado. Aguardando aprovação em /admin.', 'success');
+                    closeReasonModal();
+                }
+            } catch (e) {
+                showToast('Erro: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Confirmar';
+            }
+        }
+
+        // Fecha modal com Esc
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeReasonModal();
+        });
+        document.getElementById('reasonModal').addEventListener('click', e => {
+            if (e.target.id === 'reasonModal') closeReasonModal();
+        });
+    </script>
+</body>
+</html>
