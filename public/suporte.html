@@ -456,16 +456,25 @@
 
         function renderLeonaProfile(p) {
             const user = p.user || {};
-            const billing = p.billing || {};
+            const plan = p.plan_summary
+                || (p.starter_instances != null || p.pro_instances
+                    ? `Starter: ${p.starter_instances ?? 0}${p.pro_instances ? ` · Pro: ${p.pro_instances}` : ''}`
+                    : null);
+            const status = p.subscription_status || p.status || null;
+            const vencimento = p.current_period_end ? fmtDate(p.current_period_end) : (p.due_date || null);
             return `
                 <div class="card">
                     <div class="grid-2">
                         <div><div class="label">account_id</div><div class="value">${escapeHtml(p.account_id || '—')}</div></div>
                         <div><div class="label">E-mail</div><div class="value">${escapeHtml(user.email || '—')}</div></div>
                         <div><div class="label">Nome</div><div class="value">${escapeHtml(user.name || '—')}</div></div>
-                        <div><div class="label">Plano</div><div class="value">${escapeHtml(billing.plan_name || billing.plan || '—')}</div></div>
-                        <div><div class="label">Status</div><div class="value">${badge(billing.status || p.status || '—')}</div></div>
-                        <div><div class="label">Vencimento</div><div class="value">${escapeHtml(billing.expiration_date || billing.next_charge_at || '—')}</div></div>
+                        <div><div class="label">Plano</div><div class="value">${escapeHtml(plan || '—')}</div></div>
+                        <div><div class="label">Status</div><div class="value">${status ? badge(status) : '—'}</div></div>
+                        <div><div class="label">Vencimento</div><div class="value">${escapeHtml(vencimento || '—')}</div></div>
+                        ${p.starter_instances != null ? `<div><div class="label">Starter</div><div class="value">${escapeHtml(String(p.starter_instances))}</div></div>` : ''}
+                        ${p.pro_instances != null ? `<div><div class="label">Pro</div><div class="value">${escapeHtml(String(p.pro_instances))}</div></div>` : ''}
+                        ${p.subscription_type ? `<div><div class="label">Tipo</div><div class="value">${escapeHtml(p.subscription_type)}</div></div>` : ''}
+                        ${p.guru_account_id ? `<div><div class="label">Guru ID</div><div class="value" style="font-family: monospace; font-size: 0.82rem;">${escapeHtml(p.guru_account_id)}</div></div>` : ''}
                     </div>
                 </div>
             `;
