@@ -23,10 +23,24 @@ export default async function handler(req, res) {
   // account_id aceita int (legado) ou UUID. Tratamos como string opaca.
   const accountIdRaw = account_id != null ? String(account_id).trim() : '';
   const hasAccountId = accountIdRaw.length > 0;
+  const isLegacyNumericId = hasAccountId && /^\d+$/.test(accountIdRaw);
   const queryEmail = email ? String(email).trim().toLowerCase() : '';
 
   if (!hasAccountId && !queryEmail) {
     return res.status(400).json({ error: 'Informe um e-mail ou account_id' });
+  }
+
+  // Anti-IDOR: ID numerico legado e enumeravel, entao exigimos email como
+  // segunda chave (a Leona ainda envia ambos no botao). Quando o Leona
+  // migrar pro UUID (inadivinhavel por design), essa exigencia some
+  // automaticamente — UUID passa direto sem precisar de email.
+  if (isLegacyNumericId && !queryEmail) {
+    console.warn(`[idor:legacy_no_email] guru-search account_id=${accountIdRaw}`);
+    return res.status(403).json({
+      error: 'forbidden',
+      code: 'EMAIL_ID_MISMATCH',
+      message: 'os dados do link nao correspondem'
+    });
   }
 
   const headers = GURU_HEADERS(guruToken);

@@ -26,7 +26,21 @@ export default async function handler(req, res) {
   // account_id aceita int (legado) ou UUID. Tratamos como string opaca.
   const wantedAccountId = account_id != null ? String(account_id).trim() : '';
   const hasAccountId = wantedAccountId.length > 0;
+  const isLegacyNumericId = hasAccountId && /^\d+$/.test(wantedAccountId);
   const queryEmail = (email || '').trim().toLowerCase();
+
+  // Anti-IDOR: ID numerico legado e enumeravel, entao exigimos email como
+  // segunda chave (a Leona ainda envia ambos no botao). Quando o Leona
+  // migrar pro UUID (inadivinhavel), essa exigencia some — UUID passa
+  // direto sem precisar de email.
+  if (isLegacyNumericId && !queryEmail) {
+    console.warn(`[idor:legacy_no_email] paddle-search account_id=${wantedAccountId}`);
+    return res.status(403).json({
+      error: 'forbidden',
+      code: 'EMAIL_ID_MISMATCH',
+      message: 'os dados do link nao correspondem'
+    });
+  }
 
   // Resolução do email + mitigacao anti-IDOR:
   //
