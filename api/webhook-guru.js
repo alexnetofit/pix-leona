@@ -284,14 +284,12 @@ export default async function handler(req, res) {
       && existingPeriodEnd
       && new Date(existingPeriodEnd) > new Date();
 
-    if (!isUpgradeOrDowngrade) {
-      if (preserveStripeCycle) {
-        console.log(`webhook-guru: cupom ${couponCode} (upgrade vindo do Stripe), preservando current_period_end Leona ${existingPeriodEnd} e ajustando ciclo na Guru`);
-      } else {
-        const calculatedDueDate = calculateDueDate(payload);
-        if (calculatedDueDate) {
-          updateData.due_date = calculatedDueDate;
-        }
+    if (preserveStripeCycle) {
+      console.log(`webhook-guru: cupom ${couponCode} (upgrade vindo do Stripe), preservando current_period_end Leona ${existingPeriodEnd} e ajustando ciclo na Guru`);
+    } else {
+      const calculatedDueDate = calculateDueDate(payload);
+      if (calculatedDueDate) {
+        updateData.due_date = calculatedDueDate;
       }
     }
 
