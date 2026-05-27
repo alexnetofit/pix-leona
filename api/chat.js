@@ -58,7 +58,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return bad(res, 405, 'Metodo nao permitido');
 
   // Auth simples
-  const expected = process.env.SUPPORT_CHAT_TOKEN;
+  const expected = (process.env.SUPPORT_CHAT_TOKEN || '').trim();
   if (!expected) return bad(res, 500, 'SUPPORT_CHAT_TOKEN nao configurado no servidor');
 
   const auth = req.headers.authorization || '';
