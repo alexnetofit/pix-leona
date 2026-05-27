@@ -23,8 +23,9 @@ export default async function handler(req, res) {
   // account_id aceita int (legado) ou UUID. Tratamos como string opaca.
   const accountIdRaw = account_id != null ? String(account_id).trim() : '';
   const hasAccountId = accountIdRaw.length > 0;
+  const queryEmail = email ? String(email).trim().toLowerCase() : '';
 
-  if (!hasAccountId && (!email || !email.trim())) {
+  if (!hasAccountId && !queryEmail) {
     return res.status(400).json({ error: 'Informe um e-mail ou account_id' });
   }
 
@@ -32,11 +33,21 @@ export default async function handler(req, res) {
   const leonaAuthHeaders = { 'Authorization': `Bearer ${leonaToken}`, 'Accept': 'application/json' };
 
   try {
-    // Se veio account_id, busca a conta Leona DIRETO pelo ID. O email
-    // pra buscar Guru passa a ser o email do dono da conta encontrada,
-    // nao o email da query string (que pode ser de outra pessoa).
+    // Se veio account_id, busca a conta Leona DIRETO pelo ID.
+    //
+    // Mitigacao anti-IDOR (enquanto o Leona ainda envia account_id sequencial
+    // junto com o email): quando a query traz email + account_id, exigimos
+    // que o email da query bata com o email do dono da conta retornada
+    // pela Leona. Caso nao bata (ou a conta nao exista), retornamos 403
+    // com codigo unificado 'EMAIL_ID_MISMATCH' — sem distinguir entre
+    // mismatch e id-inexistente, pra impedir enumeracao binaria de IDs
+    // validos por usuarios autenticados que so conhecem o proprio email.
+    //
+    // Quando o Leona migrar pro UUID (e parar de mandar email na URL),
+    // queryEmail vai ser vazio e essa validacao nao se aplica — o lookup
+    // segue direto pelo UUID.
     let leonaPriority = null;
-    let lookupEmail = email ? email.trim().toLowerCase() : null;
+    let lookupEmail = queryEmail || null;
 
     if (hasAccountId && leonaToken) {
       try {
@@ -46,11 +57,32 @@ export default async function handler(req, res) {
         );
         if (r.ok) {
           const profile = await r.json();
-          leonaPriority = { found: true, billing_profile: profile, billing_profiles: [profile], error: null };
-          if (profile?.user?.email) {
-            lookupEmail = String(profile.user.email).trim().toLowerCase();
+          const profileEmail = profile?.user?.email
+            ? String(profile.user.email).trim().toLowerCase()
+            : null;
+
+          if (queryEmail && profileEmail && queryEmail !== profileEmail) {
+            console.warn(`[idor:mismatch] guru-search account_id=${accountIdRaw} queryEmail=${queryEmail} profileEmail=${profileEmail}`);
+            return res.status(403).json({
+              error: 'forbidden',
+              code: 'EMAIL_ID_MISMATCH',
+              message: 'os dados do link nao correspondem'
+            });
           }
+
+          leonaPriority = { found: true, billing_profile: profile, billing_profiles: [profile], error: null };
+          if (profileEmail) lookupEmail = profileEmail;
         } else if (r.status === 404) {
+          // Mesmo codigo do mismatch quando a query trouxe email — evita que
+          // o atacante distinga "id existe mas e de outro" de "id inexistente".
+          if (queryEmail) {
+            console.warn(`[idor:notfound] guru-search account_id=${accountIdRaw} queryEmail=${queryEmail}`);
+            return res.status(403).json({
+              error: 'forbidden',
+              code: 'EMAIL_ID_MISMATCH',
+              message: 'os dados do link nao correspondem'
+            });
+          }
           leonaPriority = { found: false, billing_profile: null, billing_profiles: [], error: `account_id ${accountIdRaw} nao encontrada` };
         } else {
           leonaPriority = { found: false, billing_profile: null, billing_profiles: [], error: `Leona retornou ${r.status} para account_id ${accountIdRaw}` };

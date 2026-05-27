@@ -814,6 +814,14 @@
                 });
                 const data = await res.json();
 
+                // Anti-IDOR: 403 EMAIL_ID_MISMATCH = email da URL nao bate com
+                // o dono do account_id. Nao mostramos nada do dono real, so
+                // direcionamos o usuario pro suporte.
+                if (res.status === 403 && data?.code === 'EMAIL_ID_MISMATCH') {
+                    renderMismatchScreen();
+                    return;
+                }
+
                 // Quando buscamos por account_id, o email "real" e o do dono da conta.
                 if (accountIdParam && data?.leona?.billing_profile?.user?.email) {
                     _email = String(data.leona.billing_profile.user.email).trim().toLowerCase();
@@ -832,6 +840,27 @@
                 content.innerHTML = `<div class="error-msg">Erro de conexão: ${err.message}</div>`;
                 showWhatsapp(email);
             }
+        }
+
+        function renderMismatchScreen() {
+            const content = document.getElementById('content');
+            content.innerHTML = `
+                <div class="card" style="text-align: center; max-width: 480px; margin: 40px auto; padding: 32px 24px;">
+                    <div style="font-size: 2.5rem; margin-bottom: 12px;">🔒</div>
+                    <h3 style="margin-bottom: 12px;">Não foi possível abrir esta página</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.95rem; line-height: 1.5; margin-bottom: 24px;">
+                        Os dados do link parecem não corresponder à sua conta. Por questão de segurança, não podemos exibir as informações.
+                    </p>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; margin-bottom: 24px;">
+                        Tente acessar novamente pelo botão dentro do painel do Leona, ou fale com o suporte para resolver.
+                    </p>
+                    <a href="https://leonaflow.com/leona-tube/suporte-whatsapp" target="_blank" rel="noopener"
+                       class="btn-orange"
+                       style="display: inline-block; padding: 14px 28px; text-decoration: none; font-size: 0.95rem;">
+                        Falar com o suporte
+                    </a>
+                </div>
+            `;
         }
 
         function totalConnections(bp) {

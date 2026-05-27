@@ -591,6 +591,14 @@
                 });
                 const data = await res.json();
 
+                // Anti-IDOR: 403 EMAIL_ID_MISMATCH = email da URL nao bate
+                // com o dono do account_id. Direciona pro suporte sem
+                // expor nada da conta real.
+                if (res.status === 403 && data?.code === 'EMAIL_ID_MISMATCH') {
+                    renderMismatchScreen();
+                    return;
+                }
+
                 if (!res.ok) {
                     content.innerHTML = `<div class="alert alert-error">${data.error || 'Erro ao buscar dados'}</div>`;
                     if (email) showWhatsapp(email);
@@ -611,6 +619,27 @@
                 content.innerHTML = `<div class="alert alert-error">Erro de conexão: ${err.message}</div>`;
                 if (email) showWhatsapp(email);
             }
+        }
+
+        function renderMismatchScreen() {
+            const content = document.getElementById('content');
+            content.innerHTML = `
+                <div class="card" style="text-align: center; max-width: 480px; margin: 40px auto; padding: 32px 24px;">
+                    <div style="font-size: 2.5rem; margin-bottom: 12px;">🔒</div>
+                    <h3 style="margin-bottom: 12px;">Não foi possível abrir esta página</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.95rem; line-height: 1.5; margin-bottom: 24px;">
+                        Os dados do link parecem não corresponder à sua conta. Por questão de segurança, não podemos exibir as informações.
+                    </p>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; margin-bottom: 24px;">
+                        Tente acessar novamente pelo botão dentro do painel do Leona, ou fale com o suporte para resolver.
+                    </p>
+                    <a href="https://leonaflow.com/leona-tube/suporte-whatsapp" target="_blank" rel="noopener"
+                       class="btn btn-paddle"
+                       style="display: inline-block; padding: 14px 28px; text-decoration: none; font-size: 0.95rem;">
+                        Falar com o suporte
+                    </a>
+                </div>
+            `;
         }
 
         // Classifica o estado de cada gateway pra rotear o cenário correto.

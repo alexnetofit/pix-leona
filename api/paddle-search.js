@@ -26,23 +26,51 @@ export default async function handler(req, res) {
   // account_id aceita int (legado) ou UUID. Tratamos como string opaca.
   const wantedAccountId = account_id != null ? String(account_id).trim() : '';
   const hasAccountId = wantedAccountId.length > 0;
+  const queryEmail = (email || '').trim().toLowerCase();
 
-  // Resolução do email:
-  // - Caso o front envie email, segue como sempre.
-  // - Caso o front envie só account_id (link compartilhado pelo Leona), busca
-  //   o billing_profile direto pelo ID e usa o email do dono da conta.
-  let emailClean = (email || '').trim().toLowerCase();
+  // Resolução do email + mitigacao anti-IDOR:
+  //
+  // - Quando vem só email: fluxo tradicional.
+  // - Quando vem só account_id (Leona ja migrado pra UUID): resolve email
+  //   pelo billing_profile.
+  // - Quando vem ambos (Leona ainda no formato legado int): EXIGIMOS que
+  //   o email da query bata com o email do dono da conta. Caso nao bata
+  //   (ou a conta nao exista), retornamos 403 'EMAIL_ID_MISMATCH'
+  //   unificado pra impedir enumeracao binaria de IDs validos.
+  let emailClean = queryEmail;
 
-  if (!emailClean && hasAccountId) {
+  if (hasAccountId) {
     if (!leonaToken) {
-      return res.status(400).json({ error: 'LEONA_BILLING_TOKEN não configurado para resolver account_id' });
+      return res.status(500).json({ error: 'LEONA_BILLING_TOKEN não configurado para resolver account_id' });
     }
     const profile = await getLeonaBillingProfile(wantedAccountId, leonaToken);
-    const resolved = profile?.user?.email;
+    const resolved = profile?.user?.email
+      ? String(profile.user.email).trim().toLowerCase()
+      : null;
+
     if (!resolved) {
+      // Conta nao existe ou Leona nao retornou o email.
+      if (queryEmail) {
+        console.warn(`[idor:notfound] paddle-search account_id=${wantedAccountId} queryEmail=${queryEmail}`);
+        return res.status(403).json({
+          error: 'forbidden',
+          code: 'EMAIL_ID_MISMATCH',
+          message: 'os dados do link nao correspondem'
+        });
+      }
       return res.status(404).json({ error: `Não foi possível resolver email para account_id ${wantedAccountId}` });
     }
-    emailClean = resolved.trim().toLowerCase();
+
+    if (queryEmail && queryEmail !== resolved) {
+      console.warn(`[idor:mismatch] paddle-search account_id=${wantedAccountId} queryEmail=${queryEmail} profileEmail=${resolved}`);
+      return res.status(403).json({
+        error: 'forbidden',
+        code: 'EMAIL_ID_MISMATCH',
+        message: 'os dados do link nao correspondem'
+      });
+    }
+
+    emailClean = resolved;
   }
 
   if (!emailClean) {
