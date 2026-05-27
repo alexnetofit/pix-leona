@@ -20,7 +20,9 @@ import {
   GURU_BASE,
   LEONA_GURU_PRODUCT_ID,
   guruHeaders,
-  findGuruContactByEmail
+  findGuruContactByEmail,
+  resolveGuruTransactionPaidAt,
+  isGuruTransactionRefundable
 } from '../lib/guru.js';
 
 const DEFAULT_DAYS = 60;
@@ -63,6 +65,7 @@ function isWithinLookback(tx, sinceMs) {
 }
 
 function mapTransactionToInvoice(t) {
+  const paidAt = resolveGuruTransactionPaidAt(t);
   return {
     transaction_id: t.id,
     transaction_code: t.transaction_code || null,
@@ -74,7 +77,8 @@ function mapTransactionToInvoice(t) {
     cycle: t.invoice?.cycle ?? null,
     type: t.invoice?.type || null,
     ordered_at: tsToIso(t.ordered_at),
-    confirmed_at: tsToIso(t.confirmed_at),
+    confirmed_at: paidAt,
+    paid_at: paidAt,
     charge_at: t.invoice?.charge_at || null,
     period_start: t.invoice?.period_start || null,
     period_end: t.invoice?.period_end || null,
@@ -84,7 +88,7 @@ function mapTransactionToInvoice(t) {
     offer_name: t.product?.offer?.name || null,
     subscription_id: t.subscription?.internal_id || null,
     subscription_code: t.subscription?.code || null,
-    refundable: t.status === 'approved'
+    refundable: isGuruTransactionRefundable(t)
   };
 }
 

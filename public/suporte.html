@@ -350,8 +350,22 @@
 
         function fmtDate(iso) {
             if (!iso) return '—';
-            try { return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }); }
-            catch (_) { return iso; }
+            try {
+                const raw = String(iso);
+                if (/^\d{4}-\d{2}-\d{2}$/.test(raw.slice(0, 10)) && raw.length <= 10) {
+                    const [y, m, d] = raw.slice(0, 10).split('-');
+                    return `${d}/${m}/${y}`;
+                }
+                return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+            } catch (_) { return iso; }
+        }
+
+        function refundDisabledLabel(inv) {
+            if (inv.transaction_status === 'refunded' || inv.invoice_status === 'refunded') return 'Reembolsada';
+            if (inv.transaction_status === 'approved' && inv.invoice_status === 'paid' && !inv.refundable) {
+                return 'Prazo de 7 dias expirado';
+            }
+            return 'Não reembolsável';
         }
 
         function escapeHtml(s) {
@@ -504,8 +518,8 @@
         }
 
         function renderInvoice(inv, email) {
-            const refundable = inv.refundable && inv.transaction_status === 'approved';
-            const dispStatus = inv.transaction_status || inv.invoice_status || '—';
+            const refundable = !!inv.refundable;
+            const paidAt = inv.paid_at || inv.confirmed_at || inv.charge_at || null;
             const refundBtn = refundable
                 ? `<button class="btn-warning btn-sm" onclick='openRefund(${JSON.stringify({
                     transaction_id: inv.transaction_id,
@@ -513,12 +527,13 @@
                     value: inv.value,
                     currency: inv.currency,
                     offer_name: inv.offer_name,
-                    confirmed_at: inv.confirmed_at,
+                    paid_at: paidAt,
+                    confirmed_at: paidAt,
                     subscription_id: inv.subscription_id,
                     invoice_id: inv.invoice_id,
                     email
                   }).replace(/'/g, "&apos;")})'>Reembolsar</button>`
-                : `<button class="btn-secondary btn-sm" disabled>${escapeHtml(dispStatus === 'refunded' ? 'Reembolsada' : 'Não reembolsável')}</button>`;
+                : `<button class="btn-secondary btn-sm" disabled>${escapeHtml(refundDisabledLabel(inv))}</button>`;
             return `
                 <div class="card">
                     <div class="row">
@@ -527,7 +542,7 @@
                             <div class="grid-2">
                                 <div><div class="label">Status transação</div><div class="value">${badge(inv.transaction_status)}</div></div>
                                 <div><div class="label">Status fatura</div><div class="value">${badge(inv.invoice_status)}</div></div>
-                                <div><div class="label">Confirmada</div><div class="value">${fmtDate(inv.confirmed_at)}</div></div>
+                                <div><div class="label">Data pagamento</div><div class="value">${fmtDate(paidAt)}</div></div>
                                 <div><div class="label">Pagamento</div><div class="value">${escapeHtml(inv.payment_method || '—')}</div></div>
                                 <div><div class="label">Transaction</div><div class="value" style="font-family: monospace; font-size: 0.8rem;">${escapeHtml(inv.transaction_code || inv.transaction_id || '—')}</div></div>
                                 <div><div class="label">Ciclo</div><div class="value">${escapeHtml(String(inv.cycle ?? '—'))}</div></div>

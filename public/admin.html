@@ -372,7 +372,7 @@
                   `
                 : `
                     <div><div class="label">Transaction</div><div class="value" style="font-family: monospace; font-size: 0.82rem;">${escapeHtml(snap.transaction_code || item.guru_transaction_id || '—')}</div></div>
-                    <div><div class="label">Confirmada</div><div class="value">${fmtDate(snap.confirmed_at)}</div></div>
+                    <div><div class="label">Pago em</div><div class="value">${fmtDate(snap.paid_at || snap.confirmed_at || snap.charge_at)}</div></div>
                   `;
 
             const decisionInfo = item.decided_at

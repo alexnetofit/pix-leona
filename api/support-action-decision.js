@@ -16,7 +16,7 @@
 
 import { applyCors, requireAdmin, enforceAuth } from '../lib/auth.js';
 import { sbSelect, sbUpdate, sbConfigured } from '../lib/supabase.js';
-import { cancelGuruSubscription, refundGuruTransaction } from '../lib/guru.js';
+import { cancelGuruSubscription, refundGuruTransaction, isPaidAtWithinRefundWindow, GURU_REFUND_WINDOW_DAYS } from '../lib/guru.js';
 
 const VALID_DECISIONS = new Set(['approve', 'reject']);
 
@@ -114,6 +114,22 @@ export default async function handler(req, res) {
         comment: row.reason || 'Cancelamento aprovado via /admin'
       });
     } else if (row.type === 'refund_transaction') {
+      const snap = row.snapshot || {};
+      const paidAt = snap.paid_at || snap.confirmed_at || null;
+      if (!isPaidAtWithinRefundWindow(paidAt)) {
+        const failed = await sbUpdate('support_actions', { id }, {
+          status: 'failed',
+          executed_at: new Date().toISOString(),
+          execution_result: {
+            error: `Reembolso fora do prazo de ${GURU_REFUND_WINDOW_DAYS} dias apos pagamento`
+          }
+        });
+        return res.status(400).json({
+          ok: false,
+          error: `Reembolso permitido apenas ate ${GURU_REFUND_WINDOW_DAYS} dias apos o pagamento`,
+          action: failed
+        });
+      }
       result = await refundGuruTransaction(row.guru_transaction_id, guruToken, {
         reason: row.reason || 'Reembolso aprovado via /admin'
       });

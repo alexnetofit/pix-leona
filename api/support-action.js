@@ -12,6 +12,7 @@
 
 import { applyCors, requireAdmin, requireSupport, enforceAuth } from '../lib/auth.js';
 import { sbInsert, sbSelect, sbConfigured } from '../lib/supabase.js';
+import { isPaidAtWithinRefundWindow, GURU_REFUND_WINDOW_DAYS } from '../lib/guru.js';
 
 const VALID_TYPES = new Set(['cancel_subscription', 'refund_transaction']);
 const MAX_REASON_LEN = 1000;
@@ -65,6 +66,14 @@ async function createAction(req, res) {
   }
   if (type === 'refund_transaction' && !guru_transaction_id) {
     return res.status(400).json({ error: 'guru_transaction_id obrigatorio pra refund_transaction' });
+  }
+  if (type === 'refund_transaction') {
+    const paidAt = snapshot?.paid_at || snapshot?.confirmed_at || null;
+    if (!isPaidAtWithinRefundWindow(paidAt)) {
+      return res.status(400).json({
+        error: `Reembolso permitido apenas ate ${GURU_REFUND_WINDOW_DAYS} dias apos o pagamento`
+      });
+    }
   }
 
   try {
