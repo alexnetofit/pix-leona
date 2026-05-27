@@ -252,10 +252,10 @@
         // ========== AUTH ==========
         const SEARCH_DAYS = 60;
 
-        function getStoredToken() { return localStorage.getItem('leona_token'); }
+        function getStoredToken() { return localStorage.getItem('leona_support_token'); }
 
         function unlockApp(token, { stripFromUrl = false } = {}) {
-            localStorage.setItem('leona_token', token);
+            localStorage.setItem('leona_support_token', token);
             document.getElementById('lockScreen').style.display = 'none';
             document.getElementById('appContent').style.display = 'block';
             if (stripFromUrl) {
@@ -283,7 +283,7 @@
                 const res = await fetch('/api/auth', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token })
+                    body: JSON.stringify({ token, scope: 'support' })
                 });
                 if (res.ok) {
                     unlockApp(token, { stripFromUrl: !!tokenOverride });
@@ -315,7 +315,7 @@
             fetch('/api/auth', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token: saved })
+                body: JSON.stringify({ token: saved, scope: 'support' })
             }).then(r => {
                 if (r.ok) unlockApp(saved);
             }).catch(() => {});

@@ -2,7 +2,7 @@
  * api/support-search.js — Busca de cliente pelo time de suporte.
  *
  * Difere de /api/guru-search por:
- *   - Auth admin obrigatoria (TOKEN_ADMIN via Bearer)
+ *   - Auth de suporte (SUPPORT_CHAT_TOKEN via Bearer)
  *   - Aceita email LIVRE, sem regra anti-IDOR (suporte legitimamente busca
  *     por cliente alheio — exatamente o ponto da pagina /suporte)
  *   - Retorna leona + guru subs + transacoes/faturas dos ultimos 60 dias
@@ -14,7 +14,7 @@
  * Usado por public/suporte.html.
  */
 
-import { applyCors, requireAdmin, enforceAuth } from '../lib/auth.js';
+import { applyCors, requireSupport, enforceAuth } from '../lib/auth.js';
 import { LEONA_BASE, leonaHeaders } from '../lib/leona.js';
 import {
   GURU_BASE,
@@ -44,7 +44,7 @@ export default async function handler(req, res) {
   if (applyCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
 
-  const auth = requireAdmin(req);
+  const auth = requireSupport(req);
   if (enforceAuth(req, res, auth, { route: '/api/support-search' })) return;
 
   const guruToken = process.env.GURU_TOKEN;

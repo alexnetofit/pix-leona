@@ -1,10 +1,8 @@
 /**
  * api/support-action.js — CRUD da fila de aprovacao de suporte.
  *
- *   POST /api/support-action  -> Suporte cria pendencia (cancel/refund)
- *   GET  /api/support-action  -> Admin lista pendencias (filtra por status)
- *
- * Auth: TOKEN_ADMIN (Bearer) — mesmo token serve pra criar e listar.
+ *   POST /api/support-action  -> Suporte cria pendencia (SUPPORT_CHAT_TOKEN)
+ *   GET  /api/support-action  -> Admin lista pendencias (TOKEN_ADMIN)
  *
  * Persistencia: tabela public.support_actions no Supabase (Afiliados Leona).
  *
@@ -12,7 +10,7 @@
  * em /api/support-action-decision quando o admin aprova.
  */
 
-import { applyCors, requireAdmin, enforceAuth } from '../lib/auth.js';
+import { applyCors, requireAdmin, requireSupport, enforceAuth } from '../lib/auth.js';
 import { sbInsert, sbSelect, sbConfigured } from '../lib/supabase.js';
 
 const VALID_TYPES = new Set(['cancel_subscription', 'refund_transaction']);
@@ -27,7 +25,7 @@ function clientIp(req) {
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
 
-  const auth = requireAdmin(req);
+  const auth = req.method === 'POST' ? requireSupport(req) : requireAdmin(req);
   if (enforceAuth(req, res, auth, { route: `/api/support-action:${req.method}` })) return;
 
   if (!sbConfigured()) {

@@ -5,12 +5,23 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
 
   const adminToken = process.env.TOKEN_ADMIN;
+  const supportToken = process.env.SUPPORT_CHAT_TOKEN;
+  const { token, scope } = req.body || {};
+  const isSupport = scope === 'support';
+
+  if (isSupport) {
+    if (!supportToken) return res.status(500).json({ error: 'SUPPORT_CHAT_TOKEN não configurado' });
+    if (!token || token !== supportToken) {
+      return res.status(401).json({ error: 'Token inválido' });
+    }
+    return res.status(200).json({ success: true, scope: 'support' });
+  }
+
   if (!adminToken) return res.status(500).json({ error: 'TOKEN_ADMIN não configurado' });
 
-  const { token } = req.body || {};
   if (!token || token !== adminToken) {
     return res.status(401).json({ error: 'Token inválido' });
   }
 
-  return res.status(200).json({ success: true });
+  return res.status(200).json({ success: true, scope: 'admin' });
 }
