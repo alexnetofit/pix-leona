@@ -56,7 +56,7 @@
             font-weight: 500;
         }
         .input-group { display: flex; gap: 10px; flex-wrap: wrap; }
-        input[type="email"], input[type="number"], input[type="password"], input[type="text"], textarea {
+        input[type="email"], input[type="password"], input[type="text"], textarea {
             flex: 1;
             min-width: 220px;
             padding: 14px 16px;
@@ -192,15 +192,6 @@
         .modal textarea { width: 100%; min-height: 110px; resize: vertical; }
         .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
 
-        .nav-links {
-            text-align: center;
-            margin-top: 32px;
-            color: var(--text-secondary);
-            font-size: 0.85rem;
-        }
-        .nav-links a { color: var(--accent); text-decoration: none; }
-        .nav-links a:hover { text-decoration: underline; }
-
         @media (max-width: 600px) {
             .row { flex-direction: column; }
             .row > .actions { width: 100%; }
@@ -232,19 +223,14 @@
             <h2>Buscar cliente por e-mail</h2>
             <div class="input-group">
                 <input type="email" id="emailInput" placeholder="cliente@exemplo.com" autocomplete="email" onkeydown="if(event.key==='Enter')doSearch()">
-                <input type="number" id="daysInput" placeholder="Dias" value="60" min="1" max="365" style="max-width: 100px; flex: 0 0 100px;">
                 <button class="btn-primary" id="searchBtn" onclick="doSearch()">Buscar</button>
             </div>
             <p style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 10px;">
-                Faturas exibidas dos últimos N dias (default 60).
+                Faturas dos últimos 60 dias.
             </p>
         </section>
 
         <div id="results"></div>
-
-        <div class="nav-links">
-            <a href="/admin">Ir para revisão de pendências →</a>
-        </div>
     </div>
 
     <!-- Modal de motivo -->
@@ -264,13 +250,35 @@
 
     <script>
         // ========== AUTH ==========
+        const SEARCH_DAYS = 60;
+
         function getStoredToken() { return localStorage.getItem('leona_token'); }
 
-        async function validateToken() {
+        function unlockApp(token, { stripFromUrl = false } = {}) {
+            localStorage.setItem('leona_token', token);
+            document.getElementById('lockScreen').style.display = 'none';
+            document.getElementById('appContent').style.display = 'block';
+            if (stripFromUrl) {
+                const urlParams = new URLSearchParams(window.location.search);
+                urlParams.delete('token');
+                const q = urlParams.toString();
+                const newUrl = window.location.pathname + (q ? '?' + q : '');
+                window.history.replaceState({}, '', newUrl);
+            }
+        }
+
+        function showLockError(msg = 'Token inválido') {
+            const errEl = document.getElementById('lockError');
+            errEl.textContent = msg;
+            errEl.style.display = 'block';
+        }
+
+        async function validateToken(tokenOverride) {
             const input = document.getElementById('tokenInput');
             const errEl = document.getElementById('lockError');
-            const token = input.value.trim();
-            if (!token) { errEl.style.display = 'block'; return; }
+            errEl.style.display = 'none';
+            const token = (tokenOverride || input.value || '').trim();
+            if (!token) { showLockError('Informe o token de acesso'); return false; }
             try {
                 const res = await fetch('/api/auth', {
                     method: 'POST',
@@ -278,40 +286,38 @@
                     body: JSON.stringify({ token })
                 });
                 if (res.ok) {
-                    localStorage.setItem('leona_token', token);
-                    document.getElementById('lockScreen').style.display = 'none';
-                    document.getElementById('appContent').style.display = 'block';
-                } else {
-                    errEl.style.display = 'block';
+                    unlockApp(token, { stripFromUrl: !!tokenOverride });
+                    return true;
+                }
+                showLockError();
+                if (!tokenOverride) {
                     input.value = '';
                     input.focus();
                 }
-            } catch (_) { errEl.style.display = 'block'; }
+                return false;
+            } catch (_) {
+                showLockError('Erro ao validar token');
+                return false;
+            }
         }
 
         (function checkAuth() {
             const urlParams = new URLSearchParams(window.location.search);
             const urlToken = (urlParams.get('token') || '').trim();
             const saved = getStoredToken();
-            const candidate = urlToken || saved;
-            if (!candidate) return;
+
+            if (urlToken) {
+                validateToken(urlToken);
+                return;
+            }
+            if (!saved) return;
 
             fetch('/api/auth', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token: candidate })
+                body: JSON.stringify({ token: saved })
             }).then(r => {
-                if (r.ok) {
-                    localStorage.setItem('leona_token', candidate);
-                    document.getElementById('lockScreen').style.display = 'none';
-                    document.getElementById('appContent').style.display = 'block';
-                    if (urlToken) {
-                        urlParams.delete('token');
-                        const q = urlParams.toString();
-                        const newUrl = window.location.pathname + (q ? '?' + q : '');
-                        window.history.replaceState({}, '', newUrl);
-                    }
-                }
+                if (r.ok) unlockApp(saved);
             }).catch(() => {});
         })();
 
@@ -358,7 +364,6 @@
         // ========== BUSCA ==========
         async function doSearch() {
             const email = document.getElementById('emailInput').value.trim();
-            const days = parseInt(document.getElementById('daysInput').value, 10) || 60;
             if (!email) { showToast('Informe um e-mail', 'error'); return; }
 
             const btn = document.getElementById('searchBtn');
@@ -370,7 +375,7 @@
                 const res = await fetch('/api/support-search', {
                     method: 'POST',
                     headers: authHeaders(),
-                    body: JSON.stringify({ email, days })
+                    body: JSON.stringify({ email, days: SEARCH_DAYS })
                 });
                 const data = await res.json();
                 if (!res.ok) {
@@ -436,7 +441,7 @@
             }
 
             // ----- Faturas (transações) -----
-            parts.push(`<h3 class="card-section-title">Faturas (últimos ${data.lookback_days || 60} dias)</h3>`);
+            parts.push(`<h3 class="card-section-title">Faturas (últimos 60 dias)</h3>`);
             const invoices = guru.invoices || [];
             if (invoices.length === 0) {
                 parts.push(`<div class="empty">Nenhuma fatura no período.</div>`);
