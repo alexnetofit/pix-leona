@@ -287,9 +287,20 @@ export default async function handler(req, res) {
     if (preserveStripeCycle) {
       console.log(`webhook-guru: cupom ${couponCode} (upgrade vindo do Stripe), preservando current_period_end Leona ${existingPeriodEnd} e ajustando ciclo na Guru`);
     } else {
-      const calculatedDueDate = calculateDueDate(payload);
-      if (calculatedDueDate) {
-        updateData.due_date = calculatedDueDate;
+      // Fonte de verdade do vencimento: a data da PROXIMA cobranca da
+      // assinatura na Guru (next_cycle_at). Assim o Leona vence exatamente
+      // no dia em que a Guru vai cobrar de novo, sem ficar adiantado nem
+      // atrasado em relacao ao ciclo real.
+      const nextChargeDate = await fetchGuruNextChargeDate(guruSubId);
+      if (nextChargeDate) {
+        updateData.due_date = nextChargeDate;
+        console.log(`webhook-guru: due_date = next_cycle_at da Guru (${nextChargeDate})`);
+      } else {
+        const calculatedDueDate = calculateDueDate(payload);
+        if (calculatedDueDate) {
+          updateData.due_date = calculatedDueDate;
+          console.log(`webhook-guru: next_cycle_at indisponivel, usando due_date calculado (${calculatedDueDate})`);
+        }
       }
     }
 
@@ -641,9 +652,53 @@ async function syncGuruContactEmail({ payload, leonaProfile, guruWebhookEmail, a
 }
 
 /**
- * Calcula o due_date que ira pra Leona com base no payload da Guru.
+ * Busca a data da PROXIMA cobranca (`next_cycle_at`) da assinatura na Guru.
  *
- * Invariante: Leona = Guru + 1 dia.
+ * Essa e a fonte de verdade pro vencimento no Leona: o vencimento da conta
+ * deve ser exatamente o dia em que a Guru vai cobrar de novo. Assim o Leona
+ * nunca fica adiantado nem atrasado em relacao ao ciclo real da assinatura.
+ *
+ * Retorna a data no formato YYYY-MM-DD, ou null se nao for possivel obter
+ * (sem token, sub inexistente, erro de rede) — nesse caso o chamador cai no
+ * fallback `calculateDueDate`.
+ */
+async function fetchGuruNextChargeDate(subscriptionId) {
+  const guruToken = process.env.GURU_TOKEN;
+  if (!guruToken || !subscriptionId) return null;
+
+  try {
+    const r = await fetch(`${GURU_BASE}/subscriptions/${subscriptionId}`, {
+      headers: {
+        'Authorization': `Bearer ${guruToken}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'n8n'
+      }
+    });
+
+    if (!r.ok) {
+      console.error(`webhook-guru: erro ao buscar sub ${subscriptionId} para next_cycle_at (status ${r.status})`);
+      return null;
+    }
+
+    const data = await r.json().catch(() => ({}));
+    const next = data?.next_cycle_at;
+    if (next && /^\d{4}-\d{2}-\d{2}/.test(String(next))) {
+      return String(next).slice(0, 10);
+    }
+
+    console.warn(`webhook-guru: sub ${subscriptionId} sem next_cycle_at valido (${next})`);
+    return null;
+  } catch (e) {
+    console.error(`webhook-guru: erro ao buscar next_cycle_at da sub ${subscriptionId}:`, e.message);
+    return null;
+  }
+}
+
+/**
+ * Fallback de due_date quando nao conseguimos o `next_cycle_at` da Guru.
+ *
+ * Invariante (legado): Leona = Guru + 1 dia.
  *
  * Motivo: a Guru so libera a fatura do proximo ciclo no dia x+1 as 10h,
  * mas a Leona marcaria como vencida em x+1 as 00h. O cliente entraria em

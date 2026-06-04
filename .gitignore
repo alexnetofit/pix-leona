@@ -22,3 +22,6 @@ Thumbs.db
 # Scripts locais one-shot (nao versionar)
 scripts/
 
+# Relatorios/auditorias locais (contem PII de clientes — nao versionar)
+reports/
+
