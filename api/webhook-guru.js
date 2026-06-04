@@ -64,6 +64,21 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Token inválido' });
     }
 
+    // Eventos de ASSINATURA (cancelamento/expiracao). Sem tratar isso, quando
+    // a assinatura deixa de estar ativa o Leona continua avancando o
+    // current_period_end sozinho e o cliente ganha "mes gratis". Aqui
+    // realinhamos o vencimento do Leona ao periodo REALMENTE pago.
+    if (payload.webhook_type === 'subscription') {
+      const subStatus = String(
+        payload.subscription?.last_status || payload.last_status || payload.status || ''
+      ).toLowerCase();
+      const lapsed = ['canceled', 'cancelled', 'expired', 'inactive', 'pastdue', 'past_due'].includes(subStatus);
+      if (!lapsed) {
+        return res.status(200).json({ received: true, ignored: true, reason: `subscription status: ${subStatus || 'desconhecido'}` });
+      }
+      return await handleSubscriptionLapse(payload, leonaToken, res, `subscription_${subStatus}`);
+    }
+
     if (payload.webhook_type !== 'transaction') {
       return res.status(200).json({ received: true, ignored: true, reason: `webhook_type: ${payload.webhook_type}` });
     }
@@ -75,6 +90,14 @@ export default async function handler(req, res) {
 
     if (payload.status === 'refunded' || payload.status === 'chargedback') {
       return await handleRefundOrChargeback(payload, leonaToken, res);
+    }
+
+    // Renovacao que NAO entrou (assinatura cancelada/expirada). Em vez de
+    // ignorar (deixando o Leona avancar), realinhamos o vencimento ao
+    // periodo pago. `waiting_payment` segue ignorado de proposito: ainda
+    // pode ser pago, entao nao expiramos antes da hora.
+    if (payload.status === 'canceled' || payload.status === 'cancelled' || payload.status === 'expired') {
+      return await handleSubscriptionLapse(payload, leonaToken, res, `transaction_${payload.status}`);
     }
 
     if (payload.status !== 'approved') {
@@ -470,6 +493,108 @@ async function handleRefundOrChargeback(payload, leonaToken, res) {
   });
 }
 
+/**
+ * Realinha o vencimento do Leona ao periodo REALMENTE pago na Guru quando a
+ * assinatura deixa de estar ativa (cancelamento/expiracao/renovacao falha).
+ *
+ * Regra (validada em producao):
+ *   vencimento Leona = (fim do ultimo ciclo PAGO) + 1 dia.
+ *
+ * NUNCA usa `next_cycle_at` aqui: numa assinatura nao-ativa esse campo aponta
+ * pro fim de um ciclo que NAO foi pago, o que daria "mes gratis". A verdade
+ * vem de `fetchGuruSubscriptionPaidThrough` (ultima fatura `paid`).
+ *
+ * Guarda de seguranca: so grava se o Leona estiver ADIANTADO (dando mais do
+ * que foi pago). Se ja estiver alinhado ou atras, nao faz nada — assim este
+ * handler nunca corta acesso de quem esta em dia.
+ */
+async function handleSubscriptionLapse(payload, leonaToken, res, reason) {
+  const guruSubId = payload.subscription?.internal_id || null;
+  const guruSubCode = payload.subscription?.subscription_code || null;
+  const email = payload.contact?.email || payload.subscription?.subscriber?.email || null;
+
+  if ((!guruSubId && !guruSubCode) || !email) {
+    return res.status(200).json({ received: true, ignored: true, reason: `${reason}: sub/email ausentes` });
+  }
+
+  const leonaHeaders = {
+    'Authorization': `Bearer ${leonaToken}`,
+    'Accept': 'application/json',
+    'Content-Type': 'application/json'
+  };
+
+  const profiles = await fetchLeonaProfiles(email, leonaHeaders);
+  const match = profiles.find(p =>
+    p.guru_account_id &&
+    (p.guru_account_id === guruSubId || p.guru_account_id === guruSubCode)
+  );
+
+  if (!match) {
+    console.log(`webhook-guru ${reason}: nenhuma conta Leona vinculada à subscription ${guruSubId || guruSubCode}`);
+    return res.status(200).json({
+      received: true,
+      processed: false,
+      reason,
+      error: `nenhuma conta Leona vinculada à subscription ${guruSubId || guruSubCode}`
+    });
+  }
+
+  const paidThrough = await fetchGuruSubscriptionPaidThrough(guruSubId || guruSubCode);
+  if (!paidThrough) {
+    console.log(`webhook-guru ${reason}: nao foi possivel determinar periodo pago da sub ${guruSubId || guruSubCode}`);
+    return res.status(200).json({ received: true, processed: false, reason, error: 'periodo pago indeterminado' });
+  }
+
+  // Leona = pago + 1 dia (mesma invariante do fluxo de aprovacao).
+  const dd = new Date(paidThrough + 'T00:00:00Z');
+  dd.setUTCDate(dd.getUTCDate() + 1);
+  const dueDate = dd.toISOString().slice(0, 10);
+
+  const leonaUntil = match.current_period_end ? String(match.current_period_end).slice(0, 10) : null;
+  if (leonaUntil && leonaUntil <= dueDate) {
+    console.log(`webhook-guru ${reason}: conta ${match.account_id} ja alinhada (Leona ${leonaUntil} <= pago+1 ${dueDate}), nada a fazer`);
+    return res.status(200).json({
+      received: true,
+      processed: false,
+      reason,
+      skipped: 'leona_ja_alinhado',
+      account_id: match.account_id,
+      leona_until: leonaUntil,
+      due_date: dueDate
+    });
+  }
+
+  console.log(`webhook-guru ${reason}: realinhando conta ${match.account_id} de ${leonaUntil} para ${dueDate} (pago ate ${paidThrough})`);
+
+  const r = await fetch(`${LEONA_BASE}/accounts/${match.account_id}/billing_profile`, {
+    method: 'POST',
+    headers: leonaHeaders,
+    body: JSON.stringify({ due_date: dueDate })
+  });
+  const body = await r.json().catch(() => ({}));
+
+  if (r.ok) {
+    return res.status(200).json({
+      received: true,
+      processed: true,
+      reason,
+      account_id: match.account_id,
+      paid_through: paidThrough,
+      due_date: dueDate,
+      leona_until_before: leonaUntil
+    });
+  }
+
+  console.error(`webhook-guru ${reason}: erro ao atualizar conta ${match.account_id}:`, JSON.stringify(body));
+  return res.status(200).json({
+    received: true,
+    processed: false,
+    reason,
+    account_id: match.account_id,
+    error: body.error || 'Erro ao atualizar conta Leona'
+  });
+}
+
 async function fetchLeonaProfiles(email, headers) {
   const res = await fetch(
     `${LEONA_BASE}/accounts/billing_profile?email=${encodeURIComponent(email.trim().toLowerCase())}`,
@@ -691,6 +816,57 @@ async function fetchGuruNextChargeDate(subscriptionId) {
     return null;
   } catch (e) {
     console.error(`webhook-guru: erro ao buscar next_cycle_at da sub ${subscriptionId}:`, e.message);
+    return null;
+  }
+}
+
+/**
+ * Descobre ate quando a assinatura foi REALMENTE paga (ultimo ciclo `paid`).
+ *
+ * Diferente de `next_cycle_at`, que numa assinatura cancelada/atrasada aponta
+ * pro fim de um ciclo NAO pago (geraria mes gratis). Logica:
+ *   - current_invoice.status === 'paid'  -> period_end (esse ciclo esta pago)
+ *   - caso contrario                      -> period_start - 1 dia
+ *     (o ciclo atual nao foi pago; o ultimo pago terminou na vespera)
+ *
+ * Retorna YYYY-MM-DD do ultimo dia pago, ou null se nao der pra determinar.
+ */
+async function fetchGuruSubscriptionPaidThrough(subscriptionId) {
+  const guruToken = process.env.GURU_TOKEN;
+  if (!guruToken || !subscriptionId) return null;
+
+  try {
+    const r = await fetch(`${GURU_BASE}/subscriptions/${subscriptionId}`, {
+      headers: {
+        'Authorization': `Bearer ${guruToken}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'n8n'
+      }
+    });
+
+    if (!r.ok) {
+      console.error(`webhook-guru: erro ao buscar sub ${subscriptionId} para paid_through (status ${r.status})`);
+      return null;
+    }
+
+    const data = await r.json().catch(() => ({}));
+    const ci = data?.current_invoice || {};
+
+    if (ci.status === 'paid' && ci.period_end) {
+      return String(ci.period_end).slice(0, 10);
+    }
+
+    if (ci.period_start) {
+      const d = new Date(String(ci.period_start).slice(0, 10) + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() - 1);
+      return d.toISOString().slice(0, 10);
+    }
+
+    console.warn(`webhook-guru: sub ${subscriptionId} sem dados de fatura para paid_through`);
+    return null;
+  } catch (e) {
+    console.error(`webhook-guru: erro ao buscar paid_through da sub ${subscriptionId}:`, e.message);
     return null;
   }
 }
