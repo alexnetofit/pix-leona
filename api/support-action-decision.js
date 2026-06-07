@@ -131,7 +131,7 @@ export default async function handler(req, res) {
         });
       }
       result = await refundGuruTransaction(row.guru_transaction_id, guruToken, {
-        reason: row.reason || 'Reembolso aprovado via /admin'
+        comment: row.reason || 'Reembolso aprovado via /admin'
       });
     } else {
       result = { ok: false, error: `type desconhecido: ${row.type}` };

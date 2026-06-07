@@ -5,6 +5,59 @@ const LEONA_BASE = 'https://apiaws.leonasolutions.io/api/v1/integration';
 const GURU_BASE = 'https://digitalmanager.guru/api/v2';
 const STRIPE_UPGRADE_COUPON_PREFIX = 'up-leona-';
 
+/** Status de transacao Guru que devem cortar acesso imediato no Leona. */
+const REFUND_LIKE_STATUSES = new Set([
+  'refunded',
+  'chargedback',
+  'chargeback',
+  'dispute',
+  'refund_requested',
+  'waiting_refund',
+  'refunding'
+]);
+
+function extractProductId(payload) {
+  const p = payload?.product;
+  if (p == null) return null;
+  if (typeof p === 'string') return p.trim() || null;
+  return p.internal_id || p.id || null;
+}
+
+function isRefundLikeStatus(status) {
+  return REFUND_LIKE_STATUSES.has(String(status || '').toLowerCase());
+}
+
+function extractGuruSubIds(payload) {
+  const sub = payload?.subscription || {};
+  return {
+    guruSubId: sub.internal_id || sub.id || null,
+    guruSubCode: sub.subscription_code || sub.code || null
+  };
+}
+
+function resolveRefundEventTimestamp(payload) {
+  const d = payload?.dates || {};
+  const candidates = [
+    d.refunded_at,
+    d.chargedback_at,
+    d.chargeback_at,
+    d.disputed_at,
+    d.canceled_at,
+    d.updated_at
+  ];
+  for (const ts of candidates) {
+    const n = Number(ts);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return Math.floor(Date.now() / 1000);
+}
+
+function dueDateFromEventTimestamp(eventTs) {
+  const eventDate = new Date(eventTs * 1000);
+  eventDate.setUTCDate(eventDate.getUTCDate() - 1);
+  return eventDate.toISOString().slice(0, 10);
+}
+
 /**
  * Procura o `src` do tracking no payload da Guru.
  *
@@ -76,6 +129,18 @@ export default async function handler(req, res) {
       if (!lapsed) {
         return res.status(200).json({ received: true, ignored: true, reason: `subscription status: ${subStatus || 'desconhecido'}` });
       }
+      const { guruSubId, guruSubCode } = extractGuruSubIds(payload);
+      const subId = guruSubId || guruSubCode;
+      if ((subStatus === 'canceled' || subStatus === 'cancelled') && subId) {
+        const refundLike = await subscriptionLatestTxIsRefundLike(subId);
+        if (refundLike) {
+          console.log(`webhook-guru subscription_${subStatus}: ultima tx reembolso/disputa — cortando Leona`);
+          return await handleRefundOrChargeback(payload, leonaToken, res, {
+            action: refundLike.status,
+            eventTs: refundLike.eventTs
+          });
+        }
+      }
       return await handleSubscriptionLapse(payload, leonaToken, res, `subscription_${subStatus}`);
     }
 
@@ -83,12 +148,12 @@ export default async function handler(req, res) {
       return res.status(200).json({ received: true, ignored: true, reason: `webhook_type: ${payload.webhook_type}` });
     }
 
-    const productId = payload.product?.internal_id;
+    const productId = extractProductId(payload);
     if (productId !== LEONA_PRODUCT_ID) {
       return res.status(200).json({ received: true, ignored: true, reason: 'produto diferente do Leona Flow' });
     }
 
-    if (payload.status === 'refunded' || payload.status === 'chargedback') {
+    if (isRefundLikeStatus(payload.status)) {
       return await handleRefundOrChargeback(payload, leonaToken, res);
     }
 
@@ -417,15 +482,14 @@ export default async function handler(req, res) {
   }
 }
 
-async function handleRefundOrChargeback(payload, leonaToken, res) {
-  const action = payload.status;
-  const guruSubId = payload.subscription?.internal_id;
-  const guruSubCode = payload.subscription?.subscription_code || null;
-  const email = payload.contact?.email;
+async function handleRefundOrChargeback(payload, leonaToken, res, opts = {}) {
+  const action = opts.action || payload.status;
+  const { guruSubId, guruSubCode } = extractGuruSubIds(payload);
+  const email = payload.contact?.email || payload.subscription?.subscriber?.email || null;
 
-  if (!guruSubId || !email) {
-    console.log(`webhook-guru ${action}: sub/email ausentes — ignorando`);
-    return res.status(200).json({ received: true, ignored: true, reason: 'sub/email ausentes' });
+  if (!email) {
+    console.log(`webhook-guru ${action}: email ausente — ignorando`);
+    return res.status(200).json({ received: true, ignored: true, reason: 'email ausente' });
   }
 
   const leonaHeaders = {
@@ -434,29 +498,20 @@ async function handleRefundOrChargeback(payload, leonaToken, res) {
     'Content-Type': 'application/json'
   };
 
-  const profiles = await fetchLeonaProfiles(email, leonaHeaders);
-  const match = profiles.find(p =>
-    p.guru_account_id &&
-    (p.guru_account_id === guruSubId || p.guru_account_id === guruSubCode)
-  );
+  const match = await resolveLeonaMatchForGuruEvent(payload, email, guruSubId, guruSubCode, leonaHeaders);
 
   if (!match) {
-    console.log(`webhook-guru ${action}: nenhuma conta Leona vinculada à subscription ${guruSubId}`);
+    console.log(`webhook-guru ${action}: nenhuma conta Leona vinculada (sub ${guruSubId || guruSubCode || '-'}, email ${email})`);
     return res.status(200).json({
       received: true,
       processed: false,
       reason: action,
-      error: `nenhuma conta Leona vinculada à subscription ${guruSubId}`
+      error: `nenhuma conta Leona vinculada à subscription ${guruSubId || guruSubCode || '-'}`
     });
   }
 
-  const eventTs = action === 'refunded'
-    ? payload.dates?.refunded_at
-    : payload.dates?.chargedback_at;
-  const fallbackTs = payload.dates?.updated_at || Math.floor(Date.now() / 1000);
-  const eventDate = new Date((eventTs || fallbackTs) * 1000);
-  eventDate.setUTCDate(eventDate.getUTCDate() - 1);
-  const dueDate = eventDate.toISOString().split('T')[0];
+  const eventTs = opts.eventTs ?? resolveRefundEventTimestamp(payload);
+  const dueDate = dueDateFromEventTimestamp(eventTs);
 
   const updateData = {
     due_date: dueDate,
@@ -491,6 +546,74 @@ async function handleRefundOrChargeback(payload, leonaToken, res) {
     account_id: match.account_id,
     error: body.error || 'Erro ao atualizar conta Leona'
   });
+}
+
+/**
+ * Resolve conta Leona para eventos Guru (reembolso, cancelamento, etc.).
+ * Prioriza ?src=account_id, depois guru_account_id, depois unica conta no email.
+ */
+async function resolveLeonaMatchForGuruEvent(payload, email, guruSubId, guruSubCode, leonaHeaders) {
+  const srcRaw = extractSrc(payload);
+  const srcAccountId = srcRaw ? String(srcRaw).trim() : '';
+
+  if (srcAccountId) {
+    try {
+      const r = await fetch(`${LEONA_BASE}/accounts/${encodeURIComponent(srcAccountId)}/billing_profile`, { headers: leonaHeaders });
+      if (r.ok) return await r.json();
+    } catch (e) {
+      console.error(`webhook-guru: erro buscando conta ${srcAccountId} via src:`, e.message);
+    }
+  }
+
+  const profiles = await fetchLeonaProfiles(email, leonaHeaders);
+  if (profiles.length === 0) return null;
+
+  if (guruSubId || guruSubCode) {
+    const byGuru = profiles.find(p =>
+      p.guru_account_id &&
+      (p.guru_account_id === guruSubId || p.guru_account_id === guruSubCode)
+    );
+    if (byGuru) return byGuru;
+  }
+
+  if (profiles.length === 1) return profiles[0];
+
+  return null;
+}
+
+/** Ultima transacao da assinatura esta reembolsada/disputa/reembolso solicitado? */
+async function subscriptionLatestTxIsRefundLike(subscriptionId) {
+  const guruToken = process.env.GURU_TOKEN;
+  if (!guruToken || !subscriptionId) return null;
+
+  try {
+    const r = await fetch(
+      `${GURU_BASE}/transactions?subscription_id=${encodeURIComponent(subscriptionId)}&limit=10`,
+      {
+        headers: {
+          'Authorization': `Bearer ${guruToken}`,
+          'Accept': 'application/json',
+          'User-Agent': 'n8n'
+        }
+      }
+    );
+    if (!r.ok) return null;
+
+    const txs = (await r.json().catch(() => ({}))).data || [];
+    if (!txs.length) return null;
+
+    txs.sort((a, b) => (Number(b.dates?.updated_at) || 0) - (Number(a.dates?.updated_at) || 0));
+    const latest = txs[0];
+    if (!isRefundLikeStatus(latest.status)) return null;
+
+    return {
+      status: latest.status,
+      eventTs: resolveRefundEventTimestamp(latest)
+    };
+  } catch (e) {
+    console.error(`webhook-guru: erro buscando txs da sub ${subscriptionId}:`, e.message);
+    return null;
+  }
 }
 
 /**
