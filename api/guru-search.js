@@ -150,7 +150,11 @@ export default async function handler(req, res) {
 
     const contactData = contactRes.ok ? await contactRes.json() : { data: [] };
     const contacts = Array.isArray(contactData.data) ? contactData.data : [];
-    const contact = contacts.find(c => c.email?.toLowerCase() === emailClean) || null;
+    // A Guru pode ter contatos duplicados com o mesmo e-mail (ex.: sub criada
+    // via fluxo replace cai num contato novo). Varremos TODOS pra nao perder a
+    // assinatura ativa que ficou pendurada em outro contato.
+    const matchedContacts = contacts.filter(c => c.email?.toLowerCase() === emailClean);
+    const contact = matchedContacts[0] || null;
 
     const offers = (Array.isArray(rawOffers) ? rawOffers : [])
       .filter(o => o.is_active)
@@ -201,26 +205,39 @@ export default async function handler(req, res) {
 
     let guru = { found: false, contact: null, subscriptions: [], invoices: [] };
 
-    if (contact) {
+    if (matchedContacts.length > 0) {
       guru.found = true;
-      guru.contact = {
-        id: contact.id,
-        name: contact.name,
-        email: contact.email,
-        doc: contact.doc,
-        phone: contact.phone_number ? `+${contact.phone_local_code || '55'}${contact.phone_number}` : null
-      };
 
-      const subsRes = await fetch(
-        `${GURU_BASE}/subscriptions?contact_id=${contact.id}&limit=50`,
-        { headers }
-      );
-
-      if (subsRes.ok) {
+      // Agrega subs Leona de TODOS os contatos com esse e-mail (dedupe por id).
+      const subsById = new Map();
+      for (const c of matchedContacts) {
+        const subsRes = await fetch(
+          `${GURU_BASE}/subscriptions?contact_id=${c.id}&limit=50`,
+          { headers }
+        );
+        if (!subsRes.ok) continue;
         const subsData = await subsRes.json();
         const allSubs = Array.isArray(subsData.data) ? subsData.data : [];
-        const leonaSubs = allSubs.filter(s => s.product?.id === LEONA_PRODUCT_ID);
+        for (const s of allSubs) {
+          if (s.product?.id === LEONA_PRODUCT_ID && !subsById.has(s.id)) {
+            subsById.set(s.id, s);
+          }
+        }
+      }
+      const leonaSubs = Array.from(subsById.values());
 
+      // Contato exibido: o dono da sub ativa (se houver), senao o primeiro.
+      const activeOwnerId = leonaSubs.find(s => s.last_status === 'active')?.contact?.id;
+      const displayContact = matchedContacts.find(c => c.id === activeOwnerId) || matchedContacts[0];
+      guru.contact = {
+        id: displayContact.id,
+        name: displayContact.name,
+        email: displayContact.email,
+        doc: displayContact.doc,
+        phone: displayContact.phone_number ? `+${displayContact.phone_local_code || '55'}${displayContact.phone_number}` : null
+      };
+
+      {
         const subDetails = await Promise.all(
           leonaSubs.map(async (s) => {
             let currentInvoice = null;
@@ -273,11 +290,13 @@ export default async function handler(req, res) {
 
         if (guru.subscriptions.length > 0) {
           const leonaSubIds = new Set(leonaSubs.map(s => s.id));
-          const txRes = await fetch(
-            `${GURU_BASE}/transactions?contact_id=${contact.id}&limit=100`,
-            { headers }
-          );
-          if (txRes.ok) {
+          const invoiceMap = new Map();
+          for (const c of matchedContacts) {
+            const txRes = await fetch(
+              `${GURU_BASE}/transactions?contact_id=${c.id}&limit=100`,
+              { headers }
+            );
+            if (!txRes.ok) continue;
             const txData = await txRes.json();
             const allTx = Array.isArray(txData.data) ? txData.data : [];
             const leonaTx = allTx.filter(t =>
@@ -285,8 +304,6 @@ export default async function handler(req, res) {
               leonaSubIds.has(t.subscription?.internal_id)) &&
               t.invoice
             );
-
-            const invoiceMap = new Map();
             for (const t of leonaTx) {
               const key = t.invoice.id;
               if (!invoiceMap.has(key)) {
@@ -306,8 +323,8 @@ export default async function handler(req, res) {
                 });
               }
             }
-            guru.invoices = Array.from(invoiceMap.values());
           }
+          guru.invoices = Array.from(invoiceMap.values());
         }
       }
     }
