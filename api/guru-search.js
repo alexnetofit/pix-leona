@@ -10,6 +10,25 @@ const GURU_HEADERS = (token) => ({
 
 const LEONA_PRODUCT_ID = 'a1869b83-b28d-4257-a986-1df94558a152';
 
+// O produto Leona tem >50 ofertas. A API da Guru pagina e a ordem nao garante
+// que planos como 8/9 conexoes venham nas primeiras 50, entao paginamos tudo.
+async function fetchAllOffers(productId, headers) {
+  const all = [];
+  let cursor = null;
+  for (let i = 0; i < 10; i++) {
+    const u = new URL(`${GURU_BASE}/products/${productId}/offers`);
+    u.searchParams.set('limit', '100');
+    if (cursor) u.searchParams.set('cursor', cursor);
+    const res = await fetch(u, { headers });
+    if (!res.ok) break;
+    const body = await res.json();
+    if (Array.isArray(body.data)) all.push(...body.data);
+    cursor = body.next_cursor;
+    if (!body.has_more_pages || !cursor) break;
+  }
+  return all;
+}
+
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
@@ -116,9 +135,9 @@ export default async function handler(req, res) {
 
     const emailClean = lookupEmail;
 
-    const [contactRes, offersRes, leonaRes] = await Promise.all([
+    const [contactRes, rawOffers, leonaRes] = await Promise.all([
       fetch(`${GURU_BASE}/contacts?email=${encodeURIComponent(emailClean)}&limit=20`, { headers }),
-      fetch(`${GURU_BASE}/products/${LEONA_PRODUCT_ID}/offers?limit=50`, { headers }),
+      fetchAllOffers(LEONA_PRODUCT_ID, headers),
       // Se ja achamos a conta via account_id, nao precisa buscar de novo.
       leonaPriority
         ? Promise.resolve(null)
@@ -133,9 +152,7 @@ export default async function handler(req, res) {
     const contacts = Array.isArray(contactData.data) ? contactData.data : [];
     const contact = contacts.find(c => c.email?.toLowerCase() === emailClean) || null;
 
-    const offersData = offersRes.ok ? await offersRes.json() : { data: [] };
-    const rawOffers = Array.isArray(offersData.data) ? offersData.data : [];
-    const offers = rawOffers
+    const offers = (Array.isArray(rawOffers) ? rawOffers : [])
       .filter(o => o.is_active)
       .map(o => ({
         id: o.id,

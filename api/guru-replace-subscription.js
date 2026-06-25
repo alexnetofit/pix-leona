@@ -35,6 +35,25 @@ function pickOfferByQty(offers, qty) {
   return null;
 }
 
+// O produto Leona tem >50 ofertas e a Guru pagina; planos como 8/9 conexoes
+// podem ficar fora das primeiras 50, entao paginamos tudo.
+async function fetchAllOffers(productId, headers) {
+  const all = [];
+  let cursor = null;
+  for (let i = 0; i < 10; i++) {
+    const u = new URL(`${GURU_BASE}/products/${productId}/offers`);
+    u.searchParams.set('limit', '100');
+    if (cursor) u.searchParams.set('cursor', cursor);
+    const res = await fetch(u, { headers });
+    if (!res.ok) return { ok: false, status: res.status, res };
+    const body = await res.json();
+    if (Array.isArray(body.data)) all.push(...body.data);
+    cursor = body.next_cursor;
+    if (!body.has_more_pages || !cursor) break;
+  }
+  return { ok: true, offers: all };
+}
+
 function appendParams(url, params) {
   if (!url) return null;
   const entries = Object.entries(params).filter(([, v]) => v != null && String(v).trim() !== '');
@@ -82,21 +101,17 @@ export default async function handler(req, res) {
       ? email.trim().toLowerCase()
       : profileEmail;
 
-    const offersRes = await fetch(
-      `${GURU_BASE}/products/${LEONA_GURU_PRODUCT_ID}/offers?limit=50`,
-      { headers: guruHeaders(guruToken) }
-    );
+    const offersResult = await fetchAllOffers(LEONA_GURU_PRODUCT_ID, guruHeaders(guruToken));
 
-    if (!offersRes.ok) {
-      const body = await offersRes.text().catch(() => '');
+    if (!offersResult.ok) {
+      const body = await offersResult.res.text().catch(() => '');
       return res.status(502).json({
-        error: `Guru retornou ${offersRes.status} ao buscar ofertas`,
+        error: `Guru retornou ${offersResult.status} ao buscar ofertas`,
         detail: body.slice(0, 500)
       });
     }
 
-    const offersBody = await offersRes.json();
-    const offers = Array.isArray(offersBody.data) ? offersBody.data : [];
+    const offers = offersResult.offers;
     const offer = pickOfferByQty(offers, qtyNum);
 
     if (!offer) {
