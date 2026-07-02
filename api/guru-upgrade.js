@@ -10,6 +10,29 @@ const GURU_HEADERS = (token) => ({
   'User-Agent': 'n8n'
 });
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// A Guru gera a fatura de upgrade de forma ASSINCRONA logo apos o PUT /plans.
+// Se lermos o current_invoice imediatamente, ele ainda aponta pra fatura
+// anterior (do ciclo, ja paga) — e o app acabava mostrando o link dela.
+// Aqui fazemos polling ate aparecer uma fatura em aberto (nao paga).
+async function fetchFreshInvoice(subscription_id, headers, { tries = 6, delayMs = 800 } = {}) {
+  let lastSubData = null;
+  for (let i = 0; i < tries; i++) {
+    const subRes = await fetch(`${GURU_BASE}/subscriptions/${subscription_id}`, { headers });
+    if (subRes.ok) {
+      const subData = await subRes.json();
+      lastSubData = subData;
+      const ci = subData.current_invoice;
+      if (ci && ci.status !== 'paid') {
+        return { subData, invoice: ci };
+      }
+    }
+    if (i < tries - 1) await sleep(delayMs);
+  }
+  return { subData: lastSubData, invoice: null };
+}
+
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
@@ -64,18 +87,16 @@ export default async function handler(req, res) {
       });
     }
 
-    const subRes = await fetch(
-      `${GURU_BASE}/subscriptions/${subscription_id}`,
-      { headers }
-    );
+    const { subData, invoice: ci } = await fetchFreshInvoice(subscription_id, headers);
 
     let invoice = null;
     let currentOfferId = null;
-    if (subRes.ok) {
-      const subData = await subRes.json();
+    if (subData) {
       currentOfferId = subData.current_offer?.id || subData.offer?.id || null;
-      const ci = subData.current_invoice;
-      if (ci) {
+      // So devolvemos link de pagamento se a fatura estiver EM ABERTO. Nunca
+      // devolvemos uma fatura ja paga (evita mostrar o link da fatura antiga
+      // do ciclo enquanto a Guru ainda nao gerou a fatura de upgrade).
+      if (ci && ci.status !== 'paid') {
         invoice = {
           id: ci.id,
           status: ci.status,
