@@ -1463,6 +1463,48 @@
                 const subId = activeSub?.id;
                 const canExecute = hasGuru && subId && bp.account_id;
 
+                // Quando ja existe uma fatura cycle/upgrade em aberto na Guru
+                // (ex.: renovacao PIX ja emitida), o PUT /subscriptions/:id/plans
+                // (downgrade tradicional) e bloqueado pela Guru — mesmo cenario
+                // tratado no ramo de UPGRADE acima. Nesse caso usamos o fluxo
+                // "replace": gera um link de checkout novo com a qty menor; ao
+                // pagar, o webhook-guru re-vincula a conta, ajusta a Leona pra
+                // nova qty e cancela a sub antiga (matando a fatura antiga).
+                const hasOpenInvoice = activeSub?.current_invoice
+                    && (activeSub.current_invoice.status === 'waiting_payment'
+                        || activeSub.current_invoice.status === 'pending');
+
+                if (hasOpenInvoice && bp.account_id) {
+                    const replaceSlot = `down-${bp.account_id}-${bpIdx}`;
+                    _replaceStates[replaceSlot] = { accountId: bp.account_id, qty: currentQty };
+                    resultDiv.innerHTML = `
+                        <div style="background: var(--bg-card); padding: 20px; border-radius: 14px; border: 1px solid rgba(245,158,11,0.3);">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                                <span style="color: var(--text-secondary);">Alteração:</span>
+                                <span style="color: var(--orange); font-weight: 700;">⬇️ DOWNGRADE (-${diff})</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="color: var(--text-secondary);">Conexões:</span>
+                                <span style="font-weight: 600;">${currentQty} → ${newQty}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                                <span style="color: var(--text-secondary);">Novo valor mensal:</span>
+                                <span style="color: var(--orange); font-weight: 700;">${fmtCurrency(newValue)}</span>
+                            </div>
+                            <div style="background: rgba(245,158,11,0.08); padding: 12px; border-radius: 10px; color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 14px; line-height: 1.5;">
+                                Você tem uma fatura em aberto (renovação) do plano atual. Vamos gerar um link de pagamento já com o novo plano de <strong>${newQty}</strong> conex${newQty !== 1 ? 'ões' : 'ão'} — ao pagar, sua assinatura é substituída e a fatura anterior é cancelada automaticamente.
+                            </div>
+                            <input type="hidden" id="replaceQty-${replaceSlot}" value="${newQty}">
+                            <button class="btn-orange" id="replaceGoBtn-${replaceSlot}" style="width: 100%; padding: 14px; font-size: 0.95rem;"
+                                onclick="replaceGenerate('${replaceSlot}')">
+                                Gerar link de pagamento para ${newQty} conex${newQty !== 1 ? 'ões' : 'ão'}
+                            </button>
+                            <div id="replacePanel-${replaceSlot}" style="margin-top: 14px;"></div>
+                        </div>
+                    `;
+                    return;
+                }
+
                 resultDiv.innerHTML = `
                     <div style="background: var(--bg-card); padding: 20px; border-radius: 14px; border: 1px solid rgba(245,158,11,0.3);">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
