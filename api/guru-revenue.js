@@ -154,6 +154,19 @@ function brtBoundary(day) {
   return `${day}T03:00:00.000Z`;
 }
 
+const BRT_DAY_FMT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Sao_Paulo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit'
+});
+
+function brtDayOf(isoTimestamp) {
+  const date = new Date(isoTimestamp);
+  if (Number.isNaN(date.getTime())) return null;
+  return BRT_DAY_FMT.format(date);
+}
+
 function cents(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -261,6 +274,7 @@ async function fetchPaddleMetrics(start, end) {
   let refundNetCents = 0;
   let refundCount = 0;
   const pixPrepaidCustomers = new Set();
+  const dailyGrossCents = {};
 
   for (const transaction of transactions) {
     const billedAt = transaction.billed_at || '';
@@ -281,6 +295,10 @@ async function fetchPaddleMetrics(start, end) {
         grossCents += originalGross;
         netCents += originalNet;
         count++;
+        const billedDay = brtDayOf(billedAt);
+        if (billedDay) {
+          dailyGrossCents[billedDay] = (dailyGrossCents[billedDay] || 0) + originalGross;
+        }
         if (adjustedGross < originalGross) {
           refundGrossCents += originalGross - adjustedGross;
           refundNetCents += Math.max(0, originalNet - adjustedNet);
@@ -318,6 +336,9 @@ async function fetchPaddleMetrics(start, end) {
       pix_prepaid: pixPrepaidCustomers.size,
       pix_active_window_days: PADDLE_PIX_ACTIVE_DAYS
     },
+    daily_gross: Object.fromEntries(
+      Object.entries(dailyGrossCents).map(([day, value]) => [day, Math.round(value) / 100])
+    ),
     pages_fetched: transactionResult.pages + subscriptionResult.pages,
     transactions_in_range: count
   };
@@ -396,6 +417,7 @@ async function calculateRevenue(start, end, days, headers) {
   let totalPages = 0;
   const t0 = Date.now();
   const seen = new Set();
+  const guruDailyGross = {};
 
   const [activeSubscribersTotal, results, paddle] = await Promise.all([
     fetchActiveSubscribersTotal(headers),
@@ -403,7 +425,7 @@ async function calculateRevenue(start, end, days, headers) {
     fetchPaddleMetrics(start, end)
   ]);
 
-  for (const { pages, transactions } of results) {
+  for (const { day, pages, transactions } of results) {
     totalPages += pages;
     for (const transaction of transactions) {
       if (transaction?.product?.internal_id !== LEONA_GURU_PRODUCT_ID) continue;
@@ -425,6 +447,7 @@ async function calculateRevenue(start, end, days, headers) {
         gross += transactionGross;
         net += transactionNet;
         count++;
+        guruDailyGross[day] = (guruDailyGross[day] || 0) + transactionGross;
       } else if (REFUND_STATUSES.includes(status)) {
         refundGross += transactionGross;
         refundNet += transactionNet;
@@ -458,12 +481,17 @@ async function calculateRevenue(start, end, days, headers) {
     net: Math.round((guru.refunded.net + paddle.refunded.net) * 100) / 100,
     count: guru.refunded.count + paddle.refunded.count
   };
+  const daily = days.map(day => ({
+    day,
+    gross: Math.round(((guruDailyGross[day] || 0) + (paddle.daily_gross?.[day] || 0)) * 100) / 100
+  }));
 
   return {
     product_id: LEONA_GURU_PRODUCT_ID,
     range: { start, end },
     approved,
     refunded,
+    daily,
     active_subscribers: {
       count: guru.active_subscribers.count + paddle.active_subscribers.count
     },

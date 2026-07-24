@@ -214,11 +214,6 @@
         .section-heading h2 { font-size: 1rem; }
         .section-heading p { color: var(--text-muted); font-size: 0.76rem; }
 
-        .results {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 14px;
-        }
         .platform-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -306,61 +301,16 @@
             border-top: 1px solid var(--border);
         }
         @media (max-width: 760px) {
-            .results { grid-template-columns: 1fr; }
             .platform-grid { grid-template-columns: 1fr; }
             .platform-metrics { grid-template-columns: 1fr; }
             .range-footer { align-items: stretch; flex-direction: column; }
             .refresh-btn { justify-content: center; }
         }
 
-        .metric {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 18px;
-            position: relative;
-            overflow: hidden;
-        }
-        .metric::after {
-            content: '';
-            position: absolute;
-            width: 90px;
-            height: 90px;
-            right: -38px;
-            top: -38px;
-            border-radius: 50%;
-            background: currentColor;
-            opacity: 0.045;
-        }
-        .metric.gross { border-color: rgba(139, 92, 246, 0.4); box-shadow: 0 0 24px rgba(139, 92, 246, 0.08); }
-        .metric.net { border-color: rgba(16, 185, 129, 0.4); box-shadow: 0 0 24px rgba(16, 185, 129, 0.08); }
-        .metric.active-subs { border-color: rgba(245, 158, 11, 0.4); box-shadow: 0 0 24px rgba(245, 158, 11, 0.08); }
-        .metric .label {
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 6px;
-        }
-        .metric .value {
-            font-size: clamp(1.45rem, 3.2vw, 1.7rem);
-            font-weight: 700;
-            color: var(--text-primary);
-            line-height: 1.15;
-            white-space: nowrap;
-            letter-spacing: -0.04em;
-        }
-        .metric.gross .value { color: var(--accent); }
-        .metric.net .value { color: var(--green); }
-        .metric.active-subs .value { color: var(--orange); }
-        .metric .sub {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-top: 4px;
-        }
-
-        .results.is-loading,
-        #resultSection.is-loading .card {
+        #resultSection.is-loading .card,
+        #resultSection.is-loading .hero-card,
+        #resultSection.is-loading .mini-card,
+        #resultSection.is-loading .platform-card {
             opacity: 0.55;
             transition: opacity 0.15s ease;
         }
@@ -616,47 +566,189 @@
         .section-heading { margin: 30px 2px 13px; align-items: center; }
         .section-heading h2 { font-size: 1.05rem; letter-spacing: -0.015em; }
         .section-heading p { font-size: 0.75rem; }
-        .results { gap: 16px; }
-        .metric {
-            min-height: 152px;
+
+        /* Hero — número do período em destaque */
+        .hero-card {
+            position: relative;
+            overflow: hidden;
+            border-radius: 26px;
+            padding: 26px 26px 22px;
+            color: #fff;
+            background:
+                radial-gradient(circle at 88% -10%, rgba(141, 126, 255, 0.42), transparent 16rem),
+                radial-gradient(circle at 0% 115%, rgba(24, 119, 242, 0.28), transparent 15rem),
+                linear-gradient(150deg, #171430, #2b2456);
+            box-shadow: 0 24px 55px rgba(28, 24, 74, 0.26);
+        }
+        .hero-label {
+            color: rgba(255, 255, 255, 0.62);
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+        }
+        .hero-value {
+            margin-top: 6px;
+            font-size: clamp(2.3rem, 8vw, 3.3rem);
+            font-weight: 800;
+            letter-spacing: -0.05em;
+            line-height: 1.05;
+            font-variant-numeric: tabular-nums;
+        }
+        .hero-meta {
             display: flex;
-            flex-direction: column;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .delta-chip {
+            display: none;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 11px;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 750;
+        }
+        .delta-chip.visible { display: inline-flex; }
+        .delta-chip.up { color: #6ee7b7; background: rgba(16, 185, 129, 0.2); }
+        .delta-chip.down { color: #fda4af; background: rgba(244, 63, 94, 0.22); }
+        .hero-updated { color: rgba(255, 255, 255, 0.55); font-size: 0.75rem; font-weight: 600; }
+        .spark-wrap { margin-top: 18px; }
+        .spark-wrap[hidden] { display: none; }
+        #sparkline { display: block; width: 100%; height: 62px; }
+        .spark-caption {
+            display: flex;
             justify-content: space-between;
-            padding: 22px;
-            border: 1px solid var(--border) !important;
-            border-radius: 20px;
-            background: rgba(255, 255, 255, 0.9);
-            box-shadow: 0 10px 35px rgba(40, 54, 82, 0.06) !important;
+            margin-top: 4px;
+            color: rgba(255, 255, 255, 0.45);
+            font-size: 0.68rem;
+            font-weight: 650;
         }
-        .metric::after {
-            width: 150px;
-            height: 150px;
-            right: -75px;
-            top: -80px;
-            opacity: 0.06;
+        .hero-foot {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 18px;
+            padding-top: 16px;
+            border-top: 1px solid rgba(255, 255, 255, 0.13);
         }
-        .metric-heading { display: flex; align-items: center; justify-content: space-between; }
-        .metric-icon {
+        .hero-foot .k {
+            color: rgba(255, 255, 255, 0.55);
+            font-size: 0.66rem;
+            font-weight: 750;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+        .hero-foot .v {
+            margin-top: 2px;
+            font-size: 1.02rem;
+            font-weight: 750;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Grade compacta de métricas secundárias */
+        .mini-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 14px;
+            margin-top: 16px;
+        }
+        .mini-card {
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 16px 17px;
+            box-shadow: 0 10px 30px rgba(40, 54, 82, 0.05);
+        }
+        .mini-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .mini-label {
+            color: var(--text-secondary);
+            font-size: 0.66rem;
+            font-weight: 750;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .mini-icon {
             display: grid;
             place-items: center;
-            width: 35px;
-            height: 35px;
-            border-radius: 11px;
+            width: 30px;
+            height: 30px;
+            flex: 0 0 auto;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 800;
             color: var(--accent);
             background: var(--accent-soft);
-            font-size: 1rem;
+        }
+        .mini-card.green .mini-icon { color: var(--green); background: var(--green-soft); }
+        .mini-card.orange .mini-icon { color: var(--orange); background: var(--orange-soft); }
+        .mini-card.red .mini-icon { color: #d92d20; background: #feecea; }
+        .mini-value {
+            margin-top: 12px;
+            color: var(--text-primary);
+            font-size: 1.35rem;
             font-weight: 800;
+            letter-spacing: -0.04em;
+            font-variant-numeric: tabular-nums;
+            overflow-wrap: anywhere;
         }
-        .metric.net .metric-icon { color: var(--green); background: var(--green-soft); }
-        .metric.active-subs .metric-icon { color: var(--orange); background: var(--orange-soft); }
-        .metric .label { margin: 0; color: var(--text-secondary); font-size: 0.7rem; font-weight: 750; }
-        .metric .value {
-            margin-top: 18px;
-            color: var(--text-primary) !important;
-            font-size: clamp(1.75rem, 3vw, 2.15rem);
-            letter-spacing: -0.055em;
+        .mini-foot {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 5px;
+            min-height: 20px;
         }
-        .metric .sub { color: var(--text-secondary); }
+        .mini-sub { color: var(--text-muted); font-size: 0.72rem; }
+        .mini-delta {
+            display: none;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 0.7rem;
+            font-weight: 750;
+        }
+        .mini-delta.visible { display: inline-flex; }
+        .mini-delta.up { color: #067647; background: #e5f7f1; }
+        .mini-delta.down { color: #d92d20; background: #feecea; }
+
+        /* Barra de participação Guru vs Paddle */
+        .share-card { margin-bottom: 16px; }
+        .share-legend {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 11px;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-weight: 650;
+        }
+        .share-legend b { color: var(--text-primary); font-weight: 800; }
+        .share-dot {
+            display: inline-block;
+            width: 9px;
+            height: 9px;
+            margin-right: 6px;
+            border-radius: 3px;
+            background: var(--accent);
+        }
+        .share-dot.paddle { background: var(--blue); }
+        .share-bar {
+            display: flex;
+            height: 13px;
+            border-radius: 999px;
+            overflow: hidden;
+            background: var(--bg-elevated);
+        }
+        .share-seg { transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
+        .share-seg.guru { background: linear-gradient(90deg, #7c6cf5, #5b4ce1); }
+        .share-seg.paddle { background: linear-gradient(90deg, #3f92ff, #1877f2); }
         .platform-grid { gap: 16px; }
         .platform-card {
             padding: 24px;
@@ -745,6 +837,13 @@
             .preset-btn { flex: 0 0 auto; }
             .details-card { grid-template-columns: 1fr; }
             .section-heading { align-items: flex-start; flex-direction: column; gap: 2px; }
+            .hero-card { padding: 22px 20px 18px; border-radius: 22px; }
+            .hero-foot { gap: 8px; }
+            .hero-foot .v { font-size: 0.92rem; }
+            .mini-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+            .mini-card { padding: 14px; border-radius: 16px; }
+            .mini-value { font-size: 1.2rem; }
+            .share-legend { font-size: 0.73rem; }
         }
     </style>
 </head>
@@ -810,39 +909,78 @@
                     <h2>Visão consolidada</h2>
                     <p>Receita e base ativa em todos os meios de pagamento.</p>
                 </div>
-                <p id="lastUpdated">—</p>
             </div>
-            <div class="results" id="resultsGrid">
-                <div class="metric gross">
-                    <div class="metric-heading">
-                        <div class="label">Receita bruta total</div>
-                        <span class="metric-icon">↗</span>
-                    </div>
-                    <div class="value" id="grossValue">—</div>
-                    <div class="sub" id="grossSub"></div>
+            <div class="hero-card">
+                <div class="hero-label">Receita bruta · <span id="heroRange">Hoje</span></div>
+                <div class="hero-value" id="grossValue">—</div>
+                <div class="hero-meta">
+                    <span class="delta-chip" id="grossDelta"></span>
+                    <span class="hero-updated" id="lastUpdated">—</span>
                 </div>
-                <div class="metric net">
-                    <div class="metric-heading">
-                        <div class="label">Receita líquida total</div>
-                        <span class="metric-icon">✓</span>
+                <div class="spark-wrap" id="sparkWrap" hidden>
+                    <svg id="sparkline" viewBox="0 0 300 62" preserveAspectRatio="none" aria-hidden="true"></svg>
+                    <div class="spark-caption">
+                        <span id="sparkStart"></span>
+                        <span>receita bruta por dia</span>
+                        <span id="sparkEnd"></span>
                     </div>
-                    <div class="value" id="netValue">—</div>
-                    <div class="sub" id="netSub"></div>
                 </div>
-                <div class="metric active-subs">
-                    <div class="metric-heading">
-                        <div class="label">Assinantes ativos</div>
-                        <span class="metric-icon">●</span>
+                <div class="hero-foot">
+                    <div>
+                        <div class="k">Receita líquida</div>
+                        <div class="v" id="netValue">—</div>
                     </div>
-                    <div class="value" id="activeSubsValue">—</div>
-                    <div class="sub">Guru + Paddle</div>
+                    <div>
+                        <div class="k">Taxa média</div>
+                        <div class="v" id="netSub">—</div>
+                    </div>
+                    <div>
+                        <div class="k">Vendas aprovadas</div>
+                        <div class="v" id="grossSub">—</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mini-grid">
+                <div class="mini-card green">
+                    <div class="mini-head"><span class="mini-label">Líquido</span><span class="mini-icon">✓</span></div>
+                    <div class="mini-value" id="miniNet">—</div>
+                    <div class="mini-foot"><span class="mini-delta" id="miniNetDelta"></span></div>
+                </div>
+                <div class="mini-card orange">
+                    <div class="mini-head"><span class="mini-label">Assinantes ativos</span><span class="mini-icon">●</span></div>
+                    <div class="mini-value" id="activeSubsValue">—</div>
+                    <div class="mini-foot"><span class="mini-sub">Guru + Paddle</span></div>
+                </div>
+                <div class="mini-card">
+                    <div class="mini-head"><span class="mini-label">Vendas</span><span class="mini-icon">↗</span></div>
+                    <div class="mini-value" id="miniSales">—</div>
+                    <div class="mini-foot"><span class="mini-delta" id="miniSalesDelta"></span></div>
+                </div>
+                <div class="mini-card red">
+                    <div class="mini-head"><span class="mini-label">Reembolsos</span><span class="mini-icon">↩</span></div>
+                    <div class="mini-value" id="miniRefunds">—</div>
+                    <div class="mini-foot">
+                        <span class="mini-sub" id="miniRefundsSub"></span>
+                        <span class="mini-delta" id="miniRefundsDelta"></span>
+                    </div>
                 </div>
             </div>
 
             <div class="section-heading">
                 <div>
                     <h2>Por plataforma</h2>
-                    <p>Comparativo financeiro e assinantes ativos.</p>
+                    <p>Participação de cada plataforma na receita bruta.</p>
+                </div>
+            </div>
+            <div class="card share-card">
+                <div class="share-legend">
+                    <span><span class="share-dot"></span>Guru <b id="shareGuruPct">—</b> · <span id="shareGuruVal"></span></span>
+                    <span><span class="share-dot paddle"></span>Paddle <b id="sharePaddlePct">—</b> · <span id="sharePaddleVal"></span></span>
+                </div>
+                <div class="share-bar">
+                    <div class="share-seg guru" id="shareGuruSeg" style="width: 50%"></div>
+                    <div class="share-seg paddle" id="sharePaddleSeg" style="width: 50%"></div>
                 </div>
             </div>
             <div class="platform-grid">
@@ -1099,10 +1237,13 @@
         let fetchSeq = 0;
         let fetchTimer = null;
         let activeController = null;
+        let comparisonController = null;
+        let lastRendered = null;
 
         function scheduleRevenueFetch() {
             clearTimeout(fetchTimer);
             activeController?.abort();
+            comparisonController?.abort();
             fetchTimer = setTimeout(() => fetchRevenue(), 500);
         }
 
@@ -1131,18 +1272,17 @@
                 refreshBtn.disabled = false;
                 document.getElementById('topLoader').classList.remove('active');
                 document.getElementById('resultSection').classList.remove('is-loading');
-                document.getElementById('resultsGrid').classList.remove('is-loading');
                 return;
             }
 
             activeController?.abort();
+            comparisonController?.abort();
             const controller = new AbortController();
             activeController = controller;
             refreshBtn.disabled = true;
             document.getElementById('lastUpdated').textContent = 'Consultando plataformas…';
             document.getElementById('topLoader').classList.add('active');
             document.getElementById('resultSection').classList.add('is-loading');
-            document.getElementById('resultsGrid').classList.add('is-loading');
 
             try {
                 const r = await fetch('/api/guru-revenue', {
@@ -1178,7 +1318,6 @@
                     refreshBtn.disabled = false;
                     document.getElementById('topLoader').classList.remove('active');
                     document.getElementById('resultSection').classList.remove('is-loading');
-                    document.getElementById('resultsGrid').classList.remove('is-loading');
                 }
             }
         }
@@ -1193,6 +1332,131 @@
             showLogin();
         }
 
+        // ============================================
+        // RENDER — hero, minis, share bar, sparkline, deltas
+        // ============================================
+        function animateCurrency(el, target) {
+            const from = Number(el.dataset.v || 0);
+            const to = Number(target) || 0;
+            el.dataset.v = String(to);
+            if (from === to) {
+                el.textContent = formatBRL(to);
+                return;
+            }
+            const t0 = performance.now();
+            const duration = 650;
+            function frame(now) {
+                if (el.dataset.v !== String(to)) return;
+                const p = Math.min(1, (now - t0) / duration);
+                const eased = 1 - Math.pow(1 - p, 3);
+                el.textContent = formatBRL(from + (to - from) * eased);
+                if (p < 1) requestAnimationFrame(frame);
+            }
+            requestAnimationFrame(frame);
+        }
+
+        function renderSparkline(daily) {
+            const wrap = document.getElementById('sparkWrap');
+            if (!Array.isArray(daily) || daily.length < 2) {
+                wrap.hidden = true;
+                return;
+            }
+            const W = 300, H = 62, PAD = 4;
+            const values = daily.map(d => Number(d.gross) || 0);
+            const max = Math.max(...values, 1);
+            const pts = values.map((v, i) => [
+                PAD + (i / (values.length - 1)) * (W - PAD * 2),
+                H - PAD - (v / max) * (H - PAD * 2 - 6)
+            ]);
+            const line = pts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+            const area = `${PAD},${H - PAD} ${line} ${W - PAD},${H - PAD}`;
+            const last = pts[pts.length - 1];
+            document.getElementById('sparkline').innerHTML = `
+                <defs>
+                    <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stop-color="#a5b4fc" stop-opacity="0.4"/>
+                        <stop offset="1" stop-color="#a5b4fc" stop-opacity="0"/>
+                    </linearGradient>
+                </defs>
+                <polygon points="${area}" fill="url(#sparkFill)"/>
+                <polyline points="${line}" fill="none" stroke="#c7d2fe" stroke-width="2"
+                    stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+                <polyline points="${last[0].toFixed(1)},${last[1].toFixed(1)} ${last[0].toFixed(1)},${last[1].toFixed(1)}"
+                    fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`;
+            document.getElementById('sparkStart').textContent = formatDateBR(daily[0].day).slice(0, 5);
+            document.getElementById('sparkEnd').textContent = formatDateBR(daily[daily.length - 1].day).slice(0, 5);
+            wrap.hidden = false;
+        }
+
+        const DELTA_IDS = ['grossDelta', 'miniNetDelta', 'miniSalesDelta', 'miniRefundsDelta'];
+        function clearDeltas() {
+            DELTA_IDS.forEach(id => document.getElementById(id).classList.remove('visible'));
+        }
+        function setDelta(id, current, previous, { invert = false, suffix = '' } = {}) {
+            const el = document.getElementById(id);
+            const cur = Number(current);
+            const prev = Number(previous);
+            if (!Number.isFinite(cur) || !Number.isFinite(prev) || prev <= 0) {
+                el.classList.remove('visible');
+                return;
+            }
+            const pct = (cur - prev) / prev * 100;
+            const up = pct >= 0;
+            const good = invert ? !up : up;
+            el.textContent = `${up ? '▲' : '▼'} ${Math.abs(pct).toFixed(1)}%${suffix}`;
+            el.classList.toggle('up', good);
+            el.classList.toggle('down', !good);
+            el.classList.add('visible');
+        }
+
+        function applyComparison(prevBody) {
+            if (!lastRendered) return;
+            const cur = lastRendered.body;
+            const a = cur.approved || {};
+            const pa = prevBody.approved || {};
+            const ref = cur.refunded || {};
+            const pref = prevBody.refunded || {};
+            setDelta('grossDelta', a.gross, pa.gross, { suffix: ' vs período anterior' });
+            setDelta('miniNetDelta', a.net, pa.net);
+            setDelta('miniSalesDelta', a.count, pa.count);
+            setDelta('miniRefundsDelta', ref.gross, pref.gross, { invert: true });
+        }
+
+        async function fetchComparison(range) {
+            const dayMs = 24 * 60 * 60 * 1000;
+            const lengthDays = Math.round((parseISO(range.end) - parseISO(range.start)) / dayMs) + 1;
+            if (!Number.isFinite(lengthDays) || lengthDays < 1 || lengthDays > 45) return;
+            const rangeKey = `${range.start}:${range.end}`;
+            const prevEnd = addDays(range.start, -1);
+            const prevStart = addDays(prevEnd, -(lengthDays - 1));
+            const cacheKey = `${prevStart}:${prevEnd}`;
+            const cached = clientCache.get(cacheKey);
+            if (cached) {
+                applyComparison(cached.body);
+                return;
+            }
+            comparisonController?.abort();
+            const controller = new AbortController();
+            comparisonController = controller;
+            try {
+                const r = await fetch('/api/guru-revenue', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${supportToken}`
+                    },
+                    body: JSON.stringify({ start: prevStart, end: prevEnd }),
+                    signal: controller.signal
+                });
+                if (!r.ok) return;
+                const body = await r.json();
+                clientCache.set(cacheKey, { body, createdAt: Date.now() });
+                if (lastRendered?.key === rangeKey) applyComparison(body);
+            } catch (_) {
+                // comparação é opcional — falha em silêncio
+            }
+        }
+
         function renderResult(body) {
             const a = body.approved || {};
             const ref = body.refunded || {};
@@ -1201,13 +1465,40 @@
             const guruApproved = guru.approved || {};
             const paddleApproved = paddle.approved || {};
             const paddleSubscribers = paddle.active_subscribers || {};
-            document.getElementById('grossValue').textContent = formatBRL(a.gross);
-            document.getElementById('netValue').textContent = formatBRL(a.net);
-            document.getElementById('activeSubsValue').textContent = String(body.active_subscribers?.count ?? '—');
+            const rangeKey = `${body.range.start}:${body.range.end}`;
+            const rangeChanged = lastRendered?.key !== rangeKey;
+            lastRendered = { key: rangeKey, body };
 
+            const activeBtn = document.querySelector('.preset-btn.active');
+            document.getElementById('heroRange').textContent =
+                (activeBtn && activeBtn.dataset.preset !== 'custom')
+                    ? activeBtn.textContent
+                    : `${formatDateBR(body.range.start)} – ${formatDateBR(body.range.end)}`;
+
+            animateCurrency(document.getElementById('grossValue'), a.gross);
             const taxa = a.gross > 0 ? ((a.gross - a.net) / a.gross * 100) : 0;
-            document.getElementById('grossSub').textContent = `${a.count || 0} venda(s) aprovada(s)`;
-            document.getElementById('netSub').textContent = `Taxa média: ${taxa.toFixed(2)}%`;
+            document.getElementById('netValue').textContent = formatBRL(a.net);
+            document.getElementById('netSub').textContent = `${taxa.toFixed(1)}%`;
+            document.getElementById('grossSub').textContent = String(a.count || 0);
+
+            document.getElementById('miniNet').textContent = formatBRL(a.net);
+            document.getElementById('activeSubsValue').textContent = String(body.active_subscribers?.count ?? '—');
+            document.getElementById('miniSales').textContent = String(a.count || 0);
+            document.getElementById('miniRefunds').textContent = formatBRL(ref.gross);
+            document.getElementById('miniRefundsSub').textContent = `${ref.count || 0} caso(s)`;
+
+            const guruGrossV = Number(guruApproved.gross) || 0;
+            const paddleGrossV = Number(paddleApproved.gross) || 0;
+            const totalGross = guruGrossV + paddleGrossV;
+            const guruPct = totalGross > 0 ? (guruGrossV / totalGross * 100) : 50;
+            document.getElementById('shareGuruSeg').style.width = `${guruPct.toFixed(2)}%`;
+            document.getElementById('sharePaddleSeg').style.width = `${(100 - guruPct).toFixed(2)}%`;
+            document.getElementById('shareGuruPct').textContent = `${guruPct.toFixed(0)}%`;
+            document.getElementById('sharePaddlePct').textContent = `${(100 - guruPct).toFixed(0)}%`;
+            document.getElementById('shareGuruVal').textContent = formatBRL(guruGrossV);
+            document.getElementById('sharePaddleVal').textContent = formatBRL(paddleGrossV);
+
+            renderSparkline(body.daily);
 
             document.getElementById('guruGross').textContent = formatBRL(guruApproved.gross);
             document.getElementById('guruNet').textContent = formatBRL(guruApproved.net);
@@ -1239,6 +1530,9 @@
                     timeZone: SP_TZ
                 }).format(new Date())}`;
             document.getElementById('lastUpdated').textContent = updateLabel;
+
+            if (rangeChanged) clearDeltas();
+            fetchComparison(body.range);
         }
     </script>
 </body>
