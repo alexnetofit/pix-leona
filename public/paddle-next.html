@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assinatura Leona</title>
+  <link rel="icon" type="image/png" href="/logo-leona.png">
+  <style>
+    :root {
+      --bg: #0c0a12;
+      --surface: #171322;
+      --surface-2: #201a30;
+      --border: #342b49;
+      --text: #f2eef8;
+      --muted: #a99dbd;
+      --accent: #8b5cf6;
+      --accent-2: #a78bfa;
+      --success: #34d399;
+      --warning: #fbbf24;
+      --danger: #f87171;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main { width: min(760px, calc(100% - 32px)); margin: 0 auto; padding: 40px 0 72px; }
+    header { text-align: center; margin-bottom: 28px; }
+    .logo { height: 54px; width: auto; }
+    h1 { margin: 10px 0 4px; font-size: 25px; }
+    h2 { margin: 0; font-size: 17px; }
+    p { margin: 0; }
+    .muted { color: var(--muted); }
+    .small { font-size: 13px; }
+    .stack { display: grid; gap: 14px; }
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface);
+      padding: 18px;
+    }
+    .row { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+    .metric { font-size: 25px; font-weight: 700; }
+    .pill {
+      display: inline-flex;
+      padding: 4px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .pill.active { color: var(--success); border-color: color-mix(in srgb, var(--success) 45%, var(--border)); }
+    .pill.pending { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, var(--border)); }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    label { display: grid; gap: 7px; color: var(--muted); font-size: 13px; }
+    input {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface-2);
+      color: var(--text);
+      padding: 12px;
+      font-size: 16px;
+      outline: none;
+    }
+    input:focus { border-color: var(--accent); }
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 11px 15px;
+      font: inherit;
+      font-weight: 650;
+      cursor: pointer;
+      background: var(--accent);
+      color: white;
+    }
+    button.secondary { background: var(--surface-2); border: 1px solid var(--border); }
+    button.danger { background: transparent; color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border)); }
+    button:disabled { opacity: .5; cursor: wait; }
+    .actions { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 14px; }
+    .notice { border-left: 3px solid var(--accent); padding-left: 12px; }
+    .notice.warning { border-color: var(--warning); }
+    .notice.danger { border-color: var(--danger); }
+    .error { color: var(--danger); white-space: pre-wrap; }
+    .success { color: var(--success); }
+    .hidden { display: none !important; }
+    .divider { height: 1px; background: var(--border); margin: 14px 0; }
+    #loading { text-align: center; padding: 60px 0; color: var(--muted); }
+    @media (max-width: 620px) {
+      main { padding-top: 24px; }
+      .grid { grid-template-columns: 1fr; }
+      button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <img src="/logo-leona.png" class="logo" alt="Leona">
+      <h1>Assinatura Leona</h1>
+      <p class="muted">Pagamentos processados pela Paddle</p>
+    </header>
+
+    <div id="loading">Carregando sua conta…</div>
+    <div id="error" class="card error hidden"></div>
+    <div id="app" class="stack hidden">
+      <section class="card">
+        <div class="row">
+          <div>
+            <p class="muted small">Conta Leona</p>
+            <h2 id="accountName">—</h2>
+            <p id="accountEmail" class="muted small">—</p>
+          </div>
+          <span id="statusPill" class="pill">—</span>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="grid">
+          <div>
+            <p class="muted small">Instâncias disponíveis</p>
+            <p id="entitledQty" class="metric">0</p>
+          </div>
+          <div>
+            <p class="muted small">Próxima renovação</p>
+            <p id="paidThrough" class="metric" style="font-size:20px">—</p>
+          </div>
+        </div>
+        <div id="pendingBox" class="notice warning hidden" style="margin-top:16px">
+          <p id="pendingText"></p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Alterar plano</h2>
+        <p class="muted small" style="margin-top:5px">
+          Upgrade no cartão é pro-rata. Downgrade vale financeiramente na próxima renovação,
+          mantendo suas instâncias atuais até o vencimento.
+        </p>
+        <div style="margin-top:16px">
+          <label>
+            Quantidade de instâncias
+            <input id="quantity" type="number" min="1" max="100" value="1">
+          </label>
+        </div>
+        <div id="quote" class="notice hidden" style="margin-top:14px"></div>
+        <div class="actions">
+          <button id="previewBtn" class="secondary">Calcular</button>
+          <button id="cardBtn">Pagar com cartão</button>
+          <button id="pixBtn" class="secondary">Pagar com PIX</button>
+        </div>
+      </section>
+
+      <section id="manageCard" class="card hidden">
+        <h2>Gerenciar assinatura</h2>
+        <p class="muted small" style="margin-top:5px">
+          O cancelamento padrão mantém o acesso até o fim do período já pago.
+        </p>
+        <div class="actions">
+          <button id="paymentBtn" class="secondary">Atualizar pagamento</button>
+          <button id="cancelBtn" class="danger">Cancelar no fim do ciclo</button>
+        </div>
+      </section>
+
+      <p id="message" class="small"></p>
+    </div>
+  </main>
+
+  <script>
+    const state = { bootstrap: null, profile: null, quote: null, busy: false };
+
+    const $ = (id) => document.getElementById(id);
+    const fmtDate = (value) => value
+      ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo' }).format(new Date(value))
+      : '—';
+    const fmtMoney = (cents, currency = 'BRL') => new Intl.NumberFormat('pt-BR', {
+      style: 'currency', currency
+    }).format(Number(cents || 0) / 100);
+
+    async function post(path, body) {
+      const response = await fetch(path, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {})
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || data.error || `Erro ${response.status}`);
+      return data;
+    }
+
+    function setBusy(busy) {
+      state.busy = busy;
+      for (const button of document.querySelectorAll('button')) button.disabled = busy;
+    }
+
+    function showError(error) {
+      $('loading').classList.add('hidden');
+      $('app').classList.add('hidden');
+      $('error').textContent = error?.message || String(error);
+      $('error').classList.remove('hidden');
+    }
+
+    function render() {
+      const billing = state.bootstrap;
+      $('accountName').textContent = state.profile?.name || `Conta #${billing.account_id}`;
+      $('accountEmail').textContent = billing.email;
+      $('statusPill').textContent = billing.subscription_status || 'sem assinatura';
+      $('statusPill').className = `pill ${billing.subscription_status === 'active' ? 'active' : 'pending'}`;
+      $('entitledQty').textContent = billing.entitled_quantity || 0;
+      $('paidThrough').textContent = fmtDate(billing.current_billing_period?.ends_at);
+      $('quantity').value = Math.max(1, billing.entitled_quantity || 1);
+
+      if (billing.pending_downgrade_quantity != null) {
+        $('pendingText').textContent =
+          `Downgrade para ${billing.pending_downgrade_quantity} instância(s) no próximo ciclo.`;
+        $('pendingBox').classList.remove('hidden');
+      } else {
+        $('pendingBox').classList.add('hidden');
+      }
+
+      const hasSubscription = Boolean(billing.paddle_subscription_id);
+      $('manageCard').classList.toggle('hidden', !hasSubscription);
+      $('paymentBtn').classList.add('hidden');
+      $('loading').classList.add('hidden');
+      $('error').classList.add('hidden');
+      $('app').classList.remove('hidden');
+    }
+
+    async function establishSession() {
+      const params = new URLSearchParams(location.search);
+      const ticket = params.get('ticket');
+      const accountId = params.get('account_id');
+      const email = params.get('email');
+      if (!ticket && !accountId) return;
+      const body = ticket ? { ticket } : { account_id: accountId, email };
+      state.profile = await post('/api/paddle-session', body);
+      history.replaceState({}, '', location.pathname);
+    }
+
+    async function bootstrap() {
+      const response = await fetch('/api/paddle-billing', { credentials: 'same-origin' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `Erro ${response.status}`);
+      state.bootstrap = data;
+      render();
+    }
+
+    async function preview() {
+      setBusy(true);
+      try {
+        const target = Number($('quantity').value);
+        const quote = await post('/api/paddle-billing', {
+          action: 'preview',
+          target_quantity: target
+        });
+        state.quote = quote;
+        const q = $('quote');
+        q.innerHTML = `
+          <p><strong>${quote.change === 'subscribe' ? 'Nova assinatura' : quote.change}</strong></p>
+          <p class="muted small">De ${quote.current_quantity} para ${quote.target_quantity} instância(s).</p>
+          ${quote.amount_cents != null ? `<p style="margin-top:5px">${fmtMoney(quote.amount_cents, quote.currency_code)}</p>` : ''}
+        `;
+        q.classList.remove('hidden');
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function execute(paymentMethod) {
+      setBusy(true);
+      $('message').textContent = '';
+      try {
+        const result = await post('/api/paddle-billing', {
+          action: 'change_quantity',
+          target_quantity: Number($('quantity').value),
+          payment_method: paymentMethod
+        });
+        if (result.checkout_url) {
+          location.href = result.checkout_url;
+          return;
+        }
+        $('message').textContent = result.message || 'Alteração registrada.';
+        $('message').className = 'small success';
+        await bootstrap();
+      } catch (error) {
+        $('message').textContent = error.message;
+        $('message').className = 'small error';
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function cancelAtPeriodEnd() {
+      if (!confirm('Cancelar a assinatura no fim do período já pago?')) return;
+      setBusy(true);
+      try {
+        const result = await post('/api/paddle-billing', {
+          action: 'cancel_at_period_end'
+        });
+        $('message').textContent = result.message || 'Cancelamento agendado.';
+        $('message').className = 'small success';
+        await bootstrap();
+      } catch (error) {
+        $('message').textContent = error.message;
+        $('message').className = 'small error';
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    $('previewBtn').onclick = preview;
+    $('cardBtn').onclick = () => execute('card');
+    $('pixBtn').onclick = () => execute('pix');
+    $('cancelBtn').onclick = cancelAtPeriodEnd;
+
+    (async () => {
+      try {
+        await establishSession();
+        await bootstrap();
+      } catch (error) {
+        showError(error);
+      }
+    })();
+  </script>
+</body>
+</html>

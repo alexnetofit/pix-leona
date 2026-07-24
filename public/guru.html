@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Faturamento Guru — Leona</title>
+    <title>Faturamento Leona — Guru + Paddle</title>
     <link rel="icon" type="image/png" href="/logo-leona.png">
     <style>
         :root {
@@ -18,6 +18,8 @@
             --green-soft: rgba(16, 185, 129, 0.12);
             --orange: #f59e0b;
             --orange-soft: rgba(245, 158, 11, 0.12);
+            --blue: #38bdf8;
+            --blue-soft: rgba(56, 189, 248, 0.12);
             --text-primary: #f0ecf7;
             --text-secondary: #9589ad;
             --text-muted: #6b5f82;
@@ -49,7 +51,7 @@
         }
 
         .container {
-            max-width: 980px;
+            max-width: 1120px;
             margin: 0 auto;
             padding: 40px 20px 60px;
             position: relative;
@@ -57,6 +59,28 @@
         }
 
         header { text-align: center; margin-bottom: 32px; }
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 11px;
+            margin-bottom: 12px;
+            border: 1px solid rgba(16, 185, 129, 0.25);
+            border-radius: 999px;
+            color: var(--green);
+            background: var(--green-soft);
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+        }
+        .live-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--green);
+            box-shadow: 0 0 10px var(--green);
+        }
         .logo-img {
             height: 60px;
             width: auto;
@@ -82,6 +106,7 @@
             border-radius: 16px;
             padding: 22px;
             margin-bottom: 16px;
+            box-shadow: 0 16px 50px rgba(0, 0, 0, 0.12);
         }
 
         .card h3 {
@@ -154,14 +179,132 @@
             color: var(--text-muted);
             margin-bottom: 14px;
         }
+        .range-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .refresh-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 8px 13px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-secondary);
+            background: var(--bg-card);
+            font-weight: 650;
+            cursor: pointer;
+        }
+        .refresh-btn:hover { color: var(--text-primary); border-color: var(--accent); }
+        .section-heading {
+            display: flex;
+            align-items: end;
+            justify-content: space-between;
+            gap: 16px;
+            margin: 26px 2px 12px;
+        }
+        .section-heading h2 { font-size: 1rem; }
+        .section-heading p { color: var(--text-muted); font-size: 0.76rem; }
 
         .results {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 14px;
         }
+        .platform-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+            margin-top: 16px;
+        }
+        .platform-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        .platform-card.guru-platform { border-color: rgba(139, 92, 246, 0.32); }
+        .platform-card.paddle-platform { border-color: rgba(56, 189, 248, 0.32); }
+        .platform-card h3 {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+            color: var(--text-primary);
+        }
+        .platform-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .platform-logo {
+            display: grid;
+            place-items: center;
+            width: 30px;
+            height: 30px;
+            border-radius: 9px;
+            color: var(--accent);
+            background: var(--accent-soft);
+            font-size: 0.78rem;
+            font-weight: 800;
+        }
+        .paddle-platform .platform-logo {
+            color: var(--blue);
+            background: var(--blue-soft);
+        }
+        .paddle-platform .platform-badge {
+            color: var(--blue);
+            background: var(--blue-soft);
+        }
+        .platform-badge {
+            padding: 3px 8px;
+            border-radius: 999px;
+            color: var(--accent);
+            background: var(--accent-soft);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .platform-metrics {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .platform-metric {
+            min-width: 0;
+            padding: 12px;
+            border-radius: 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+        }
+        .platform-metric .label {
+            color: var(--text-secondary);
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        .platform-metric .value {
+            font-size: 1rem;
+            font-weight: 700;
+            overflow-wrap: anywhere;
+        }
+        .platform-note {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
         @media (max-width: 760px) {
             .results { grid-template-columns: 1fr; }
+            .platform-grid { grid-template-columns: 1fr; }
+            .platform-metrics { grid-template-columns: 1fr; }
+            .range-footer { align-items: stretch; flex-direction: column; }
+            .refresh-btn { justify-content: center; }
         }
 
         .metric {
@@ -169,6 +312,19 @@
             border: 1px solid var(--border);
             border-radius: 14px;
             padding: 18px;
+            position: relative;
+            overflow: hidden;
+        }
+        .metric::after {
+            content: '';
+            position: absolute;
+            width: 90px;
+            height: 90px;
+            right: -38px;
+            top: -38px;
+            border-radius: 50%;
+            background: currentColor;
+            opacity: 0.045;
         }
         .metric.gross { border-color: rgba(139, 92, 246, 0.4); box-shadow: 0 0 24px rgba(139, 92, 246, 0.08); }
         .metric.net { border-color: rgba(16, 185, 129, 0.4); box-shadow: 0 0 24px rgba(16, 185, 129, 0.08); }
@@ -236,6 +392,7 @@
         .info-row:last-child { border-bottom: none; }
         .info-label { color: var(--text-secondary); }
         .info-value { font-weight: 600; }
+        .details-card { background: linear-gradient(145deg, var(--bg-secondary), rgba(30, 24, 48, 0.72)); }
 
         .alert {
             padding: 14px 16px;
@@ -324,7 +481,7 @@
 <body>
     <div class="login-wrap" id="loginWrap">
         <div class="login-card">
-            <h1>Faturamento Guru</h1>
+            <h1>Faturamento Leona</h1>
             <p>Acesso restrito. Use o mesmo token da área de chat.</p>
             <input id="tokenInput" type="password" placeholder="Token de suporte" autocomplete="off">
             <button id="loginBtn">Entrar</button>
@@ -336,8 +493,9 @@
     <div class="container" id="appContent" style="display: none;">
         <header>
             <img src="/logo-leona.png" alt="Leona" class="logo-img">
-            <h1 class="title">Faturamento Guru</h1>
-            <p class="subtitle">Produto Leona</p>
+            <div><span class="eyebrow"><span class="live-dot"></span> Financeiro consolidado</span></div>
+            <h1 class="title">Faturamento Leona</h1>
+            <p class="subtitle">Guru + Paddle</p>
         </header>
 
         <div id="message"></div>
@@ -365,30 +523,92 @@
                 </div>
             </div>
 
-            <div class="range-info" id="rangeInfo"></div>
+            <div class="range-footer">
+                <div class="range-info" id="rangeInfo"></div>
+                <button class="refresh-btn" id="refreshBtn" type="button">↻ Atualizar dados</button>
+            </div>
         </section>
 
         <section id="resultSection">
+            <div class="section-heading">
+                <div>
+                    <h2>Visão consolidada</h2>
+                    <p>Receita e base ativa em todos os meios de pagamento.</p>
+                </div>
+                <p id="lastUpdated">—</p>
+            </div>
             <div class="results" id="resultsGrid">
                 <div class="metric gross">
-                    <div class="label">Faturamento Bruto</div>
+                    <div class="label">Faturamento Bruto Total</div>
                     <div class="value" id="grossValue">—</div>
                     <div class="sub" id="grossSub"></div>
                 </div>
                 <div class="metric net">
-                    <div class="label">Faturamento Líquido</div>
+                    <div class="label">Faturamento Líquido Total</div>
                     <div class="value" id="netValue">—</div>
                     <div class="sub" id="netSub"></div>
                 </div>
                 <div class="metric active-subs">
-                    <div class="label">Assinantes Ativos</div>
+                    <div class="label">Assinantes Ativos Total</div>
                     <div class="value" id="activeSubsValue">—</div>
-                    <div class="sub">Leona Flow</div>
+                    <div class="sub">Guru + Paddle</div>
                 </div>
             </div>
 
-            <div class="card" style="margin-top: 16px;">
-                <h3>Detalhes</h3>
+            <div class="section-heading">
+                <div>
+                    <h2>Por plataforma</h2>
+                    <p>Comparativo financeiro e assinantes ativos.</p>
+                </div>
+            </div>
+            <div class="platform-grid">
+                <div class="platform-card guru-platform">
+                    <h3>
+                        <span class="platform-title"><span class="platform-logo">G</span> Guru</span>
+                        <span class="platform-badge">Recorrência</span>
+                    </h3>
+                    <div class="platform-metrics">
+                        <div class="platform-metric">
+                            <div class="label">Bruto</div>
+                            <div class="value" id="guruGross">—</div>
+                        </div>
+                        <div class="platform-metric">
+                            <div class="label">Líquido</div>
+                            <div class="value" id="guruNet">—</div>
+                        </div>
+                        <div class="platform-metric">
+                            <div class="label">Assinantes</div>
+                            <div class="value" id="guruSubscribers">—</div>
+                        </div>
+                    </div>
+                    <div class="platform-note" id="guruNote">—</div>
+                </div>
+
+                <div class="platform-card paddle-platform">
+                    <h3>
+                        <span class="platform-title"><span class="platform-logo">P</span> Paddle</span>
+                        <span class="platform-badge">Cartão + PIX</span>
+                    </h3>
+                    <div class="platform-metrics">
+                        <div class="platform-metric">
+                            <div class="label">Bruto</div>
+                            <div class="value" id="paddleGross">—</div>
+                        </div>
+                        <div class="platform-metric">
+                            <div class="label">Líquido</div>
+                            <div class="value" id="paddleNet">—</div>
+                        </div>
+                        <div class="platform-metric">
+                            <div class="label">Assinantes</div>
+                            <div class="value" id="paddleSubscribers">—</div>
+                        </div>
+                    </div>
+                    <div class="platform-note" id="paddleNote">—</div>
+                </div>
+            </div>
+
+            <div class="card details-card" style="margin-top: 16px;">
+                <h3>Resumo operacional</h3>
                 <div class="info-row">
                     <span class="info-label">Vendas aprovadas</span>
                     <span class="info-value" id="approvedCount">—</span>
@@ -548,6 +768,7 @@
 
         document.getElementById('dateStart').addEventListener('change', () => { updateRangeInfo(); fetchRevenue(); });
         document.getElementById('dateEnd').addEventListener('change', () => { updateRangeInfo(); fetchRevenue(); });
+        document.getElementById('refreshBtn').addEventListener('click', fetchRevenue);
 
         function updateRangeInfo() {
             const { start, end } = rangeForPreset(activePreset);
@@ -645,6 +866,11 @@
         function renderResult(body) {
             const a = body.approved || {};
             const ref = body.refunded || {};
+            const guru = body.platforms?.guru || {};
+            const paddle = body.platforms?.paddle || {};
+            const guruApproved = guru.approved || {};
+            const paddleApproved = paddle.approved || {};
+            const paddleSubscribers = paddle.active_subscribers || {};
             document.getElementById('grossValue').textContent = formatBRL(a.gross);
             document.getElementById('netValue').textContent = formatBRL(a.net);
             document.getElementById('activeSubsValue').textContent = String(body.active_subscribers?.count ?? '—');
@@ -653,11 +879,32 @@
             document.getElementById('grossSub').textContent = `${a.count || 0} venda(s) aprovada(s)`;
             document.getElementById('netSub').textContent = `Taxa média: ${taxa.toFixed(2)}%`;
 
+            document.getElementById('guruGross').textContent = formatBRL(guruApproved.gross);
+            document.getElementById('guruNet').textContent = formatBRL(guruApproved.net);
+            document.getElementById('guruSubscribers').textContent =
+                String(guru.active_subscribers?.count ?? '—');
+            document.getElementById('guruNote').textContent =
+                `${guruApproved.count || 0} venda(s) · ${guru.refunded?.count || 0} reembolso(s)`;
+
+            document.getElementById('paddleGross').textContent = formatBRL(paddleApproved.gross);
+            document.getElementById('paddleNet').textContent = formatBRL(paddleApproved.net);
+            document.getElementById('paddleSubscribers').textContent =
+                String(paddleSubscribers.count ?? '—');
+            document.getElementById('paddleNote').textContent =
+                `${paddleApproved.count || 0} venda(s) · ${paddleSubscribers.recurring || 0} recorrente(s) · ` +
+                `${paddleSubscribers.pix_prepaid || 0} PIX ativo(s) em ${paddleSubscribers.pix_active_window_days || 32} dias`;
+
             document.getElementById('approvedCount').textContent = String(a.count || 0);
             document.getElementById('refundedCount').textContent = String(ref.count || 0);
             document.getElementById('refundedGross').textContent = formatBRL(ref.gross);
             document.getElementById('periodInfo').textContent = `${formatDateBR(body.range.start)} → ${formatDateBR(body.range.end)}`;
             document.getElementById('pagesInfo').textContent = String(body.pages_fetched || 0);
+            document.getElementById('lastUpdated').textContent =
+                `Atualizado às ${new Intl.DateTimeFormat('pt-BR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    timeZone: SP_TZ
+                }).format(new Date())}`;
         }
     </script>
 </body>
