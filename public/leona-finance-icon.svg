@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Leona Finance">
+  <defs>
+    <linearGradient id="bg" x1="14" y1="8" x2="116" y2="124" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#272044"/>
+      <stop offset="1" stop-color="#12101f"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="31" y1="27" x2="91" y2="101" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#b7a9ff"/>
+      <stop offset="0.5" stop-color="#7868ef"/>
+      <stop offset="1" stop-color="#4e3bc5"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="translate(94 24) rotate(125) scale(61)">
+      <stop stop-color="#8fd2ff" stop-opacity=".6"/>
+      <stop offset="1" stop-color="#8fd2ff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" rx="34" fill="url(#bg)"/>
+  <rect width="128" height="128" rx="34" fill="url(#glow)"/>
+  <path d="M37 30v52c0 11 6 17 17 17h37" fill="none" stroke="url(#mark)" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="m91 25 3.1 8.9L103 37l-8.9 3.1L91 49l-3.1-8.9L79 37l8.9-3.1L91 25Z" fill="#fff"/>
+</svg>
