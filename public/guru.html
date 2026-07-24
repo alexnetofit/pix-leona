@@ -1098,6 +1098,8 @@
         const clientCache = new Map();
         let fetchSeq = 0;
         let fetchTimer = null;
+        let requestInProgress = false;
+        let queuedFetchOptions = null;
 
         function scheduleRevenueFetch() {
             clearTimeout(fetchTimer);
@@ -1133,6 +1135,12 @@
                 return;
             }
 
+            if (requestInProgress) {
+                queuedFetchOptions = { force };
+                return;
+            }
+
+            requestInProgress = true;
             refreshBtn.disabled = true;
             document.getElementById('topLoader').classList.add('active');
             document.getElementById('resultSection').classList.add('is-loading');
@@ -1165,11 +1173,17 @@
                 if (seq !== fetchSeq) return;
                 showError('Erro ao buscar: ' + e.message);
             } finally {
+                requestInProgress = false;
                 if (seq === fetchSeq) {
                     refreshBtn.disabled = false;
                     document.getElementById('topLoader').classList.remove('active');
                     document.getElementById('resultSection').classList.remove('is-loading');
                     document.getElementById('resultsGrid').classList.remove('is-loading');
+                }
+                if (queuedFetchOptions) {
+                    const options = queuedFetchOptions;
+                    queuedFetchOptions = null;
+                    setTimeout(() => fetchRevenue(options), 0);
                 }
             }
         }
