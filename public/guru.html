@@ -476,6 +476,269 @@
             font-size: 0.82rem;
             margin-top: 10px;
         }
+
+        /* Light finance workspace */
+        :root {
+            --bg-primary: #f3f6fb;
+            --bg-secondary: #ffffff;
+            --bg-card: #f7f9fc;
+            --bg-elevated: #eef2f8;
+            --accent: #5b4ce1;
+            --accent-hover: #4938ca;
+            --accent-soft: #eeeafd;
+            --green: #0e9f75;
+            --green-soft: #e5f7f1;
+            --orange: #e97936;
+            --orange-soft: #fff0e7;
+            --blue: #1877f2;
+            --blue-soft: #e7f1ff;
+            --text-primary: #172033;
+            --text-secondary: #667085;
+            --text-muted: #98a2b3;
+            --border: #e3e8ef;
+            --error-soft: #fff0f0;
+            --glow-purple: rgba(91, 76, 225, 0.14);
+        }
+        body {
+            background:
+                radial-gradient(circle at 4% 0%, rgba(91, 76, 225, 0.08), transparent 24rem),
+                radial-gradient(circle at 100% 35%, rgba(24, 119, 242, 0.07), transparent 30rem),
+                var(--bg-primary);
+        }
+        body::before {
+            height: 100%;
+            background-image:
+                linear-gradient(rgba(23, 32, 51, 0.025) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(23, 32, 51, 0.025) 1px, transparent 1px);
+            background-size: 34px 34px;
+        }
+        .container { max-width: 1180px; padding: 34px 26px 72px; }
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+            text-align: left;
+            margin-bottom: 28px;
+        }
+        .header-brand { display: flex; align-items: center; gap: 17px; }
+        .logo-shell {
+            display: grid;
+            place-items: center;
+            width: 64px;
+            height: 64px;
+            flex: 0 0 auto;
+            border-radius: 20px;
+            background: #17142b;
+            box-shadow: 0 12px 30px rgba(33, 24, 88, 0.2);
+        }
+        .logo-img { height: 43px; margin: 0; filter: none; }
+        .header-kicker {
+            color: var(--accent);
+            font-size: 0.7rem;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }
+        h1.title {
+            margin: 1px 0 0;
+            color: var(--text-primary);
+            font-size: clamp(1.65rem, 3vw, 2.2rem);
+            letter-spacing: -0.045em;
+            line-height: 1.15;
+        }
+        .subtitle {
+            margin-top: 4px;
+            color: var(--text-secondary);
+            font-size: 0.82rem;
+            font-weight: 500;
+            letter-spacing: 0;
+            text-transform: none;
+        }
+        .header-status {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            padding: 10px 14px;
+            border: 1px solid #d9e4df;
+            border-radius: 999px;
+            color: #167a5d;
+            background: rgba(255, 255, 255, 0.78);
+            box-shadow: 0 8px 22px rgba(33, 43, 54, 0.05);
+            font-size: 0.76rem;
+            font-weight: 700;
+            backdrop-filter: blur(14px);
+        }
+        .live-dot { width: 8px; height: 8px; box-shadow: 0 0 0 4px var(--green-soft); }
+        .card {
+            border-radius: 20px;
+            padding: 22px 24px;
+            box-shadow: 0 10px 35px rgba(40, 54, 82, 0.055);
+        }
+        .period-card { display: grid; gap: 14px; }
+        .period-card h3 {
+            margin: 0;
+            color: var(--text-primary);
+            font-size: 0.78rem;
+            font-weight: 800;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+        }
+        .preset-row { margin: 0; }
+        .preset-btn {
+            padding: 8px 15px;
+            color: var(--text-secondary);
+            background: transparent;
+            border-color: transparent;
+            font-weight: 650;
+        }
+        .preset-btn:hover { background: var(--bg-card); border-color: var(--border); color: var(--text-primary); }
+        .preset-btn.active {
+            color: #fff;
+            border-color: var(--accent);
+            background: var(--accent);
+            box-shadow: 0 6px 15px rgba(91, 76, 225, 0.22);
+        }
+        .range-info { margin: 0; color: var(--text-secondary); }
+        .refresh-btn {
+            color: var(--accent);
+            background: var(--accent-soft);
+            border-color: transparent;
+        }
+        .refresh-btn:hover { color: #fff; background: var(--accent); border-color: var(--accent); }
+        .section-heading { margin: 30px 2px 13px; align-items: center; }
+        .section-heading h2 { font-size: 1.05rem; letter-spacing: -0.015em; }
+        .section-heading p { font-size: 0.75rem; }
+        .results { gap: 16px; }
+        .metric {
+            min-height: 152px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 22px;
+            border: 1px solid var(--border) !important;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 10px 35px rgba(40, 54, 82, 0.06) !important;
+        }
+        .metric::after {
+            width: 150px;
+            height: 150px;
+            right: -75px;
+            top: -80px;
+            opacity: 0.06;
+        }
+        .metric-heading { display: flex; align-items: center; justify-content: space-between; }
+        .metric-icon {
+            display: grid;
+            place-items: center;
+            width: 35px;
+            height: 35px;
+            border-radius: 11px;
+            color: var(--accent);
+            background: var(--accent-soft);
+            font-size: 1rem;
+            font-weight: 800;
+        }
+        .metric.net .metric-icon { color: var(--green); background: var(--green-soft); }
+        .metric.active-subs .metric-icon { color: var(--orange); background: var(--orange-soft); }
+        .metric .label { margin: 0; color: var(--text-secondary); font-size: 0.7rem; font-weight: 750; }
+        .metric .value {
+            margin-top: 18px;
+            color: var(--text-primary) !important;
+            font-size: clamp(1.75rem, 3vw, 2.15rem);
+            letter-spacing: -0.055em;
+        }
+        .metric .sub { color: var(--text-secondary); }
+        .platform-grid { gap: 16px; }
+        .platform-card {
+            padding: 24px;
+            border: 0;
+            border-radius: 22px;
+            box-shadow: 0 16px 38px rgba(28, 36, 66, 0.14);
+        }
+        .platform-card.guru-platform {
+            color: #fff;
+            border: 0;
+            background:
+                radial-gradient(circle at 90% 0%, rgba(141, 126, 255, 0.34), transparent 15rem),
+                linear-gradient(145deg, #19162e, #2a2452);
+        }
+        .platform-card.paddle-platform {
+            color: #fff;
+            border: 0;
+            background:
+                radial-gradient(circle at 90% 0%, rgba(112, 195, 255, 0.4), transparent 15rem),
+                linear-gradient(145deg, #0758c7, #12418f);
+        }
+        .platform-card h3 { color: #fff; font-size: 1rem; }
+        .platform-logo {
+            color: #fff !important;
+            background: rgba(255, 255, 255, 0.13) !important;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        .platform-badge,
+        .paddle-platform .platform-badge {
+            color: rgba(255, 255, 255, 0.88);
+            background: rgba(255, 255, 255, 0.12);
+        }
+        .platform-metric {
+            padding: 14px;
+            border-color: rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(8px);
+        }
+        .platform-metric .label { color: rgba(255, 255, 255, 0.6); font-weight: 700; }
+        .platform-metric .value { color: #fff; font-size: 1.08rem; }
+        .platform-note {
+            color: rgba(255, 255, 255, 0.65);
+            border-top-color: rgba(255, 255, 255, 0.12);
+        }
+        .details-card {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 18px !important;
+            background: rgba(255, 255, 255, 0.84);
+        }
+        .details-card h3 { grid-column: 1 / -1; margin-bottom: 3px; color: var(--text-primary); }
+        .info-row {
+            padding: 13px 15px;
+            border: 1px solid var(--border) !important;
+            border-radius: 12px;
+            background: var(--bg-card);
+        }
+        .top-loader { background: linear-gradient(90deg, transparent, var(--accent), var(--blue), transparent); }
+        .login-wrap {
+            background:
+                radial-gradient(circle at 50% 10%, rgba(91, 76, 225, 0.13), transparent 28rem),
+                var(--bg-primary);
+        }
+        .login-card {
+            border-radius: 24px;
+            background: rgba(255, 255, 255, 0.92);
+            box-shadow: 0 28px 80px rgba(37, 43, 74, 0.14);
+        }
+        .login-card input { background: var(--bg-card); color: var(--text-primary); }
+        .login-card button { background: linear-gradient(135deg, var(--accent), #7668ef); }
+        @media (max-width: 760px) {
+            .container { padding: 24px 16px 50px; }
+            header { align-items: flex-start; }
+            .header-status { display: none; }
+            .logo-shell { width: 54px; height: 54px; border-radius: 17px; }
+            .logo-img { height: 36px; }
+            .preset-row {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                margin-inline: -4px;
+                padding: 2px 4px 7px;
+                scrollbar-width: none;
+            }
+            .preset-row::-webkit-scrollbar { display: none; }
+            .preset-btn { flex: 0 0 auto; }
+            .details-card { grid-template-columns: 1fr; }
+            .section-heading { align-items: flex-start; flex-direction: column; gap: 2px; }
+        }
     </style>
 </head>
 <body>
@@ -492,15 +755,20 @@
     <div class="top-loader" id="topLoader"></div>
     <div class="container" id="appContent" style="display: none;">
         <header>
-            <img src="/logo-leona.png" alt="Leona" class="logo-img">
-            <div><span class="eyebrow"><span class="live-dot"></span> Financeiro consolidado</span></div>
-            <h1 class="title">Faturamento Leona</h1>
-            <p class="subtitle">Guru + Paddle</p>
+            <div class="header-brand">
+                <div class="logo-shell"><img src="/logo-leona.png" alt="Leona" class="logo-img"></div>
+                <div>
+                    <div class="header-kicker">Leona Finance</div>
+                    <h1 class="title">Receita & Assinaturas</h1>
+                    <p class="subtitle">Visão unificada de Guru, Paddle, cartão e PIX.</p>
+                </div>
+            </div>
+            <div class="header-status"><span class="live-dot"></span> Dados conectados</div>
         </header>
 
         <div id="message"></div>
 
-        <section class="card">
+        <section class="card period-card">
             <h3>Período</h3>
             <div class="preset-row" id="presetRow">
                 <button class="preset-btn active" data-preset="hoje">Hoje</button>
@@ -539,17 +807,26 @@
             </div>
             <div class="results" id="resultsGrid">
                 <div class="metric gross">
-                    <div class="label">Faturamento Bruto Total</div>
+                    <div class="metric-heading">
+                        <div class="label">Receita bruta total</div>
+                        <span class="metric-icon">↗</span>
+                    </div>
                     <div class="value" id="grossValue">—</div>
                     <div class="sub" id="grossSub"></div>
                 </div>
                 <div class="metric net">
-                    <div class="label">Faturamento Líquido Total</div>
+                    <div class="metric-heading">
+                        <div class="label">Receita líquida total</div>
+                        <span class="metric-icon">✓</span>
+                    </div>
                     <div class="value" id="netValue">—</div>
                     <div class="sub" id="netSub"></div>
                 </div>
                 <div class="metric active-subs">
-                    <div class="label">Assinantes Ativos Total</div>
+                    <div class="metric-heading">
+                        <div class="label">Assinantes ativos</div>
+                        <span class="metric-icon">●</span>
+                    </div>
                     <div class="value" id="activeSubsValue">—</div>
                     <div class="sub">Guru + Paddle</div>
                 </div>
