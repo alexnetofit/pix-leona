@@ -5,7 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Leona Finance | Receita &amp; Assinaturas</title>
     <meta name="theme-color" content="#f3f6fb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Leona Finance">
     <link rel="icon" type="image/svg+xml" href="/leona-finance-icon.svg">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/guru-manifest.webmanifest">
     <style>
         :root {
             --bg-primary: #0c0a12;
@@ -607,6 +612,7 @@
             border-color: transparent;
         }
         .refresh-btn:hover { color: #fff; background: var(--accent); border-color: var(--accent); }
+        .refresh-btn:disabled { opacity: 0.55; cursor: wait; }
         .section-heading { margin: 30px 2px 13px; align-items: center; }
         .section-heading h2 { font-size: 1.05rem; letter-spacing: -0.015em; }
         .section-heading p { font-size: 0.75rem; }
@@ -1041,12 +1047,18 @@
                 customRow.classList.remove('visible');
             }
             updateRangeInfo();
-            if (activePreset !== 'custom') fetchRevenue();
+            if (activePreset !== 'custom') scheduleRevenueFetch();
         });
 
-        document.getElementById('dateStart').addEventListener('change', () => { updateRangeInfo(); fetchRevenue(); });
-        document.getElementById('dateEnd').addEventListener('change', () => { updateRangeInfo(); fetchRevenue(); });
-        document.getElementById('refreshBtn').addEventListener('click', fetchRevenue);
+        document.getElementById('dateStart').addEventListener('change', () => {
+            updateRangeInfo();
+            scheduleRevenueFetch();
+        });
+        document.getElementById('dateEnd').addEventListener('change', () => {
+            updateRangeInfo();
+            scheduleRevenueFetch();
+        });
+        document.getElementById('refreshBtn').addEventListener('click', () => fetchRevenue({ force: true }));
 
         function updateRangeInfo() {
             const { start, end } = rangeForPreset(activePreset);
@@ -1082,8 +1094,17 @@
         // ============================================
         // FETCH
         // ============================================
+        const CLIENT_CACHE_TTL_MS = 2 * 60 * 1000;
+        const clientCache = new Map();
         let fetchSeq = 0;
-        async function fetchRevenue() {
+        let fetchTimer = null;
+
+        function scheduleRevenueFetch() {
+            clearTimeout(fetchTimer);
+            fetchTimer = setTimeout(() => fetchRevenue(), 500);
+        }
+
+        async function fetchRevenue({ force = false } = {}) {
             clearError();
             const { start, end } = rangeForPreset(activePreset);
             if (!start || !end) return;
@@ -1092,7 +1113,27 @@
                 return;
             }
 
+            const cacheKey = `${start}:${end}`;
+            const cached = clientCache.get(cacheKey);
             const seq = ++fetchSeq;
+            const refreshBtn = document.getElementById('refreshBtn');
+            if (!force && cached && Date.now() - cached.createdAt < CLIENT_CACHE_TTL_MS) {
+                renderResult({
+                    ...cached.body,
+                    cache: {
+                        ...(cached.body.cache || {}),
+                        status: 'browser',
+                        age_seconds: Math.floor((Date.now() - cached.createdAt) / 1000)
+                    }
+                });
+                refreshBtn.disabled = false;
+                document.getElementById('topLoader').classList.remove('active');
+                document.getElementById('resultSection').classList.remove('is-loading');
+                document.getElementById('resultsGrid').classList.remove('is-loading');
+                return;
+            }
+
+            refreshBtn.disabled = true;
             document.getElementById('topLoader').classList.add('active');
             document.getElementById('resultSection').classList.add('is-loading');
             document.getElementById('resultsGrid').classList.add('is-loading');
@@ -1118,12 +1159,14 @@
                     showError(body.error || `Erro ${r.status}`);
                     return;
                 }
+                clientCache.set(cacheKey, { body, createdAt: Date.now() });
                 renderResult(body);
             } catch (e) {
                 if (seq !== fetchSeq) return;
                 showError('Erro ao buscar: ' + e.message);
             } finally {
                 if (seq === fetchSeq) {
+                    refreshBtn.disabled = false;
                     document.getElementById('topLoader').classList.remove('active');
                     document.getElementById('resultSection').classList.remove('is-loading');
                     document.getElementById('resultsGrid').classList.remove('is-loading');
@@ -1177,12 +1220,16 @@
             document.getElementById('refundedGross').textContent = formatBRL(ref.gross);
             document.getElementById('periodInfo').textContent = `${formatDateBR(body.range.start)} → ${formatDateBR(body.range.end)}`;
             document.getElementById('pagesInfo').textContent = String(body.pages_fetched || 0);
-            document.getElementById('lastUpdated').textContent =
-                `Atualizado às ${new Intl.DateTimeFormat('pt-BR', {
+            const cacheStatus = body.cache?.status;
+            const ageMinutes = Math.max(1, Math.ceil((body.cache?.age_seconds || 0) / 60));
+            const updateLabel = cacheStatus === 'stale'
+                ? `Dados de ${ageMinutes} min atrás`
+                : `Atualizado às ${new Intl.DateTimeFormat('pt-BR', {
                     hour: '2-digit',
                     minute: '2-digit',
                     timeZone: SP_TZ
                 }).format(new Date())}`;
+            document.getElementById('lastUpdated').textContent = updateLabel;
         }
     </script>
 </body>

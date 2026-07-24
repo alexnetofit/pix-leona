@@ -25,6 +25,84 @@ const MAX_PAGES_PER_DAY = 20;
 const MAX_DAYS = 62;
 const PADDLE_PIX_ACTIVE_DAYS = 32;
 const PADDLE_PAGE_SIZE = 30;
+const GURU_CONCURRENCY = 2;
+const GURU_MAX_RETRIES = 3;
+const RESPONSE_CACHE_TTL_MS = 2 * 60 * 1000;
+const RESPONSE_STALE_TTL_MS = 20 * 60 * 1000;
+const ACTIVE_SUBSCRIBERS_CACHE_TTL_MS = 5 * 60 * 1000;
+
+const runtimeCache = globalThis.__leonaGuruRevenueCache || {
+  responses: new Map(),
+  inFlight: new Map(),
+  activeSubscribers: null
+};
+globalThis.__leonaGuruRevenueCache = runtimeCache;
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function retryDelayMs(response, attempt) {
+  const retryAfter = response.headers.get('retry-after');
+  const seconds = Number(retryAfter);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return Math.min(seconds * 1000, 15_000);
+  }
+  return Math.min(700 * (2 ** attempt), 10_000) + Math.floor(Math.random() * 250);
+}
+
+async function acquireGuruSlot() {
+  runtimeCache.guruActiveRequests ||= 0;
+  runtimeCache.guruWaiters ||= [];
+  if (runtimeCache.guruActiveRequests >= GURU_CONCURRENCY) {
+    await new Promise(resolve => runtimeCache.guruWaiters.push(resolve));
+    return;
+  }
+  runtimeCache.guruActiveRequests++;
+}
+
+function releaseGuruSlot() {
+  const next = runtimeCache.guruWaiters.shift();
+  if (next) {
+    next();
+    return;
+  }
+  runtimeCache.guruActiveRequests = Math.max(0, runtimeCache.guruActiveRequests - 1);
+}
+
+async function guruFetch(url, options) {
+  let response;
+  for (let attempt = 0; attempt <= GURU_MAX_RETRIES; attempt++) {
+    await acquireGuruSlot();
+    try {
+      response = await fetch(url, options);
+    } finally {
+      releaseGuruSlot();
+    }
+    if (response.status !== 429 || attempt === GURU_MAX_RETRIES) return response;
+    await sleep(retryDelayMs(response, attempt));
+  }
+  return response;
+}
+
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      results[index] = await mapper(items[index], index);
+    }
+  }
+
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    () => worker()
+  );
+  await Promise.all(workers);
+  return results;
+}
 
 function isValidDate(s) {
   return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
@@ -252,7 +330,7 @@ async function fetchDay(day, headers) {
 
   while (pages < MAX_PAGES_PER_DAY) {
     pages++;
-    const r = await fetch(buildUrl(day, day, cursor), { headers });
+    const r = await guruFetch(buildUrl(day, day, cursor), { headers });
     if (!r.ok) {
       const errBody = await r.text().catch(() => '');
       const err = new Error(`Guru retornou ${r.status} ao buscar transações`);
@@ -272,25 +350,129 @@ async function fetchDay(day, headers) {
 }
 
 async function fetchActiveSubscribersTotal(headers) {
-  const r = await fetch(buildActiveSubscriptionsUrl(), { headers });
-  if (!r.ok) {
-    const errBody = await r.text().catch(() => '');
-    const err = new Error(`Guru retornou ${r.status} ao buscar assinantes ativos`);
-    err.status = 502;
-    err.detail = errBody.slice(0, 500);
-    throw err;
+  const cached = runtimeCache.activeSubscribers;
+  if (cached && Date.now() - cached.createdAt < ACTIVE_SUBSCRIBERS_CACHE_TTL_MS) {
+    return cached.value;
+  }
+  if (runtimeCache.activeSubscribersInFlight) {
+    return runtimeCache.activeSubscribersInFlight;
   }
 
-  const body = await r.json();
-  if (Number.isFinite(Number(body.total_rows))) {
-    return Number(body.total_rows);
+  runtimeCache.activeSubscribersInFlight = (async () => {
+    const r = await guruFetch(buildActiveSubscriptionsUrl(), { headers });
+    if (!r.ok) {
+      const errBody = await r.text().catch(() => '');
+      const err = new Error(`Guru retornou ${r.status} ao buscar assinantes ativos`);
+      err.status = 502;
+      err.detail = errBody.slice(0, 500);
+      throw err;
+    }
+
+    const body = await r.json();
+    const data = Array.isArray(body.data) ? body.data : [];
+    const value = Number.isFinite(Number(body.total_rows))
+      ? Number(body.total_rows)
+      : data.filter(s =>
+        s?.product?.id === LEONA_GURU_PRODUCT_ID &&
+        s?.last_status === 'active'
+      ).length;
+    runtimeCache.activeSubscribers = { value, createdAt: Date.now() };
+    return value;
+  })().finally(() => {
+    runtimeCache.activeSubscribersInFlight = null;
+  });
+
+  return runtimeCache.activeSubscribersInFlight;
+}
+
+async function calculateRevenue(start, end, days, headers) {
+  let gross = 0;
+  let net = 0;
+  let count = 0;
+  let refundGross = 0;
+  let refundNet = 0;
+  let refundCount = 0;
+  let scanned = 0;
+  let totalPages = 0;
+  const t0 = Date.now();
+  const seen = new Set();
+
+  const [activeSubscribersTotal, results, paddle] = await Promise.all([
+    fetchActiveSubscribersTotal(headers),
+    mapWithConcurrency(days, GURU_CONCURRENCY, day => fetchDay(day, headers)),
+    fetchPaddleMetrics(start, end)
+  ]);
+
+  for (const { pages, transactions } of results) {
+    totalPages += pages;
+    for (const transaction of transactions) {
+      if (transaction?.product?.internal_id !== LEONA_GURU_PRODUCT_ID) continue;
+      const id = transaction?.id
+        || transaction?.invoice?.id
+        || JSON.stringify([
+          transaction?.subscription?.id,
+          transaction?.payment?.marketplace_id
+        ]);
+      if (seen.has(id)) continue;
+      seen.add(id);
+
+      scanned++;
+      const status = String(transaction?.status || '').toLowerCase();
+      const transactionGross = Number(transaction?.payment?.gross) || 0;
+      const transactionNet = Number(transaction?.payment?.net) || 0;
+
+      if (APPROVED_STATUSES.includes(status)) {
+        gross += transactionGross;
+        net += transactionNet;
+        count++;
+      } else if (REFUND_STATUSES.includes(status)) {
+        refundGross += transactionGross;
+        refundNet += transactionNet;
+        refundCount++;
+      }
+    }
   }
 
-  const data = Array.isArray(body.data) ? body.data : [];
-  return data.filter(s =>
-    s?.product?.id === LEONA_GURU_PRODUCT_ID &&
-    s?.last_status === 'active'
-  ).length;
+  const guru = {
+    approved: {
+      gross: Math.round(gross * 100) / 100,
+      net: Math.round(net * 100) / 100,
+      count
+    },
+    refunded: {
+      gross: Math.round(refundGross * 100) / 100,
+      net: Math.round(refundNet * 100) / 100,
+      count: refundCount
+    },
+    active_subscribers: { count: activeSubscribersTotal },
+    pages_fetched: totalPages,
+    transactions_in_range: scanned
+  };
+  const approved = {
+    gross: Math.round((guru.approved.gross + paddle.approved.gross) * 100) / 100,
+    net: Math.round((guru.approved.net + paddle.approved.net) * 100) / 100,
+    count: guru.approved.count + paddle.approved.count
+  };
+  const refunded = {
+    gross: Math.round((guru.refunded.gross + paddle.refunded.gross) * 100) / 100,
+    net: Math.round((guru.refunded.net + paddle.refunded.net) * 100) / 100,
+    count: guru.refunded.count + paddle.refunded.count
+  };
+
+  return {
+    product_id: LEONA_GURU_PRODUCT_ID,
+    range: { start, end },
+    approved,
+    refunded,
+    active_subscribers: {
+      count: guru.active_subscribers.count + paddle.active_subscribers.count
+    },
+    platforms: { guru, paddle },
+    pages_fetched: totalPages + paddle.pages_fetched,
+    days_queried: days.length,
+    transactions_in_range: scanned + paddle.transactions_in_range,
+    fetch_ms: Date.now() - t0
+  };
 }
 
 export default async function handler(req, res) {
@@ -326,95 +508,51 @@ export default async function handler(req, res) {
   }
 
   const headers = guruHeaders(guruToken);
+  const cacheKey = `${start}:${end}`;
+  const cached = runtimeCache.responses.get(cacheKey);
+  const cacheAge = cached ? Date.now() - cached.createdAt : Infinity;
+  res.setHeader('Cache-Control', 'private, no-store');
 
-  let gross = 0;
-  let net = 0;
-  let count = 0;
-  let refundGross = 0;
-  let refundNet = 0;
-  let refundCount = 0;
-  let scanned = 0;
-  let totalPages = 0;
+  if (cached && cacheAge < RESPONSE_CACHE_TTL_MS) {
+    res.setHeader('X-Leona-Cache', 'HIT');
+    return res.status(200).json({
+      ...cached.data,
+      cache: { status: 'fresh', age_seconds: Math.floor(cacheAge / 1000) }
+    });
+  }
 
   try {
-    const t0 = Date.now();
-    const seen = new Set(); // dedup por id (transacoes podem repetir entre dias)
-    const [activeSubscribersTotal, results, paddle] = await Promise.all([
-      fetchActiveSubscribersTotal(headers),
-      Promise.all(days.map(day => fetchDay(day, headers))),
-      fetchPaddleMetrics(start, end)
-    ]);
-
-    for (const { pages, transactions } of results) {
-      totalPages += pages;
-      for (const t of transactions) {
-        if (t?.product?.internal_id !== LEONA_GURU_PRODUCT_ID) continue;
-        const id = t?.id || t?.invoice?.id || JSON.stringify([t?.subscription?.id, t?.payment?.marketplace_id]);
-        if (seen.has(id)) continue;
-        seen.add(id);
-
-        scanned++;
-        const status = String(t?.status || '').toLowerCase();
-        const g = Number(t?.payment?.gross) || 0;
-        const n = Number(t?.payment?.net) || 0;
-
-        if (APPROVED_STATUSES.includes(status)) {
-          gross += g;
-          net += n;
-          count++;
-        } else if (REFUND_STATUSES.includes(status)) {
-          refundGross += g;
-          refundNet += n;
-          refundCount++;
-        }
-      }
+    let request = runtimeCache.inFlight.get(cacheKey);
+    if (!request) {
+      request = calculateRevenue(start, end, days, headers)
+        .then(data => {
+          runtimeCache.responses.set(cacheKey, { data, createdAt: Date.now() });
+          if (runtimeCache.responses.size > 50) {
+            const oldestKey = runtimeCache.responses.keys().next().value;
+            runtimeCache.responses.delete(oldestKey);
+          }
+          return data;
+        })
+        .finally(() => runtimeCache.inFlight.delete(cacheKey));
+      runtimeCache.inFlight.set(cacheKey, request);
     }
-    const fetchMs = Date.now() - t0;
 
-    const guru = {
-      approved: {
-        gross: Math.round(gross * 100) / 100,
-        net: Math.round(net * 100) / 100,
-        count
-      },
-      refunded: {
-        gross: Math.round(refundGross * 100) / 100,
-        net: Math.round(refundNet * 100) / 100,
-        count: refundCount
-      },
-      active_subscribers: {
-        count: activeSubscribersTotal
-      },
-      pages_fetched: totalPages,
-      transactions_in_range: scanned
-    };
-    const approved = {
-      gross: Math.round((guru.approved.gross + paddle.approved.gross) * 100) / 100,
-      net: Math.round((guru.approved.net + paddle.approved.net) * 100) / 100,
-      count: guru.approved.count + paddle.approved.count
-    };
-    const refunded = {
-      gross: Math.round((guru.refunded.gross + paddle.refunded.gross) * 100) / 100,
-      net: Math.round((guru.refunded.net + paddle.refunded.net) * 100) / 100,
-      count: guru.refunded.count + paddle.refunded.count
-    };
-
-    return res.status(200).json({
-      product_id: LEONA_GURU_PRODUCT_ID,
-      range: { start, end },
-      approved,
-      refunded,
-      active_subscribers: {
-        count: guru.active_subscribers.count + paddle.active_subscribers.count
-      },
-      platforms: { guru, paddle },
-      pages_fetched: totalPages + paddle.pages_fetched,
-      days_queried: days.length,
-      transactions_in_range: scanned + paddle.transactions_in_range,
-      fetch_ms: fetchMs
-    });
+    const data = await request;
+    res.setHeader('X-Leona-Cache', 'MISS');
+    return res.status(200).json({ ...data, cache: { status: 'updated', age_seconds: 0 } });
   } catch (e) {
     console.error('guru-revenue error:', e);
+    if (cached && cacheAge < RESPONSE_STALE_TTL_MS) {
+      res.setHeader('X-Leona-Cache', 'STALE');
+      return res.status(200).json({
+        ...cached.data,
+        cache: {
+          status: 'stale',
+          age_seconds: Math.floor(cacheAge / 1000),
+          warning: 'Dados anteriores exibidos enquanto a integração se recupera.'
+        }
+      });
+    }
     return res.status(e.status || 500).json({ error: e.message, detail: e.detail, day: e.day });
   }
 }

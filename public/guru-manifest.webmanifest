@@ -1,0 +1,30 @@
+{
+  "name": "Leona Finance — Receita & Assinaturas",
+  "short_name": "Leona Finance",
+  "description": "Painel financeiro consolidado da Leona.",
+  "start_url": "/guru",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f3f6fb",
+  "theme_color": "#f3f6fb",
+  "icons": [
+    {
+      "src": "/leona-finance-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/leona-finance-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/leona-finance-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
