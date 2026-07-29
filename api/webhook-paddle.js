@@ -77,7 +77,7 @@ function toDueDate(iso) {
  * transaction.completed (que NAO inclui next_billed_at no payload — esse
  * campo vive no objeto subscription).
  */
-async function fetchPaddleSubscriptionNextBilled(subscriptionId, paddleApiKey) {
+async function fetchPaddleSubscription(subscriptionId, paddleApiKey) {
   if (!subscriptionId || !paddleApiKey) return null;
   try {
     const r = await fetch(`https://api.paddle.com/subscriptions/${subscriptionId}`, {
@@ -85,10 +85,15 @@ async function fetchPaddleSubscriptionNextBilled(subscriptionId, paddleApiKey) {
     });
     if (!r.ok) return null;
     const body = await r.json();
-    return body.data?.next_billed_at || null;
+    return body.data || null;
   } catch (_) {
     return null;
   }
+}
+
+async function fetchPaddleSubscriptionNextBilled(subscriptionId, paddleApiKey) {
+  const sub = await fetchPaddleSubscription(subscriptionId, paddleApiKey);
+  return sub?.next_billed_at || null;
 }
 
 /**
@@ -258,8 +263,15 @@ export async function processPaddleEvent(event, opts = {}) {
   let migrationAnchorResult = null;
   switch (eventType) {
     case 'transaction.completed': {
-      const qty = sumQuantities(data.items);
       const subId = data.subscription_id || null;
+      let qty = sumQuantities(data.items);
+      const linkedSub = subId ? await fetchPaddleSubscription(subId, paddleApiKey) : null;
+      // Cobrança proporcional de upgrade: items da transaction trazem só o
+      // delta (ex.: +6), não o total da assinatura (20).
+      if (linkedSub) {
+        const subQty = sumQuantities(linkedSub.items);
+        if (subQty > 0) qty = subQty;
+      }
 
       // Migração Guru→Paddle: a transaction marca migration:true em
       // custom_data. Antes de ler next_billed_at do Paddle, a gente
@@ -278,7 +290,8 @@ export async function processPaddleEvent(event, opts = {}) {
         });
       }
 
-      const nextBilled = subId ? await fetchPaddleSubscriptionNextBilled(subId, paddleApiKey) : null;
+      const nextBilled = linkedSub?.next_billed_at
+        || (subId ? await fetchPaddleSubscriptionNextBilled(subId, paddleApiKey) : null);
       const dueDate = toDueDate(nextBilled);
       payload = {
         status: 'active',
