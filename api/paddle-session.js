@@ -25,6 +25,38 @@ function originIsAllowed(req) {
   return allowed.includes('*') || allowed.includes(origin);
 }
 
+// Throttle do caminho legado (account_id + email), que é a única forma de
+// emitir sessão sem ticket assinado. É best-effort: cada instância serverless
+// tem o próprio Map e ele zera em cold start. Serve pra encarecer varredura em
+// massa, não pra ser garantia — a garantia é PADDLE_ALLOW_LEGACY_LINKS=false.
+const LEGACY_WINDOW_MS = 10 * 60 * 1000;
+const LEGACY_MAX_ATTEMPTS = 20;
+const legacyAttempts = new Map();
+
+function legacyThrottleExceeded(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  const ip = typeof forwarded === 'string' && forwarded
+    ? forwarded.split(',')[0].trim()
+    : req.socket?.remoteAddress || 'unknown';
+
+  const now = Date.now();
+  for (const [key, entry] of legacyAttempts) {
+    if (entry.resetAt <= now) legacyAttempts.delete(key);
+  }
+
+  const entry = legacyAttempts.get(ip);
+  if (!entry || entry.resetAt <= now) {
+    legacyAttempts.set(ip, { count: 1, resetAt: now + LEGACY_WINDOW_MS });
+    return false;
+  }
+  entry.count += 1;
+  if (entry.count > LEGACY_MAX_ATTEMPTS) {
+    console.warn(`[paddle-session] throttle legado ip=${ip} tentativas=${entry.count}`);
+    return true;
+  }
+  return false;
+}
+
 function normalizedProfile(profile, accountId) {
   return {
     account_id: String(profile.account_id ?? accountId),
@@ -72,6 +104,9 @@ export default async function handler(req, res) {
     const legacyEmail = String(req.body?.email ?? '').trim().toLowerCase();
     if (!legacyEnabled || !legacyAccountId || !legacyEmail) {
       return res.status(400).json({ error: 'ticket obrigatório' });
+    }
+    if (legacyThrottleExceeded(req)) {
+      return res.status(429).json({ error: 'Muitas tentativas. Tente de novo em alguns minutos.' });
     }
     accountId = legacyAccountId;
   }

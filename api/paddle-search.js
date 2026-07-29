@@ -1,6 +1,12 @@
 import { findGuruActiveSubscriptionsByEmail } from '../lib/guru.js';
 import { getLeonaBillingProfile } from '../lib/leona.js';
 import { applyCors } from '../lib/auth.js';
+import {
+  PaddleAccessError,
+  assertBodyIdentityMatches,
+  requirePaddleAccess,
+  sendPaddleAccessError
+} from '../lib/paddle-access.js';
 
 const PADDLE_BASE = 'https://api.paddle.com';
 
@@ -15,6 +21,7 @@ function paddleHeaders(token) {
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
+  res.setHeader('Cache-Control', 'no-store');
 
   const paddleToken = process.env.PADDLE_API_KEY;
   const leonaToken = process.env.LEONA_BILLING_TOKEN;
@@ -22,78 +29,49 @@ export default async function handler(req, res) {
 
   if (!paddleToken) return res.status(500).json({ error: 'PADDLE_API_KEY não configurado' });
 
-  const { email, account_id } = req.body || {};
-  // account_id aceita int (legado) ou UUID. Tratamos como string opaca.
-  const wantedAccountId = account_id != null ? String(account_id).trim() : '';
-  const hasAccountId = wantedAccountId.length > 0;
-  const isLegacyNumericId = hasAccountId && /^\d+$/.test(wantedAccountId);
-  const queryEmail = (email || '').trim().toLowerCase();
-
-  // Anti-IDOR: ID numerico legado e enumeravel, entao exigimos email como
-  // segunda chave (a Leona ainda envia ambos no botao). Quando o Leona
-  // migrar pro UUID (inadivinhavel), essa exigencia some — UUID passa
-  // direto sem precisar de email.
-  if (isLegacyNumericId && !queryEmail) {
-    console.warn(`[idor:legacy_no_email] paddle-search account_id=${wantedAccountId}`);
-    return res.status(403).json({
-      error: 'forbidden',
-      code: 'EMAIL_ID_MISMATCH',
-      message: 'os dados do link nao correspondem'
-    });
-  }
-
-  // Resolução do email + mitigacao anti-IDOR:
-  //
-  // - Quando vem só email: fluxo tradicional.
-  // - Quando vem só account_id (Leona ja migrado pra UUID): resolve email
-  //   pelo billing_profile.
-  // - Quando vem ambos (Leona ainda no formato legado int): EXIGIMOS que
-  //   o email da query bata com o email do dono da conta. Caso nao bata
-  //   (ou a conta nao exista), retornamos 403 'EMAIL_ID_MISMATCH'
-  //   unificado pra impedir enumeracao binaria de IDs validos.
-  let emailClean = queryEmail;
-
-  if (hasAccountId) {
-    if (!leonaToken) {
-      return res.status(500).json({ error: 'LEONA_BILLING_TOKEN não configurado para resolver account_id' });
-    }
-    const profile = await getLeonaBillingProfile(wantedAccountId, leonaToken);
-    const resolved = profile?.user?.email
-      ? String(profile.user.email).trim().toLowerCase()
-      : null;
-
-    if (!resolved) {
-      // Conta nao existe ou Leona nao retornou o email.
-      if (queryEmail) {
-        console.warn(`[idor:notfound] paddle-search account_id=${wantedAccountId} queryEmail=${queryEmail}`);
-        return res.status(403).json({
-          error: 'forbidden',
-          code: 'EMAIL_ID_MISMATCH',
-          message: 'os dados do link nao correspondem'
-        });
-      }
-      return res.status(404).json({ error: `Não foi possível resolver email para account_id ${wantedAccountId}` });
-    }
-
-    if (queryEmail && queryEmail !== resolved) {
-      console.warn(`[idor:mismatch] paddle-search account_id=${wantedAccountId} queryEmail=${queryEmail} profileEmail=${resolved}`);
-      return res.status(403).json({
-        error: 'forbidden',
-        code: 'EMAIL_ID_MISMATCH',
-        message: 'os dados do link nao correspondem'
-      });
-    }
-
-    emailClean = resolved;
-  }
-
-  if (!emailClean) {
-    return res.status(400).json({ error: 'Informe um e-mail ou account_id' });
-  }
-
   const headers = paddleHeaders(paddleToken);
 
   try {
+    // Identidade NUNCA vem do body: cliente e a conta assinada no cookie de
+    // sessao, staff e o Bearer interno. E-mail sozinho nao abre mais nada.
+    const access = await requirePaddleAccess(req, { leonaToken });
+    assertBodyIdentityMatches(access, {
+      accountId: req.body?.account_id,
+      email: req.body?.email
+    });
+
+    // account_id aceita int (legado) ou UUID. Tratamos como string opaca.
+    let wantedAccountId = '';
+    let emailClean = '';
+
+    if (access.staff) {
+      wantedAccountId = req.body?.account_id != null ? String(req.body.account_id).trim() : '';
+      emailClean = (req.body?.email || '').trim().toLowerCase();
+      if (!emailClean && wantedAccountId) {
+        if (!leonaToken) {
+          return res.status(500).json({ error: 'LEONA_BILLING_TOKEN não configurado para resolver account_id' });
+        }
+        const profile = await getLeonaBillingProfile(wantedAccountId, leonaToken);
+        emailClean = profile?.user?.email
+          ? String(profile.user.email).trim().toLowerCase()
+          : '';
+        if (!emailClean) {
+          return res.status(404).json({ error: `Não foi possível resolver email para account_id ${wantedAccountId}` });
+        }
+      }
+      if (!emailClean) {
+        return res.status(400).json({ error: 'Informe um e-mail ou account_id' });
+      }
+    } else {
+      wantedAccountId = access.accountId;
+      emailClean = access.email || '';
+      if (!emailClean) {
+        return res.status(404).json({ error: 'Conta Leona sem e-mail no billing profile' });
+      }
+    }
+
+    const hasAccountId = wantedAccountId.length > 0;
+
     const [customersRes, productsRes, leonaRes, guruActiveSubs] = await Promise.all([
       fetch(`${PADDLE_BASE}/customers?email=${encodeURIComponent(emailClean)}`, { headers }),
       fetch(`${PADDLE_BASE}/products?include=prices&per_page=200&status=active`, { headers }),
@@ -190,7 +168,10 @@ export default async function handler(req, res) {
                 billing_cycle: item.price?.billing_cycle,
                 status: item.status
               })),
-              management_urls: s.management_urls || null,
+              // management_urls (portal Paddle tokenizado) NAO sai daqui: sao
+              // links longos que abrem cancelamento/troca de cartao sem login
+              // adicional. Quando o cliente precisa do portal, a pagina pede
+              // um link novo e curto via action `portal_session`.
               scheduled_change: s.scheduled_change || null,
               discount: s.discount || null,
               transactions
@@ -281,7 +262,8 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
+    if (error instanceof PaddleAccessError) return sendPaddleAccessError(res, error);
     console.error('paddle-search error:', error);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: 'Falha ao consultar dados de cobrança' });
   }
 }

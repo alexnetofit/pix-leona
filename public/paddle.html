@@ -428,11 +428,6 @@
             <p class="subtitle">Minha Assinatura</p>
         </header>
 
-        <div id="searchSection" class="search-box" style="display: none;">
-            <input type="email" id="emailInput" placeholder="Digite seu e-mail" onkeydown="if(event.key==='Enter')loadProfile()">
-            <button class="btn btn-primary" onclick="loadProfile()">Buscar</button>
-        </div>
-
         <div id="content"></div>
 
         <div id="whatsappSection" class="wpp-section" style="display: none;">
@@ -563,32 +558,79 @@
             if (e.target.id === 'modalBackdrop') closeModal();
         });
 
-        async function loadProfile() {
-            const wantedAccountId = getAccountIdFromUrl();
-            let email = getEmailFromUrl();
+        // ============================================
+        // Sessao de cobranca
+        // ============================================
+        // Os endpoints /api/paddle-* exigem cookie de sessao HttpOnly emitido
+        // por /api/paddle-session. E-mail na URL nao autentica nada. Ordem de
+        // preferencia: ticket assinado (link novo) e, enquanto o servidor
+        // permitir links legados, account_id + email.
+        let _sessionReady = false;
 
-            // Se nao temos email mas temos account_id, deixa o backend resolver.
-            // Caso contrario tenta puxar do input.
-            if (!email && !wantedAccountId) {
-                const input = document.getElementById('emailInput');
-                email = (input?.value || '').trim().toLowerCase();
+        function getTicketFromUrl() {
+            return (new URLSearchParams(window.location.search).get('ticket') || '').trim();
+        }
+
+        async function establishSession() {
+            const ticket = getTicketFromUrl();
+            const accountId = getAccountIdFromUrl();
+            const email = getEmailFromUrl();
+
+            if (!ticket && (!accountId || !email)) {
+                _sessionReady = false;
+                return false;
             }
 
-            if (!email && !wantedAccountId) return;
+            try {
+                const r = await fetch('/api/paddle-session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(ticket ? { ticket } : { account_id: accountId, email })
+                });
+                _sessionReady = r.ok;
+                return r.ok;
+            } catch (_) {
+                _sessionReady = false;
+                return false;
+            }
+        }
+
+        // Toda chamada de cobranca passa por aqui: garante sessao antes e, se o
+        // cookie tiver expirado no meio do caminho (30 min), renova e repete a
+        // requisicao uma vez em vez de mostrar erro pro cliente.
+        async function billingFetch(url, payload) {
+            const send = () => fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!_sessionReady) await establishSession();
+            let res = await send();
+            if (res.status === 401) {
+                _sessionReady = false;
+                if (await establishSession()) res = await send();
+            }
+            return res;
+        }
+
+        async function loadProfile() {
+            const wantedAccountId = getAccountIdFromUrl();
+            const email = getEmailFromUrl();
+
+            if (!email && !wantedAccountId && !getTicketFromUrl()) return;
 
             const content = document.getElementById('content');
             content.innerHTML = `<div class="loading-state"><div class="spinner"></div><p style="color: var(--text-secondary); margin-top: 14px;">Carregando dados...</p></div>`;
 
+            // O backend resolve conta e e-mail pela sessao; o body so repete a
+            // identidade pra ele conferir se o link confere com o cookie.
             const payload = {};
             if (email) payload.email = email;
             if (wantedAccountId) payload.account_id = wantedAccountId;
 
             try {
-                const res = await fetch('/api/paddle-search', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+                const res = await billingFetch('/api/paddle-search', payload);
                 const data = await res.json();
 
                 // Anti-IDOR: 403 EMAIL_ID_MISMATCH = email da URL nao bate
@@ -596,6 +638,13 @@
                 // expor nada da conta real.
                 if (res.status === 403 && data?.code === 'EMAIL_ID_MISMATCH') {
                     renderMismatchScreen();
+                    return;
+                }
+
+                // Sem sessao valida nao ha nada a mostrar: o link venceu ou foi
+                // aberto fora do painel.
+                if (res.status === 401 || res.status === 503) {
+                    renderSessionScreen();
                     return;
                 }
 
@@ -619,6 +668,27 @@
                 content.innerHTML = `<div class="alert alert-error">Erro de conexão: ${err.message}</div>`;
                 if (email) showWhatsapp(email);
             }
+        }
+
+        function renderSessionScreen() {
+            const content = document.getElementById('content');
+            content.innerHTML = `
+                <div class="card" style="text-align: center; max-width: 480px; margin: 40px auto; padding: 32px 24px;">
+                    <div style="font-size: 2.5rem; margin-bottom: 12px;">⏱️</div>
+                    <h3 style="margin-bottom: 12px;">Seu acesso expirou</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.95rem; line-height: 1.5; margin-bottom: 24px;">
+                        Por segurança, este link tem validade curta e só funciona quando aberto pelo painel do Leona.
+                    </p>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; margin-bottom: 24px;">
+                        Volte ao painel do Leona e clique novamente em <strong>Minha Assinatura</strong> para abrir uma sessão nova.
+                    </p>
+                    <a href="https://leonaflow.com/leona-tube/suporte-whatsapp" target="_blank" rel="noopener"
+                       class="btn btn-paddle"
+                       style="display: inline-block; padding: 14px 28px; text-decoration: none; font-size: 0.95rem;">
+                        Falar com o suporte
+                    </a>
+                </div>
+            `;
         }
 
         function renderMismatchScreen() {
@@ -981,14 +1051,10 @@
             result.innerHTML = '';
 
             try {
-                const r = await fetch('/api/paddle-subscription', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'cancel_guru',
-                        account_id: accountId,
-                        email: _email
-                    })
+                const r = await billingFetch('/api/paddle-subscription', {
+                    action: 'cancel_guru',
+                    account_id: accountId,
+                    email: _email
                 });
                 const data = await r.json();
                 if (!r.ok) {
@@ -1070,15 +1136,11 @@
                 if (mode === 'migrate') {
                     if (anchorAt && quantity > currentQty) {
                         try {
-                            const r = await fetch('/api/paddle-subscription', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    action: 'migration_preview',
-                                    current_qty: currentQty,
-                                    target_qty: quantity,
-                                    anchor_at: anchorAt
-                                })
+                            const r = await billingFetch('/api/paddle-subscription', {
+                                action: 'migration_preview',
+                                current_qty: currentQty,
+                                target_qty: quantity,
+                                anchor_at: anchorAt
                             });
                             const data = await r.json();
                             if (r.ok) {
@@ -1116,11 +1178,7 @@
                     // Marca o input pra create_renewal_checkout no clique.
                     el.dataset.fallbackRenew = '1';
                     try {
-                        const r = await fetch('/api/paddle-subscription', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ action: 'pricing_preview', price_id, quantity })
-                        });
+                        const r = await billingFetch('/api/paddle-subscription', { action: 'pricing_preview', price_id, quantity });
                         const data = await r.json();
                         if (!r.ok || !data.tier) {
                             preview.innerHTML = `<span style="color: var(--error);">${escapeHtml(data.error?.detail || data.error || 'Erro ao calcular')}</span>`;
@@ -1156,11 +1214,7 @@
                 }
 
                 try {
-                    const r = await fetch('/api/paddle-subscription', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'pricing_preview', price_id, quantity })
-                    });
+                    const r = await billingFetch('/api/paddle-subscription', { action: 'pricing_preview', price_id, quantity });
                     const data = await r.json();
                     if (!r.ok) {
                         preview.innerHTML = `<span style="color: var(--error);">Erro ao calcular: ${escapeHtml(data.error?.detail || data.error || 'tente novamente')}</span>`;
@@ -1259,11 +1313,7 @@
                 };
 
             try {
-                const r = await fetch('/api/paddle-subscription', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
+                const r = await billingFetch('/api/paddle-subscription', body);
                 const data = await r.json();
                 if (!r.ok || !data.checkout_url) {
                     btn.disabled = false;
@@ -1278,6 +1328,36 @@
                 btn.textContent = originalLabel;
                 alert('Erro de conexao. Verifique sua internet e tente novamente.');
                 console.error(err);
+            }
+        }
+
+        // O link do portal Paddle e emitido na hora, um por clique. Antes ele
+        // vinha embutido em toda resposta de listagem (management_urls), o que
+        // espalhava um link de cancelar/trocar cartao que dispensa login.
+        async function openPaymentPortal(event, subscriptionId, idx) {
+            event.preventDefault();
+            const link = document.getElementById(`portal-link-${idx}`);
+            const original = link ? link.textContent : '';
+            if (link) link.textContent = 'Abrindo portal...';
+
+            try {
+                const r = await billingFetch('/api/paddle-subscription', {
+                    action: 'portal_session',
+                    subscription_id: subscriptionId
+                });
+                const data = await r.json();
+                const url = data.update_payment_method || data.overview || null;
+                if (link) link.textContent = original;
+
+                if (!r.ok || !url) {
+                    alert(data.error || 'Nao consegui abrir o portal agora. Tente novamente ou fale com o suporte.');
+                    return;
+                }
+                // Se o bloqueador de pop-up barrar a aba nova, navega na mesma.
+                if (!window.open(url, '_blank', 'noopener')) window.location.href = url;
+            } catch (err) {
+                if (link) link.textContent = original;
+                alert('Erro de conexao. Verifique sua internet e tente novamente.');
             }
         }
 
@@ -1340,9 +1420,10 @@
 
                     ${scheduledNote}
 
-                    ${sub.management_urls?.update_payment_method ? `
+                    ${(sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due') ? `
                         <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
-                            <a href="${sub.management_urls.update_payment_method}" target="_blank" style="color: var(--paddle); font-size: 0.85rem; font-weight: 500; text-decoration: none;">
+                            <a href="#" id="portal-link-${idx}" onclick="openPaymentPortal(event, '${escapeHtml(sub.id)}', ${idx})"
+                               style="color: var(--paddle); font-size: 0.85rem; font-weight: 500; text-decoration: none;">
                                 Atualizar método de pagamento →
                             </a>
                         </div>
@@ -1584,15 +1665,11 @@
             `;
 
             try {
-                const r = await fetch('/api/paddle-subscription', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'preview',
-                        subscription_id: sub.id,
-                        items,
-                        proration_billing_mode: prorationMode
-                    })
+                const r = await billingFetch('/api/paddle-subscription', {
+                    action: 'preview',
+                    subscription_id: sub.id,
+                    items,
+                    proration_billing_mode: prorationMode
                 });
                 const data = await r.json();
                 if (!r.ok) {
@@ -1702,17 +1779,13 @@
             `;
 
             try {
-                const r = await fetch('/api/paddle-subscription', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'update',
-                        subscription_id: sub.id,
-                        items,
-                        proration_billing_mode: prorationMode,
-                        account_id: accId,
-                        email: _email
-                    })
+                const r = await billingFetch('/api/paddle-subscription', {
+                    action: 'update',
+                    subscription_id: sub.id,
+                    items,
+                    proration_billing_mode: prorationMode,
+                    account_id: accId,
+                    email: _email
                 });
                 const data = await r.json();
 
@@ -1800,11 +1873,7 @@
                 };
                 if (when) body.effective_from = when;
 
-                const r = await fetch('/api/paddle-subscription', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
+                const r = await billingFetch('/api/paddle-subscription', body);
                 const data = await r.json();
 
                 if (!r.ok) {
@@ -1889,15 +1958,11 @@
             `;
 
             try {
-                const r = await fetch('/api/paddle-subscription', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'refund',
-                        transaction_id: tx.id,
-                        refund_type: 'full',
-                        refund_reason: reason
-                    })
+                const r = await billingFetch('/api/paddle-subscription', {
+                    action: 'refund',
+                    transaction_id: tx.id,
+                    refund_type: 'full',
+                    refund_reason: reason
                 });
                 const data = await r.json();
 
@@ -1931,15 +1996,21 @@
         // ============================================
         // Init
         // ============================================
-        const emailParam = getEmailFromUrl();
-        const accountIdParam = getAccountIdFromUrl();
-        // Auto-load quando temos email OU account_id na URL.
-        // Caso contrario, exibe o formulario manual de busca por email.
-        if (emailParam || accountIdParam) {
+        // A busca manual por e-mail saiu: e-mail nao e credencial, e sozinho ele
+        // abria os dados de cobranca de qualquer cliente. A pagina agora exige
+        // uma sessao aberta a partir do link do painel do Leona.
+        (async () => {
+            const hasIdentity = getTicketFromUrl() || getAccountIdFromUrl() || getEmailFromUrl();
+            if (!hasIdentity) {
+                renderSessionScreen();
+                return;
+            }
+            if (!await establishSession()) {
+                renderSessionScreen();
+                return;
+            }
             loadProfile();
-        } else {
-            document.getElementById('searchSection').style.display = 'flex';
-        }
+        })();
     </script>
 </body>
 </html>

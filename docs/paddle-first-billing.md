@@ -126,6 +126,31 @@ Tabelas:
 Todas têm RLS habilitada e nenhuma policy para `anon`/`authenticated`. O acesso
 é exclusivamente server-side com `service_role`.
 
+## Páginas legadas (`/` e `/paddle.html`)
+
+`public/index.html` e `public/paddle.html` continuam usando
+`/api/paddle-search` e `/api/paddle-subscription`, mas esses dois endpoints
+passaram a exigir identidade server-side:
+
+- cookie de sessão Paddle (cliente) ou `Authorization: Bearer` com
+  `TOKEN_ADMIN`/`SUPPORT_CHAT_TOKEN` (staff);
+- `account_id` e `email` do body só podem concordar com o cookie, nunca
+  substituí-lo;
+- `subscription_id`/`transaction_id` são checados contra o customer Paddle do
+  dono antes de qualquer leitura ou mutação;
+- recurso inexistente e recurso de outro dono devolvem o mesmo `403 NOT_OWNER`,
+  para não virar oráculo de enumeração.
+
+Consequência operacional: **`PADDLE_LINK_SECRET` passa a ser obrigatório**.
+Sem ele as duas páginas respondem `503 BILLING_SESSION_UNCONFIGURED`. Enquanto
+o painel do Leona ainda gerar link com `account_id`+`email`, é preciso manter
+`PADDLE_ALLOW_LEGACY_LINKS=true`; a troca para ticket assinado
+(`/api/paddle-link`) permite voltar o flag para `false`, que é o estado que
+elimina de vez o acesso por e-mail.
+
+Links do customer portal Paddle não viajam mais em resposta de listagem. A
+página pede um link novo por clique via `action: portal_session`.
+
 ## Rollout
 
 1. Aplicar migration em um projeto/schema de billing aprovado.

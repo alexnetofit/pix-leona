@@ -1,8 +1,46 @@
-import { findLeonaAccountByEmail, updateLeonaBillingProfile, getLeonaBillingProfile, assertAccountAccess } from '../lib/leona.js';
+import { findLeonaAccountByEmail, updateLeonaBillingProfile, getLeonaBillingProfile } from '../lib/leona.js';
 import { findGuruActiveSubscriptionsByEmail, cancelGuruSubscription } from '../lib/guru.js';
 import { applyCors } from '../lib/auth.js';
+import {
+  PaddleAccessError,
+  assertBodyIdentityMatches,
+  assertOwnsSubscription,
+  assertOwnsTransaction,
+  isStaffRequest,
+  requirePaddleAccess,
+  sendPaddleAccessError
+} from '../lib/paddle-access.js';
 
 const PADDLE_BASE = 'https://api.paddle.com';
+
+/**
+ * Escopo de autorizacao de cada action. Deny-by-default: action fora deste
+ * mapa nao executa nada.
+ *
+ *   staff        -> so Bearer TOKEN_ADMIN | SUPPORT_CHAT_TOKEN
+ *   session      -> exige sessao (ou staff), sem recurso pra amarrar
+ *   account      -> idem + opera sempre na conta da sessao
+ *   subscription -> idem + subscription_id tem que ser do dono da sessao
+ *   transaction  -> idem + transaction_id tem que ser do dono da sessao
+ */
+const ACTION_SCOPES = Object.freeze({
+  pricing_preview: 'session',
+  migration_preview: 'session',
+  create_renewal_checkout: 'account',
+  create_migration_checkout: 'account',
+  cancel_guru: 'account',
+  portal_session: 'subscription',
+  preview: 'subscription',
+  update: 'subscription',
+  get: 'subscription',
+  cancel: 'subscription',
+  pause: 'subscription',
+  resume: 'subscription',
+  list_transactions: 'subscription',
+  get_transaction: 'transaction',
+  refund: 'transaction',
+  force_next_billed_at: 'staff'
+});
 
 function paddleHeaders(token) {
   return {
@@ -226,6 +264,7 @@ function calcMigrationProrata({ current_qty, target_qty, anchor_at, now = new Da
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
+  res.setHeader('Cache-Control', 'no-store');
 
   const paddleToken = process.env.PADDLE_API_KEY;
   const leonaToken = process.env.LEONA_BILLING_TOKEN;
@@ -254,22 +293,47 @@ export default async function handler(req, res) {
 
   const headers = paddleHeaders(paddleToken);
 
-  // Anti-IDOR: quando o body trouxer account_id (qualquer action que
-  // mexa numa conta especifica), validamos acesso ANTES de processar.
-  // Actions sem account_id (pricing_preview, migration_preview, preview
-  // de mutacao, refund por transaction_id) passam direto.
-  if (account_id) {
-    if (!leonaToken) {
-      return res.status(500).json({ error: 'LEONA_BILLING_TOKEN não configurado' });
+  // Deny-by-default: action desconhecida nao chega na Paddle. A mensagem nao
+  // lista as actions validas pra nao servir de mapa pra quem esta sondando.
+  const scope = ACTION_SCOPES[action];
+  if (!scope) return res.status(400).json({ error: 'action inválida' });
+
+  // Autorizacao ANTES de qualquer chamada na Paddle: sem isso o endpoint e um
+  // proxy autenticado da nossa credencial exposto na internet.
+  let access;
+  try {
+    if (scope === 'staff') {
+      if (!isStaffRequest(req)) {
+        console.warn(`[auth:deny] /api/paddle-subscription:${action} sem token interno`);
+        return res.status(401).json({ error: 'Não autorizado', code: 'STAFF_TOKEN_REQUIRED' });
+      }
+      access = { staff: true, accountId: null, profile: null, email: null };
+    } else {
+      access = await requirePaddleAccess(req, { leonaToken });
+      assertBodyIdentityMatches(access, { accountId: account_id, email });
+      if (scope === 'subscription') {
+        await assertOwnsSubscription(access, subscription_id, { paddleToken });
+      } else if (scope === 'transaction') {
+        await assertOwnsTransaction(access, transaction_id, { paddleToken });
+      }
     }
-    const access = await assertAccountAccess({
-      accountId: account_id,
-      queryEmail: email,
-      leonaToken,
-      route: `/api/paddle-subscription:${action || 'unknown'}`
-    });
-    if (!access.ok) return res.status(access.status).json(access.body);
+  } catch (error) {
+    if (error instanceof PaddleAccessError) return sendPaddleAccessError(res, error);
+    console.error('paddle-subscription auth error:', error);
+    return res.status(500).json({ error: 'Falha ao validar acesso' });
   }
+
+  // Identidade efetiva: o cliente opera sempre na conta do cookie; o staff
+  // continua podendo apontar conta/e-mail explicitamente.
+  const actingAccountId = access.staff
+    ? (account_id != null ? String(account_id) : null)
+    : access.accountId;
+  const actingEmail = access.staff
+    ? (email || null)
+    : access.email;
+  const actingName = access.staff
+    ? (name || null)
+    : (access.profile?.user?.name || name || null);
 
   try {
     // ----------------------------------------------------------------
@@ -286,9 +350,9 @@ export default async function handler(req, res) {
       const guruToken = process.env.GURU_TOKEN;
       if (!guruToken) return res.status(503).json({ error: 'GURU_TOKEN não configurado' });
 
-      let lookupEmail = email;
-      if (!lookupEmail && account_id && leonaToken) {
-        const profile = await getLeonaBillingProfile(account_id, leonaToken);
+      let lookupEmail = actingEmail;
+      if (!lookupEmail && actingAccountId && leonaToken) {
+        const profile = await getLeonaBillingProfile(actingAccountId, leonaToken);
         lookupEmail = profile?.user?.email || null;
       }
       if (!lookupEmail) {
@@ -339,7 +403,7 @@ export default async function handler(req, res) {
     // certinha após o pagamento.
     // ----------------------------------------------------------------
     if (action === 'create_renewal_checkout') {
-      if (!price_id || !quantity || !email) {
+      if (!price_id || !quantity || !actingEmail) {
         return res.status(400).json({ error: 'price_id, quantity e email são obrigatórios' });
       }
 
@@ -349,13 +413,13 @@ export default async function handler(req, res) {
       let customerId = null;
       try {
         const cusRes = await fetch(
-          `${PADDLE_BASE}/customers?email=${encodeURIComponent(email)}`,
+          `${PADDLE_BASE}/customers?email=${encodeURIComponent(actingEmail)}`,
           { headers }
         );
         if (cusRes.ok) {
           const cusBody = await cusRes.json();
           const match = (cusBody.data || []).find(
-            c => c.email?.toLowerCase() === email.toLowerCase()
+            c => c.email?.toLowerCase() === actingEmail.toLowerCase()
           );
           customerId = match?.id || null;
         }
@@ -366,7 +430,7 @@ export default async function handler(req, res) {
           const createRes = await fetch(`${PADDLE_BASE}/customers`, {
             method: 'POST',
             headers,
-            body: JSON.stringify({ email, ...(name ? { name } : {}) })
+            body: JSON.stringify({ email: actingEmail, ...(actingName ? { name: actingName } : {}) })
           });
           if (createRes.ok) {
             const created = await createRes.json();
@@ -386,7 +450,7 @@ export default async function handler(req, res) {
         collection_mode: 'automatic',
         currency_code: 'BRL',
         custom_data: {
-          leona_account_id: account_id != null ? String(account_id) : null,
+          leona_account_id: actingAccountId != null ? String(actingAccountId) : null,
           source: 'leona-renewal-page',
           quantity: qtyInt,
           tier_label: `${qtyInt} ${qtyInt === 1 ? 'conexão' : 'conexões'} (R$ ${(unitCents / 100).toFixed(2).replace('.', ',')}/ea)`
@@ -394,7 +458,7 @@ export default async function handler(req, res) {
         ...(discount ? { discount } : {}),
         ...(customerId
           ? { customer_id: customerId }
-          : { customer: { email, ...(name ? { name } : {}) } })
+          : { customer: { email: actingEmail, ...(actingName ? { name: actingName } : {}) } })
       };
 
       const r = await fetch(`${PADDLE_BASE}/transactions`, {
@@ -417,7 +481,7 @@ export default async function handler(req, res) {
       if (txnId) {
         const qs = new URLSearchParams();
         qs.set('_ptxn', txnId);
-        if (account_id != null) qs.set('aid', String(account_id));
+        if (actingAccountId != null) qs.set('aid', String(actingAccountId));
         if (finalCustomerId) qs.set('cid', finalCustomerId);
         checkoutUrl = `https://client.leonaflow.com/checkout?${qs.toString()}`;
       }
@@ -463,7 +527,7 @@ export default async function handler(req, res) {
     //       - sync Leona com starter_instances=target_qty + due_date
     // ----------------------------------------------------------------
     if (action === 'create_migration_checkout') {
-      if (!price_id || !email || target_qty == null || current_qty == null || !anchor_at) {
+      if (!price_id || !actingEmail || target_qty == null || current_qty == null || !anchor_at) {
         return res.status(400).json({
           error: 'price_id, email, current_qty, target_qty e anchor_at são obrigatórios'
         });
@@ -475,13 +539,13 @@ export default async function handler(req, res) {
       let customerId = null;
       try {
         const cusRes = await fetch(
-          `${PADDLE_BASE}/customers?email=${encodeURIComponent(email)}`,
+          `${PADDLE_BASE}/customers?email=${encodeURIComponent(actingEmail)}`,
           { headers }
         );
         if (cusRes.ok) {
           const cusBody = await cusRes.json();
           const match = (cusBody.data || []).find(
-            c => c.email?.toLowerCase() === email.toLowerCase()
+            c => c.email?.toLowerCase() === actingEmail.toLowerCase()
           );
           customerId = match?.id || null;
         }
@@ -492,7 +556,7 @@ export default async function handler(req, res) {
           const createRes = await fetch(`${PADDLE_BASE}/customers`, {
             method: 'POST',
             headers,
-            body: JSON.stringify({ email, ...(name ? { name } : {}) })
+            body: JSON.stringify({ email: actingEmail, ...(actingName ? { name: actingName } : {}) })
           });
           if (createRes.ok) {
             const created = await createRes.json();
@@ -535,7 +599,7 @@ export default async function handler(req, res) {
       //    a próxima (em anchor_at) será o valor cheio com o tier
       //    discount que o webhook attacha à subscription.
       const customData = {
-        leona_account_id: account_id != null ? String(account_id) : null,
+        leona_account_id: actingAccountId != null ? String(actingAccountId) : null,
         source: 'leona-migration-page',
         migration: true,
         current_qty: calc.current_qty,
@@ -561,7 +625,7 @@ export default async function handler(req, res) {
         },
         ...(customerId
           ? { customer_id: customerId }
-          : { customer: { email, ...(name ? { name } : {}) } })
+          : { customer: { email: actingEmail, ...(actingName ? { name: actingName } : {}) } })
       };
 
       const r = await fetch(`${PADDLE_BASE}/transactions`, {
@@ -579,7 +643,7 @@ export default async function handler(req, res) {
       if (txnId) {
         const qs = new URLSearchParams();
         qs.set('_ptxn', txnId);
-        if (account_id != null) qs.set('aid', String(account_id));
+        if (actingAccountId != null) qs.set('aid', String(actingAccountId));
         if (finalCustomerId) qs.set('cid', finalCustomerId);
         checkoutUrl = `https://client.leonaflow.com/checkout?${qs.toString()}`;
       }
@@ -600,9 +664,9 @@ export default async function handler(req, res) {
     //    (ex: anchor_at no passado, ver applyMigrationAnchor)
     //  - encurtar/estender ciclo a pedido do cliente
     //
-    // Protegido por SUPPORT_CHAT_TOKEN. Default usa do_not_bill (so
-    // muda a data, sem cobrar/creditar). Aceita override do
-    // proration_billing_mode pra casos especiais.
+    // Scope `staff` no ACTION_SCOPES: exige TOKEN_ADMIN ou SUPPORT_CHAT_TOKEN.
+    // Default usa do_not_bill (so muda a data, sem cobrar/creditar). Aceita
+    // override do proration_billing_mode pra casos especiais.
     //
     // Uso:
     //   curl -X POST https://client.leonaflow.com/api/paddle-subscription \
@@ -613,15 +677,6 @@ export default async function handler(req, res) {
     //          "next_billed_at":"2026-05-10T12:00:00Z"}'
     // ----------------------------------------------------------------
     if (action === 'force_next_billed_at') {
-      const supportToken = process.env.SUPPORT_CHAT_TOKEN;
-      if (!supportToken) {
-        return res.status(503).json({ error: 'SUPPORT_CHAT_TOKEN não configurado' });
-      }
-      const auth = req.headers.authorization || '';
-      const provided = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-      if (provided !== supportToken) {
-        return res.status(401).json({ error: 'Token inválido — use Authorization: Bearer SUPPORT_CHAT_TOKEN' });
-      }
       if (!subscription_id || !req.body?.next_billed_at) {
         return res.status(400).json({ error: 'subscription_id e next_billed_at são obrigatórios' });
       }
@@ -695,7 +750,7 @@ export default async function handler(req, res) {
       let leonaSync = null;
       if (sync_leona && leonaToken) {
         const accId = await resolveLeonaAccountId(
-          { accountId: account_id, email, subscriptionId: subscription_id },
+          { accountId: actingAccountId, email: actingEmail, subscriptionId: subscription_id },
           paddleToken,
           leonaToken
         );
@@ -722,6 +777,44 @@ export default async function handler(req, res) {
       return res.status(r.ok ? 200 : r.status).json(data);
     }
 
+    // ----------------------------------------------------------------
+    // portal_session — gera na hora um link do customer portal da Paddle
+    // pra subscription do dono da sessao. Substitui o `management_urls` que
+    // antes vinha no /api/paddle-search: aquele link e longo, vale por muito
+    // tempo e abre cancelamento/troca de cartao sem login nenhum, entao nao
+    // pode viajar numa resposta de listagem. Aqui ele sai um por clique,
+    // depois do binding dono<->assinatura.
+    // ----------------------------------------------------------------
+    if (action === 'portal_session') {
+      if (!subscription_id) return res.status(400).json({ error: 'subscription_id é obrigatório' });
+
+      const subRes = await fetch(`${PADDLE_BASE}/subscriptions/${subscription_id}`, { headers });
+      const subBody = await subRes.json();
+      if (!subRes.ok) return res.status(subRes.status).json(subBody);
+
+      const customerId = subBody.data?.customer_id;
+      if (!customerId) return res.status(404).json({ error: 'Assinatura sem customer Paddle' });
+
+      const r = await fetch(
+        `${PADDLE_BASE}/customers/${encodeURIComponent(customerId)}/portal-sessions`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ subscription_ids: [subscription_id] })
+        }
+      );
+      const data = await r.json();
+      if (!r.ok) return res.status(r.status).json(data);
+
+      const forSub = (data.data?.urls?.subscriptions || [])
+        .find(entry => entry.id === subscription_id) || null;
+
+      return res.status(200).json({
+        update_payment_method: forSub?.update_subscription_payment_method || null,
+        overview: data.data?.urls?.general?.overview || null
+      });
+    }
+
     if (action === 'cancel') {
       if (!subscription_id) return res.status(400).json({ error: 'subscription_id é obrigatório' });
       const eff = effective_from === 'immediately' ? 'immediately' : 'next_billing_period';
@@ -736,7 +829,7 @@ export default async function handler(req, res) {
       let leonaSync = null;
       if (sync_leona && leonaToken && eff === 'immediately') {
         const accId = await resolveLeonaAccountId(
-          { accountId: account_id, email, subscriptionId: subscription_id },
+          { accountId: actingAccountId, email: actingEmail, subscriptionId: subscription_id },
           paddleToken,
           leonaToken
         );
@@ -766,7 +859,7 @@ export default async function handler(req, res) {
       let leonaSync = null;
       if (sync_leona && leonaToken && eff === 'immediately') {
         const accId = await resolveLeonaAccountId(
-          { accountId: account_id, email, subscriptionId: subscription_id },
+          { accountId: actingAccountId, email: actingEmail, subscriptionId: subscription_id },
           paddleToken,
           leonaToken
         );
@@ -794,7 +887,7 @@ export default async function handler(req, res) {
       let leonaSync = null;
       if (sync_leona && leonaToken) {
         const accId = await resolveLeonaAccountId(
-          { accountId: account_id, email, subscriptionId: subscription_id },
+          { accountId: actingAccountId, email: actingEmail, subscriptionId: subscription_id },
           paddleToken,
           leonaToken
         );
@@ -863,12 +956,11 @@ export default async function handler(req, res) {
       return res.status(r.ok ? 200 : r.status).json(data);
     }
 
-    return res.status(400).json({
-      error: 'action inválida. Use: pricing_preview, create_renewal_checkout, migration_preview, create_migration_checkout, force_next_billed_at, preview, update, get, cancel, pause, resume, list_transactions, get_transaction, refund, cancel_guru'
-    });
+    return res.status(400).json({ error: 'action inválida' });
 
   } catch (error) {
+    if (error instanceof PaddleAccessError) return sendPaddleAccessError(res, error);
     console.error('paddle-subscription error:', error);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: 'Falha ao processar a operação' });
   }
 }
