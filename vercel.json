@@ -17,8 +17,21 @@
     {
       "path": "/api/cron/paddle-reconcile",
       "schedule": "17 * * * *"
+    },
+    {
+      "path": "/api/cron/revenue-sync",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/revenue-sync?window=rescan",
+      "schedule": "20 7 * * *"
     }
   ],
+  "functions": {
+    "api/cron/revenue-sync.js": {
+      "maxDuration": 300
+    }
+  },
   "routes": [
     {
       "src": "/api/(.*)",

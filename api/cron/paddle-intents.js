@@ -3,6 +3,7 @@ import {
   getPaddleBillingAccount,
   insertPaddleWebhookEvent,
   listStalePaddleBillingIntents,
+  paddleFirstEnabled,
   updatePaddleBillingIntent,
   upsertPaddleBillingAccount
 } from '../../lib/paddle-ledger.js';
@@ -50,6 +51,9 @@ export default async function handler(req, res) {
   if (!authorized(req)) return res.status(401).json({ error: 'Não autorizado' });
   if (!['GET', 'POST'].includes(req.method)) {
     return res.status(405).json({ error: 'Método não permitido' });
+  }
+  if (!paddleFirstEnabled()) {
+    return res.status(200).json({ skipped: 'paddle_first_disabled' });
   }
 
   const intents = await listStalePaddleBillingIntents({ limit: 100 });

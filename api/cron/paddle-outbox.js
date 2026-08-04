@@ -1,6 +1,7 @@
 import {
   claimPaddleLeonaOutbox,
   getPaddleBillingAccount,
+  paddleFirstEnabled,
   updatePaddleLeonaOutbox
 } from '../../lib/paddle-ledger.js';
 import { updateLeonaBillingProfile } from '../../lib/leona.js';
@@ -21,6 +22,9 @@ export default async function handler(req, res) {
   if (!authorized(req)) return res.status(401).json({ error: 'Não autorizado' });
   if (!['GET', 'POST'].includes(req.method)) {
     return res.status(405).json({ error: 'Método não permitido' });
+  }
+  if (!paddleFirstEnabled()) {
+    return res.status(200).json({ skipped: 'paddle_first_disabled' });
   }
   const token = process.env.LEONA_BILLING_TOKEN;
   if (!token) return res.status(500).json({ error: 'LEONA_BILLING_TOKEN não configurado' });

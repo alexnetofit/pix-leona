@@ -1161,6 +1161,60 @@
             }
         }
 
+        // Periodo de comparacao. Presets de mes usam calendario (mesmo trecho
+        // do mes anterior); os outros usam janela deslizante do mesmo tamanho.
+        function comparisonForPreset(preset, range) {
+            if (!range.start || !range.end) return null;
+
+            if (preset === 'mes') {
+                const end = parseISO(range.end);
+                const prevMonth = new Date(end.getFullYear(), end.getMonth() - 1, 1, 12);
+                const lastDayOfPrevMonth = new Date(
+                    prevMonth.getFullYear(), prevMonth.getMonth() + 1, 0
+                ).getDate();
+                const prevEnd = new Date(
+                    prevMonth.getFullYear(),
+                    prevMonth.getMonth(),
+                    Math.min(end.getDate(), lastDayOfPrevMonth),
+                    12
+                );
+                return {
+                    start: fmtISO(prevMonth),
+                    end: fmtISO(prevEnd),
+                    label: 'vs mesmo período do mês passado'
+                };
+            }
+
+            if (preset === 'mes_passado') {
+                const start = parseISO(range.start);
+                const prevStart = new Date(start.getFullYear(), start.getMonth() - 1, 1, 12);
+                const prevEnd = new Date(start.getFullYear(), start.getMonth(), 0, 12);
+                return {
+                    start: fmtISO(prevStart),
+                    end: fmtISO(prevEnd),
+                    label: 'vs mês anterior'
+                };
+            }
+
+            const dayMs = 24 * 60 * 60 * 1000;
+            const lengthDays = Math.round(
+                (parseISO(range.end) - parseISO(range.start)) / dayMs
+            ) + 1;
+            if (!Number.isFinite(lengthDays) || lengthDays < 1) return null;
+            const prevEnd = addDays(range.start, -1);
+            const LABELS = {
+                hoje: 'vs ontem',
+                ontem: 'vs anteontem',
+                '7d': 'vs 7 dias anteriores',
+                '30d': 'vs 30 dias anteriores'
+            };
+            return {
+                start: addDays(prevEnd, -(lengthDays - 1)),
+                end: prevEnd,
+                label: LABELS[preset] || `vs ${lengthDays} dia(s) anteriores`
+            };
+        }
+
         // ============================================
         // UI
         // ============================================
@@ -1237,13 +1291,11 @@
         let fetchSeq = 0;
         let fetchTimer = null;
         let activeController = null;
-        let comparisonController = null;
         let lastRendered = null;
 
         function scheduleRevenueFetch() {
             clearTimeout(fetchTimer);
             activeController?.abort();
-            comparisonController?.abort();
             fetchTimer = setTimeout(() => fetchRevenue(), 500);
         }
 
@@ -1256,7 +1308,8 @@
                 return;
             }
 
-            const cacheKey = `${start}:${end}`;
+            const comparison = comparisonForPreset(activePreset, { start, end });
+            const cacheKey = `${start}:${end}:${comparison?.start || ''}`;
             const cached = clientCache.get(cacheKey);
             const seq = ++fetchSeq;
             const refreshBtn = document.getElementById('refreshBtn');
@@ -1268,7 +1321,7 @@
                         status: 'browser',
                         age_seconds: Math.floor((Date.now() - cached.createdAt) / 1000)
                     }
-                });
+                }, comparison);
                 refreshBtn.disabled = false;
                 document.getElementById('topLoader').classList.remove('active');
                 document.getElementById('resultSection').classList.remove('is-loading');
@@ -1276,7 +1329,6 @@
             }
 
             activeController?.abort();
-            comparisonController?.abort();
             const controller = new AbortController();
             activeController = controller;
             refreshBtn.disabled = true;
@@ -1291,7 +1343,14 @@
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${supportToken}`
                     },
-                    body: JSON.stringify({ start, end }),
+                    body: JSON.stringify({
+                        start,
+                        end,
+                        ...(comparison
+                            ? { compare_start: comparison.start, compare_end: comparison.end }
+                            : {}),
+                        ...(force ? { force: true } : {})
+                    }),
                     signal: controller.signal
                 });
                 if (seq !== fetchSeq) return;
@@ -1307,7 +1366,7 @@
                     return;
                 }
                 clientCache.set(cacheKey, { body, createdAt: Date.now() });
-                renderResult(body);
+                renderResult(body, comparison);
             } catch (e) {
                 if (e.name === 'AbortError') return;
                 if (seq !== fetchSeq) return;
@@ -1392,7 +1451,7 @@
         function clearDeltas() {
             DELTA_IDS.forEach(id => document.getElementById(id).classList.remove('visible'));
         }
-        function setDelta(id, current, previous, { invert = false, suffix = '' } = {}) {
+        function setDelta(id, current, previous, { invert = false, suffix = '', hint = '' } = {}) {
             const el = document.getElementById(id);
             const cur = Number(current);
             const prev = Number(previous);
@@ -1400,6 +1459,7 @@
                 el.classList.remove('visible');
                 return;
             }
+            el.title = hint;
             const pct = (cur - prev) / prev * 100;
             const up = pct >= 0;
             const good = invert ? !up : up;
@@ -1409,55 +1469,29 @@
             el.classList.add('visible');
         }
 
-        function applyComparison(prevBody) {
-            if (!lastRendered) return;
-            const cur = lastRendered.body;
-            const a = cur.approved || {};
-            const pa = prevBody.approved || {};
-            const ref = cur.refunded || {};
-            const pref = prevBody.refunded || {};
-            setDelta('grossDelta', a.gross, pa.gross, { suffix: ' vs período anterior' });
-            setDelta('miniNetDelta', a.net, pa.net);
-            setDelta('miniSalesDelta', a.count, pa.count);
-            setDelta('miniRefundsDelta', ref.gross, pref.gross, { invert: true });
-        }
-
-        async function fetchComparison(range) {
-            const dayMs = 24 * 60 * 60 * 1000;
-            const lengthDays = Math.round((parseISO(range.end) - parseISO(range.start)) / dayMs) + 1;
-            if (!Number.isFinite(lengthDays) || lengthDays < 1 || lengthDays > 45) return;
-            const rangeKey = `${range.start}:${range.end}`;
-            const prevEnd = addDays(range.start, -1);
-            const prevStart = addDays(prevEnd, -(lengthDays - 1));
-            const cacheKey = `${prevStart}:${prevEnd}`;
-            const cached = clientCache.get(cacheKey);
-            if (cached) {
-                applyComparison(cached.body);
+        // O periodo anterior vem na mesma resposta da API, entao a comparacao e
+        // so aritmetica local — nao existe segunda requisicao.
+        function applyComparison(body, comparison) {
+            const previous = body.previous;
+            if (!previous) {
+                clearDeltas();
                 return;
             }
-            comparisonController?.abort();
-            const controller = new AbortController();
-            comparisonController = controller;
-            try {
-                const r = await fetch('/api/guru-revenue', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${supportToken}`
-                    },
-                    body: JSON.stringify({ start: prevStart, end: prevEnd }),
-                    signal: controller.signal
-                });
-                if (!r.ok) return;
-                const body = await r.json();
-                clientCache.set(cacheKey, { body, createdAt: Date.now() });
-                if (lastRendered?.key === rangeKey) applyComparison(body);
-            } catch (_) {
-                // comparação é opcional — falha em silêncio
-            }
+            const a = body.approved || {};
+            const pa = previous.approved || {};
+            const ref = body.refunded || {};
+            const pref = previous.refunded || {};
+            const label = comparison?.label || 'vs período anterior';
+            const hint = `${label}: ${formatDateBR(previous.range.start)} a `
+                + `${formatDateBR(previous.range.end)} · bruto ${formatBRL(pa.gross)}`;
+
+            setDelta('grossDelta', a.gross, pa.gross, { suffix: ` ${label}`, hint });
+            setDelta('miniNetDelta', a.net, pa.net, { hint });
+            setDelta('miniSalesDelta', a.count, pa.count, { hint });
+            setDelta('miniRefundsDelta', ref.gross, pref.gross, { invert: true, hint });
         }
 
-        function renderResult(body) {
+        function renderResult(body, comparison) {
             const a = body.approved || {};
             const ref = body.refunded || {};
             const guru = body.platforms?.guru || {};
@@ -1533,7 +1567,7 @@
             document.getElementById('lastUpdated').textContent = updateLabel;
 
             if (rangeChanged) clearDeltas();
-            fetchComparison(body.range);
+            applyComparison(body, comparison);
         }
     </script>
 </body>

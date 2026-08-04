@@ -2,6 +2,7 @@ import { getSubscription } from '../../lib/paddle-client.js';
 import {
   enqueuePaddleLeonaOutbox,
   listPaddleBillingAccounts,
+  paddleFirstEnabled,
   upsertPaddleBillingAccount
 } from '../../lib/paddle-ledger.js';
 import { brtYesterday, sumRecurringQuantity } from '../../lib/paddle-policy.js';
@@ -17,6 +18,9 @@ export default async function handler(req, res) {
   if (!authorized(req)) return res.status(401).json({ error: 'Não autorizado' });
   if (!['GET', 'POST'].includes(req.method)) {
     return res.status(405).json({ error: 'Método não permitido' });
+  }
+  if (!paddleFirstEnabled()) {
+    return res.status(200).json({ skipped: 'paddle_first_disabled' });
   }
 
   const accounts = await listPaddleBillingAccounts({ limit: 100 });
