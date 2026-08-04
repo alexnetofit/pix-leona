@@ -68,12 +68,7 @@
       gap: 12px;
     }
 
-    .brand img { height: 40px; width: auto; }
-    .brand span {
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      font-size: 1.05rem;
-    }
+    .brand img { height: 36px; width: auto; }
 
     .pill {
       font-size: 0.75rem;
@@ -221,19 +216,20 @@
 
     .prize {
       display: grid;
-      grid-template-columns: auto 1fr auto;
+      grid-template-columns: 120px 1fr auto;
       gap: 18px;
       align-items: center;
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 18px;
-      transition: transform 0.2s ease, background 0.2s ease;
+      transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
     }
 
     .prize.available:hover {
       transform: translateY(-2px);
       background: var(--card-hover);
+      box-shadow: 0 12px 40px rgba(139,92,246,0.15);
     }
 
     .prize.locked {
@@ -260,6 +256,48 @@
       background: linear-gradient(135deg, rgba(251,191,36,0.2), rgba(139,92,246,0.25));
       border: 1px solid rgba(251,191,36,0.35);
       color: var(--gold);
+    }
+
+    .prize-thumb {
+      position: relative;
+      width: 120px;
+      height: 120px;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #0a0812;
+      border: 1px solid rgba(139,92,246,0.25);
+      flex-shrink: 0;
+    }
+
+    .prize-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .prize-thumb .milestone-label {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 4px 6px;
+      font-size: 0.65rem;
+      font-weight: 800;
+      text-align: center;
+      background: linear-gradient(transparent, rgba(0,0,0,0.85));
+      color: var(--gold);
+      letter-spacing: 0.02em;
+    }
+
+    .prize.available .prize-thumb {
+      border-color: rgba(139,92,246,0.45);
+      box-shadow: 0 0 24px rgba(139,92,246,0.2);
+    }
+
+    .prize.locked .prize-thumb {
+      filter: grayscale(0.6) brightness(0.7);
+      border-color: var(--border);
     }
 
     .prize.locked .milestone-badge {
@@ -500,8 +538,7 @@
   <div class="wrap">
     <header class="topbar">
       <div class="brand">
-        <img src="/logo-leona.png" alt="Leona">
-        <span>Trilha de Premiação</span>
+        <img src="/logo-leona-branca.png" alt="Leona">
       </div>
       <div class="pill" id="accountPill">Conta —</div>
     </header>
@@ -638,7 +675,10 @@
       const chipLabel = prize.unlocked ? 'Disponível' : 'Bloqueado';
       return `
         <article class="prize ${cls}">
-          <div class="milestone-badge">${esc(prize.label.replace('R$ ', ''))}</div>
+          <div class="prize-thumb">
+            <img src="${esc(prize.image || '')}" alt="${esc(prize.title)}" loading="lazy">
+            <div class="milestone-label">${esc(prize.label.replace('R$ ', ''))}</div>
+          </div>
           <div>
             <span class="status-chip ${chip}">${chipLabel}</span>
             <h3>${esc(prize.title)}</h3>
