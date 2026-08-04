@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trilha de Premiação — Leona</title>
+  <link rel="icon" type="image/png" href="/logo-leona.png">
+  <meta name="description" content="Acompanhe seu faturamento e resgate premiações exclusivas Leona.">
+  <style>
+    :root {
+      --bg: #07060b;
+      --bg-soft: #110e18;
+      --card: #161222;
+      --card-hover: #1c172b;
+      --border: rgba(255,255,255,0.08);
+      --text: #f4f0fa;
+      --muted: #9d93b0;
+      --accent: #8b5cf6;
+      --accent-2: #22d3ee;
+      --gold: #fbbf24;
+      --success: #34d399;
+      --locked: #4b4560;
+      --shadow: 0 24px 80px rgba(0,0,0,0.45);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(circle at 15% 0%, rgba(139,92,246,0.18), transparent 35%),
+        radial-gradient(circle at 85% 10%, rgba(34,211,238,0.12), transparent 30%),
+        radial-gradient(circle at 50% 100%, rgba(251,191,36,0.08), transparent 40%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 28px 20px 80px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand img { height: 40px; width: auto; }
+    .brand span {
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      font-size: 1.05rem;
+    }
+
+    .pill {
+      font-size: 0.75rem;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      background: rgba(255,255,255,0.03);
+    }
+
+    .hero {
+      background: linear-gradient(135deg, rgba(139,92,246,0.14), rgba(34,211,238,0.06));
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 28px;
+      box-shadow: var(--shadow);
+      margin-bottom: 28px;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 24px;
+      align-items: end;
+    }
+
+    @media (max-width: 760px) {
+      .hero-grid { grid-template-columns: 1fr; }
+    }
+
+    .eyebrow {
+      color: var(--accent-2);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      font-size: clamp(1.6rem, 4vw, 2.3rem);
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      margin-bottom: 8px;
+    }
+
+    .sub {
+      color: var(--muted);
+      max-width: 48ch;
+    }
+
+    .revenue-card {
+      background: rgba(0,0,0,0.25);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .revenue-label {
+      color: var(--muted);
+      font-size: 0.82rem;
+      margin-bottom: 6px;
+    }
+
+    .revenue-value {
+      font-size: clamp(2rem, 6vw, 3rem);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      background: linear-gradient(135deg, #fff, var(--gold));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .revenue-meta {
+      margin-top: 10px;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .progress-block {
+      margin-top: 22px;
+    }
+
+    .progress-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .progress-track {
+      height: 10px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      width: 0%;
+      transition: width 0.6s ease;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    @media (max-width: 640px) {
+      .stats { grid-template-columns: 1fr; }
+    }
+
+    .stat {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 1.4rem;
+      margin-bottom: 4px;
+    }
+
+    .stat span { color: var(--muted); font-size: 0.85rem; }
+
+    .section-title {
+      font-size: 1.1rem;
+      margin-bottom: 16px;
+      letter-spacing: -0.02em;
+    }
+
+    .prizes {
+      display: grid;
+      gap: 16px;
+    }
+
+    .prize {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 18px;
+      align-items: center;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+
+    .prize.available:hover {
+      transform: translateY(-2px);
+      background: var(--card-hover);
+    }
+
+    .prize.locked {
+      opacity: 0.55;
+      filter: grayscale(0.2);
+    }
+
+    @media (max-width: 720px) {
+      .prize {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .milestone-badge {
+      width: 72px;
+      height: 72px;
+      border-radius: 18px;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      font-size: 0.78rem;
+      text-align: center;
+      line-height: 1.1;
+      background: linear-gradient(135deg, rgba(251,191,36,0.2), rgba(139,92,246,0.25));
+      border: 1px solid rgba(251,191,36,0.35);
+      color: var(--gold);
+    }
+
+    .prize.locked .milestone-badge {
+      background: rgba(255,255,255,0.04);
+      border-color: var(--border);
+      color: var(--locked);
+    }
+
+    .prize h3 {
+      font-size: 1.05rem;
+      margin-bottom: 6px;
+    }
+
+    .prize ul {
+      list-style: none;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .prize li::before {
+      content: '•';
+      color: var(--accent);
+      margin-right: 8px;
+    }
+
+    .prize-actions {
+      text-align: right;
+      min-width: 180px;
+    }
+
+    @media (max-width: 720px) {
+      .prize-actions { text-align: left; min-width: 0; }
+    }
+
+    .price-tag {
+      font-size: 1.25rem;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .ship-tag {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .ship-tag.free { color: var(--success); font-weight: 600; }
+
+    .btn {
+      appearance: none;
+      border: none;
+      cursor: pointer;
+      border-radius: 12px;
+      padding: 12px 18px;
+      font-weight: 700;
+      font-size: 0.88rem;
+      transition: transform 0.15s ease, opacity 0.15s ease;
+    }
+
+    .btn:hover:not(:disabled) { transform: translateY(-1px); }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #6d28d9);
+      color: white;
+      width: 100%;
+    }
+
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .status-chip {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 5px 10px;
+      border-radius: 999px;
+      margin-bottom: 10px;
+    }
+
+    .status-chip.available {
+      background: rgba(52,211,153,0.15);
+      color: var(--success);
+    }
+
+    .status-chip.locked {
+      background: rgba(255,255,255,0.06);
+      color: var(--muted);
+    }
+
+    .loading, .error-box {
+      text-align: center;
+      padding: 80px 20px;
+      color: var(--muted);
+    }
+
+    .error-box {
+      color: #fca5a5;
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.25);
+      border-radius: var(--radius);
+    }
+
+    /* Checkout modal */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.72);
+      backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 50;
+    }
+
+    .overlay.open { display: flex; }
+
+    .modal {
+      width: min(520px, 100%);
+      max-height: 90vh;
+      overflow: auto;
+      background: var(--bg-soft);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      padding: 24px;
+    }
+
+    .modal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .modal-head h2 {
+      font-size: 1.2rem;
+      letter-spacing: -0.02em;
+    }
+
+    .close-btn {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: 1.4rem;
+      cursor: pointer;
+      line-height: 1;
+    }
+
+    .checkout-summary {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 18px;
+      font-size: 0.9rem;
+    }
+
+    .checkout-summary .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 6px 0;
+    }
+
+    .checkout-summary .row.total {
+      border-top: 1px solid var(--border);
+      margin-top: 8px;
+      padding-top: 12px;
+      font-weight: 800;
+      font-size: 1.05rem;
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.25);
+      color: var(--text);
+      font: inherit;
+    }
+
+    input:focus {
+      outline: 2px solid rgba(139,92,246,0.45);
+      border-color: rgba(139,92,246,0.6);
+    }
+
+    .pay-methods {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 16px 0;
+    }
+
+    .pay-method {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      text-align: center;
+      font-size: 0.82rem;
+      color: var(--muted);
+      background: rgba(255,255,255,0.02);
+    }
+
+    .pay-method.active {
+      border-color: rgba(139,92,246,0.6);
+      color: var(--text);
+      background: rgba(139,92,246,0.12);
+    }
+
+    .note {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 12px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="topbar">
+      <div class="brand">
+        <img src="/logo-leona.png" alt="Leona">
+        <span>Trilha de Premiação</span>
+      </div>
+      <div class="pill" id="accountPill">Conta —</div>
+    </header>
+
+    <div id="app">
+      <div class="loading">Carregando sua trilha…</div>
+    </div>
+  </div>
+
+  <div class="overlay" id="checkoutOverlay" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="checkoutTitle">
+      <div class="modal-head">
+        <div>
+          <div class="eyebrow">Checkout</div>
+          <h2 id="checkoutTitle">Resgatar prêmio</h2>
+        </div>
+        <button class="close-btn" type="button" id="closeCheckout" aria-label="Fechar">×</button>
+      </div>
+
+      <div class="checkout-summary" id="checkoutSummary"></div>
+
+      <form class="form-grid" id="checkoutForm">
+        <label>Nome completo
+          <input name="name" required autocomplete="name">
+        </label>
+        <label>E-mail
+          <input name="email" type="email" required autocomplete="email">
+        </label>
+        <label>CPF
+          <input name="document" required inputmode="numeric" placeholder="000.000.000-00">
+        </label>
+        <label>Telefone / WhatsApp
+          <input name="phone" required autocomplete="tel" placeholder="(00) 00000-0000">
+        </label>
+        <label>CEP
+          <input name="cep" required inputmode="numeric" placeholder="00000-000">
+        </label>
+        <label>Endereço completo
+          <input name="address" required placeholder="Rua, número, bairro, cidade — UF">
+        </label>
+
+        <div class="pay-methods">
+          <div class="pay-method active">PIX</div>
+          <div class="pay-method">Cartão</div>
+        </div>
+
+        <button class="btn btn-primary" type="submit">Pagar e confirmar resgate</button>
+        <p class="note">Integração com gateway em breve. Layout pronto para plugar pagamento.</p>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const accountId = params.get('id') || params.get('account_id') || '';
+    const app = document.getElementById('app');
+    const accountPill = document.getElementById('accountPill');
+    const overlay = document.getElementById('checkoutOverlay');
+    const checkoutForm = document.getElementById('checkoutForm');
+    const checkoutSummary = document.getElementById('checkoutSummary');
+    const checkoutTitle = document.getElementById('checkoutTitle');
+    let currentData = null;
+    let selectedPrize = null;
+
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[c]);
+    }
+
+    function calcSegmentProgress(revenue, next) {
+      if (!next) return 100;
+      const prev = currentData?.prizes?.filter(p => p.milestone < next.milestone).pop();
+      const from = prev ? prev.milestone : 0;
+      const span = next.milestone - from;
+      const done = revenue - from;
+      return Math.max(0, Math.min(100, (done / span) * 100));
+    }
+
+    function render(data) {
+      currentData = data;
+      accountPill.textContent = `Conta #${data.account_id}`;
+      const name = data.user?.name || 'Parceiro Leona';
+      const next = data.revenue.next_milestone;
+      const progress = calcSegmentProgress(data.revenue.value, next);
+
+      app.innerHTML = `
+        <section class="hero">
+          <div class="hero-grid">
+            <div>
+              <div class="eyebrow">Sua jornada</div>
+              <h1>Olá, ${esc(name.split(' ')[0])}! 👋</h1>
+              <p class="sub">Acompanhe seu faturamento acumulado e resgate os prêmios físicos desbloqueados em cada marco da trilha.</p>
+            </div>
+            <div class="revenue-card">
+              <div class="revenue-label">Faturamento acumulado</div>
+              <div class="revenue-value">${esc(data.revenue.formatted)}</div>
+              <div class="revenue-meta">
+                ${data.revenue.source === 'mock' ? 'Valor de demonstração (conta demo).' : data.revenue.source === 'none' ? 'Faturamento real em breve na API.' : 'Atualizado pela Leona.'}
+              </div>
+              ${next ? `
+                <div class="progress-block">
+                  <div class="progress-head">
+                    <span>Próxima meta: ${esc(next.label)}</span>
+                    <span>Faltam ${esc(formatBrl(next.remaining))}</span>
+                  </div>
+                  <div class="progress-track"><div class="progress-fill" style="width:${progress.toFixed(1)}%"></div></div>
+                </div>
+              ` : '<div class="revenue-meta" style="margin-top:14px;color:var(--success)">Você desbloqueou todos os marcos! 🎉</div>'}
+            </div>
+          </div>
+        </section>
+
+        <div class="stats">
+          <div class="stat"><strong>${data.summary.unlocked}</strong><span>Premiações disponíveis</span></div>
+          <div class="stat"><strong>${data.summary.total}</strong><span>Marcos na trilha</span></div>
+          <div class="stat"><strong>${esc(data.plan || '—')}</strong><span>Plano Leona</span></div>
+        </div>
+
+        <h2 class="section-title">Premiações</h2>
+        <div class="prizes">
+          ${data.prizes.map(renderPrize).join('')}
+        </div>
+      `;
+
+      document.querySelectorAll('[data-resgate]').forEach((btn) => {
+        btn.addEventListener('click', () => openCheckout(btn.dataset.resgate));
+      });
+    }
+
+    function renderPrize(prize) {
+      const cls = prize.unlocked ? 'available' : 'locked';
+      const chip = prize.unlocked ? 'available' : 'locked';
+      const chipLabel = prize.unlocked ? 'Disponível' : 'Bloqueado';
+      return `
+        <article class="prize ${cls}">
+          <div class="milestone-badge">${esc(prize.label.replace('R$ ', ''))}</div>
+          <div>
+            <span class="status-chip ${chip}">${chipLabel}</span>
+            <h3>${esc(prize.title)}</h3>
+            <ul>${prize.items.map(i => `<li>${esc(i)}</li>`).join('')}</ul>
+          </div>
+          <div class="prize-actions">
+            <div class="price-tag">${esc(prize.priceFormatted)}</div>
+            <div class="ship-tag ${prize.freeShipping ? 'free' : ''}">${esc(prize.shippingLabel)}</div>
+            <button class="btn btn-primary" data-resgate="${esc(prize.id)}" ${prize.unlocked ? '' : 'disabled'}>
+              ${prize.unlocked ? 'Resgatar' : 'Meta não atingida'}
+            </button>
+          </div>
+        </article>
+      `;
+    }
+
+    function formatBrl(value) {
+      return Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
+    function openCheckout(prizeId) {
+      selectedPrize = currentData.prizes.find(p => p.id === prizeId);
+      if (!selectedPrize) return;
+
+      checkoutTitle.textContent = selectedPrize.title;
+      checkoutSummary.innerHTML = `
+        <div class="row"><span>Prêmio</span><strong>${esc(selectedPrize.title)}</strong></div>
+        <div class="row"><span>Marco</span><span>${esc(selectedPrize.label)}</span></div>
+        <div class="row"><span>Entrega</span><span>${esc(selectedPrize.shippingLabel)}</span></div>
+        <div class="row total"><span>Total hoje</span><span>${esc(selectedPrize.priceFormatted)}</span></div>
+      `;
+
+      if (currentData.user?.name) checkoutForm.name.value = currentData.user.name;
+      if (currentData.user?.email) checkoutForm.email.value = currentData.user.email;
+
+      overlay.classList.add('open');
+      overlay.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeCheckout() {
+      overlay.classList.remove('open');
+      overlay.setAttribute('aria-hidden', 'true');
+      selectedPrize = null;
+    }
+
+    document.getElementById('closeCheckout').addEventListener('click', closeCheckout);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeCheckout(); });
+
+    checkoutForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      alert(`Checkout preparado para "${selectedPrize?.title}". Integração de pagamento entra na próxima etapa.`);
+      closeCheckout();
+    });
+
+    async function boot() {
+      if (!accountId) {
+        app.innerHTML = '<div class="error-box">Informe o ID da conta na URL: <code>/trilha?id=1234</code></div>';
+        accountPill.textContent = 'Sem conta';
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/trilha?id=${encodeURIComponent(accountId)}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        render(data);
+      } catch (err) {
+        app.innerHTML = `<div class="error-box">${esc(err.message)}</div>`;
+      }
+    }
+
+    boot();
+  </script>
+</body>
+</html>
