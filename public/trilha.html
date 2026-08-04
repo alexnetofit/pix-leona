@@ -391,6 +391,45 @@
       color: var(--muted);
     }
 
+    .status-chip.ineligible {
+      background: rgba(251,191,36,0.12);
+      color: var(--gold);
+    }
+
+    .prize.ineligible {
+      opacity: 0.82;
+    }
+
+    .eligibility-banner {
+      background: rgba(251,191,36,0.08);
+      border: 1px solid rgba(251,191,36,0.28);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      margin-bottom: 20px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .eligibility-banner.ok {
+      background: rgba(52,211,153,0.08);
+      border-color: rgba(52,211,153,0.28);
+    }
+
+    .eligibility-banner strong {
+      font-size: 0.95rem;
+    }
+
+    .eligibility-banner p {
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.45;
+    }
+
+    .eligibility-meta {
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
     .loading, .error-box {
       text-align: center;
       padding: 80px 20px;
@@ -548,7 +587,7 @@
 
     .bump-item {
       display: grid;
-      grid-template-columns: auto 52px 1fr;
+      grid-template-columns: auto 52px 1fr auto;
       gap: 12px;
       align-items: center;
       padding: 12px;
@@ -716,6 +755,8 @@
       const name = data.user?.name || 'Parceiro Leona';
       const next = data.revenue.next_milestone;
       const progress = calcSegmentProgress(data.revenue.value, next);
+      const eligibility = data.redeem_eligibility;
+      const redeemableCount = data.prizes.filter(p => p.status === 'available').length;
 
       app.innerHTML = `
         <section class="hero">
@@ -744,9 +785,22 @@
           </div>
         </section>
 
+        ${eligibility ? `
+          <div class="eligibility-banner ${eligibility.eligible ? 'ok' : ''}">
+            <strong>${eligibility.eligible ? '✓ Requisito de resgate atendido' : 'Requisito para resgate'}</strong>
+            <p>${esc(eligibility.message)}</p>
+            <div class="eligibility-meta">
+              Meses pagos: ${esc(eligibility.paid_months)} / ${esc(eligibility.required_months)}
+              ${eligibility.sources?.guru != null ? ` · Guru: ${esc(eligibility.sources.guru)}` : ''}
+              ${eligibility.sources?.paddle != null ? ` · Paddle: ${esc(eligibility.sources.paddle)}` : ''}
+              ${eligibility.demo ? ' · Conta demo' : ''}
+            </div>
+          </div>
+        ` : ''}
+
         <div class="stats">
-          <div class="stat"><strong>${data.summary.unlocked}</strong><span>Premiações disponíveis</span></div>
-          <div class="stat"><strong>${data.summary.total}</strong><span>Marcos na trilha</span></div>
+          <div class="stat"><strong>${redeemableCount}</strong><span>Prontos para resgatar</span></div>
+          <div class="stat"><strong>${data.summary.unlocked}</strong><span>Marcos desbloqueados</span></div>
           <div class="stat"><strong>${esc(data.plan || '—')}</strong><span>Plano Leona</span></div>
         </div>
 
@@ -762,9 +816,18 @@
     }
 
     function renderPrize(prize) {
-      const cls = prize.unlocked ? 'available' : 'locked';
-      const chip = prize.unlocked ? 'available' : 'locked';
-      const chipLabel = prize.unlocked ? 'Disponível' : 'Bloqueado';
+      const cls = prize.status === 'available'
+        ? 'available'
+        : prize.status === 'ineligible'
+          ? 'ineligible'
+          : 'locked';
+      const chip = prize.status;
+      const chipLabel = prize.status === 'available'
+        ? 'Disponível'
+        : prize.status === 'ineligible'
+          ? 'Requisito pendente'
+          : 'Bloqueado';
+      const canResgate = prize.status === 'available';
       return `
         <article class="prize ${cls}">
           <div class="prize-thumb">
@@ -779,8 +842,8 @@
           <div class="prize-actions">
             <div class="price-tag">${esc(prize.priceFormatted)}</div>
             <div class="ship-tag ${prize.freeShipping ? 'free' : ''}">${esc(prize.shippingLabel)}</div>
-            <button class="btn btn-primary" data-resgate="${esc(prize.id)}" ${prize.unlocked ? '' : 'disabled'}>
-              ${prize.unlocked ? 'Resgatar' : 'Meta não atingida'}
+            <button class="btn btn-primary" data-resgate="${esc(prize.id)}" ${canResgate ? '' : 'disabled'}>
+              ${canResgate ? 'Resgatar' : prize.status === 'ineligible' ? '3 meses pagos necessários' : 'Meta não atingida'}
             </button>
           </div>
         </article>
@@ -844,7 +907,7 @@
 
     function openCheckout(prizeId) {
       selectedPrize = currentData.prizes.find(p => p.id === prizeId);
-      if (!selectedPrize) return;
+      if (!selectedPrize || selectedPrize.status !== 'available') return;
 
       selectedBumps = new Set();
       checkoutTitle.textContent = selectedPrize.title;
