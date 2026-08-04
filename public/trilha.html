@@ -532,6 +532,77 @@
       margin-top: 12px;
       text-align: center;
     }
+
+    .order-bumps {
+      margin-bottom: 18px;
+    }
+
+    .order-bumps-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .bump-item {
+      display: grid;
+      grid-template-columns: auto 52px 1fr;
+      gap: 12px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--card);
+      cursor: pointer;
+      transition: border-color 0.15s ease, background 0.15s ease;
+      margin-bottom: 8px;
+    }
+
+    .bump-item:has(input:checked) {
+      border-color: rgba(139,92,246,0.55);
+      background: rgba(139,92,246,0.08);
+    }
+
+    .bump-item input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .bump-item img {
+      width: 52px;
+      height: 52px;
+      border-radius: 10px;
+      object-fit: cover;
+      background: #0a0812;
+      border: 1px solid var(--border);
+    }
+
+    .bump-copy strong {
+      display: block;
+      font-size: 0.92rem;
+      margin-bottom: 2px;
+    }
+
+    .bump-copy span {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .bump-price {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--gold);
+      white-space: nowrap;
+    }
+
+    .checkout-summary .row.bump {
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
   </style>
 </head>
 <body>
@@ -559,6 +630,8 @@
       </div>
 
       <div class="checkout-summary" id="checkoutSummary"></div>
+
+      <div class="order-bumps" id="orderBumps"></div>
 
       <form class="form-grid" id="checkoutForm">
         <label>Nome completo
@@ -600,8 +673,27 @@
     const checkoutForm = document.getElementById('checkoutForm');
     const checkoutSummary = document.getElementById('checkoutSummary');
     const checkoutTitle = document.getElementById('checkoutTitle');
+    const orderBumpsEl = document.getElementById('orderBumps');
     let currentData = null;
     let selectedPrize = null;
+    let selectedBumps = new Set();
+
+    const ORDER_BUMPS = [
+      {
+        id: 'garrafa',
+        title: 'Garrafa Leona',
+        subtitle: 'Alumínio preto fosco · logo branca',
+        priceCents: 3990,
+        image: '/trilha/bumps/garrafa.png'
+      },
+      {
+        id: 'jaqueta',
+        title: 'Jaqueta Leona',
+        subtitle: 'Bomber preta premium · logo bordada',
+        priceCents: 19700,
+        image: '/trilha/bumps/jaqueta.png'
+      }
+    ];
 
     function esc(s) {
       return String(s ?? '').replace(/[&<>"']/g, (c) => ({
@@ -699,17 +791,65 @@
       return Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     }
 
-    function openCheckout(prizeId) {
-      selectedPrize = currentData.prizes.find(p => p.id === prizeId);
+    function renderOrderBumps() {
+      orderBumpsEl.innerHTML = `
+        <div class="order-bumps-title">Adicionar ao pedido</div>
+        ${ORDER_BUMPS.map((bump) => `
+          <label class="bump-item">
+            <input type="checkbox" name="bump_${esc(bump.id)}" value="${esc(bump.id)}" ${selectedBumps.has(bump.id) ? 'checked' : ''}>
+            <img src="${esc(bump.image)}" alt="${esc(bump.title)}" loading="lazy">
+            <div class="bump-copy">
+              <strong>${esc(bump.title)}</strong>
+              <span>${esc(bump.subtitle)}</span>
+            </div>
+            <div class="bump-price">+ ${esc(formatBrl(bump.priceCents / 100))}</div>
+          </label>
+        `).join('')}
+      `;
+
+      orderBumpsEl.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+        input.addEventListener('change', () => {
+          if (input.checked) selectedBumps.add(input.value);
+          else selectedBumps.delete(input.value);
+          updateCheckoutSummary();
+        });
+      });
+    }
+
+    function calcCheckoutTotalCents() {
+      if (!selectedPrize) return 0;
+      let total = selectedPrize.priceCents || 0;
+      for (const bump of ORDER_BUMPS) {
+        if (selectedBumps.has(bump.id)) total += bump.priceCents;
+      }
+      return total;
+    }
+
+    function updateCheckoutSummary() {
       if (!selectedPrize) return;
 
-      checkoutTitle.textContent = selectedPrize.title;
+      const bumpRows = ORDER_BUMPS
+        .filter((b) => selectedBumps.has(b.id))
+        .map((b) => `<div class="row bump"><span>${esc(b.title)}</span><span>+ ${esc(formatBrl(b.priceCents / 100))}</span></div>`)
+        .join('');
+
       checkoutSummary.innerHTML = `
         <div class="row"><span>Prêmio</span><strong>${esc(selectedPrize.title)}</strong></div>
         <div class="row"><span>Marco</span><span>${esc(selectedPrize.label)}</span></div>
         <div class="row"><span>Entrega</span><span>${esc(selectedPrize.shippingLabel)}</span></div>
-        <div class="row total"><span>Total hoje</span><span>${esc(selectedPrize.priceFormatted)}</span></div>
+        ${bumpRows}
+        <div class="row total"><span>Total hoje</span><span>${esc(formatBrl(calcCheckoutTotalCents() / 100))}</span></div>
       `;
+    }
+
+    function openCheckout(prizeId) {
+      selectedPrize = currentData.prizes.find(p => p.id === prizeId);
+      if (!selectedPrize) return;
+
+      selectedBumps = new Set();
+      checkoutTitle.textContent = selectedPrize.title;
+      renderOrderBumps();
+      updateCheckoutSummary();
 
       if (currentData.user?.name) checkoutForm.name.value = currentData.user.name;
       if (currentData.user?.email) checkoutForm.email.value = currentData.user.email;
@@ -722,6 +862,8 @@
       overlay.classList.remove('open');
       overlay.setAttribute('aria-hidden', 'true');
       selectedPrize = null;
+      selectedBumps = new Set();
+      orderBumpsEl.innerHTML = '';
     }
 
     document.getElementById('closeCheckout').addEventListener('click', closeCheckout);
@@ -729,7 +871,10 @@
 
     checkoutForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      alert(`Checkout preparado para "${selectedPrize?.title}". Integração de pagamento entra na próxima etapa.`);
+      const extras = ORDER_BUMPS.filter((b) => selectedBumps.has(b.id)).map((b) => b.title);
+      const total = formatBrl(calcCheckoutTotalCents() / 100);
+      const extrasLabel = extras.length ? `\nExtras: ${extras.join(', ')}` : '';
+      alert(`Checkout preparado para "${selectedPrize?.title}" (${total}).${extrasLabel}\nIntegração de pagamento entra na próxima etapa.`);
       closeCheckout();
     });
 
