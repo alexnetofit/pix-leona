@@ -21,7 +21,7 @@ test('buildTrilhaPayload desbloqueia marcos até 250k com 267k', () => {
   });
 
   assert.equal(payload.summary.unlocked, 3);
-  assert.equal(payload.prizes.find(p => p.id === '10k').unlocked, true);
+  assert.equal(payload.prizes.find(p => p.id === '50k').unlocked, true);
   assert.equal(payload.prizes.find(p => p.id === '100k').unlocked, true);
   assert.equal(payload.prizes.find(p => p.id === '250k').unlocked, true);
   assert.equal(payload.prizes.find(p => p.id === '500k').unlocked, false);
