@@ -706,6 +706,7 @@
   <script>
     const params = new URLSearchParams(location.search);
     const accountId = params.get('id') || params.get('account_id') || '';
+    const accountEmail = (params.get('email') || '').trim();
     const app = document.getElementById('app');
     const accountPill = document.getElementById('accountPill');
     const overlay = document.getElementById('checkoutOverlay');
@@ -942,19 +943,29 @@
     });
 
     async function boot() {
-      if (!accountId) {
-        app.innerHTML = '<div class="error-box">Informe o ID da conta na URL: <code>/trilha?id=1234</code></div>';
-        accountPill.textContent = 'Sem conta';
+      if (!accountId || !accountEmail) {
+        app.innerHTML = '<div class="error-box">Informe ID e e-mail na URL: <code>/trilha?id=1234&amp;email=teste123@gmail.com</code></div>';
+        accountPill.textContent = 'Acesso incompleto';
         return;
       }
 
       try {
-        const res = await fetch(`/api/trilha?id=${encodeURIComponent(accountId)}`);
+        const qs = new URLSearchParams({
+          id: accountId,
+          email: accountEmail
+        });
+        const res = await fetch(`/api/trilha?${qs.toString()}`);
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        if (!res.ok) {
+          const msg = data.code === 'EMAIL_ID_MISMATCH'
+            ? 'ID da conta e e-mail não correspondem. Verifique o link enviado pela Leona.'
+            : (data.error || data.message || `HTTP ${res.status}`);
+          throw new Error(msg);
+        }
         render(data);
       } catch (err) {
         app.innerHTML = `<div class="error-box">${esc(err.message)}</div>`;
+        accountPill.textContent = 'Acesso negado';
       }
     }
 

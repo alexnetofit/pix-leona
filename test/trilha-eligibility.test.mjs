@@ -5,10 +5,12 @@ import {
   buildTrilhaRedeemEligibility,
   mergePaidCycleKeys
 } from '../lib/trilha-eligibility.js';
+import { TRILHA_DEMO_EMAIL } from '../lib/trilha-access.js';
 
 test('demo conta 1234 fica inelegível mesmo com meses', () => {
   const e = buildTrilhaRedeemEligibility({
     accountId: '1234',
+    email: TRILHA_DEMO_EMAIL,
     paidMonths: 1,
     sources: { demo: true }
   });

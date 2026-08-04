@@ -1,6 +1,6 @@
 import { applyCors } from '../lib/auth.js';
-import { getLeonaBillingProfile } from '../lib/leona.js';
 import { resolveTrilhaRedeemEligibility } from '../lib/trilha-eligibility.js';
+import { resolveTrilhaAccess } from '../lib/trilha-access.js';
 import {
   buildTrilhaPayload,
   resolveTrilhaRevenue
@@ -17,20 +17,18 @@ export default async function handler(req, res) {
 
   const guruToken = process.env.GURU_TOKEN || null;
   const accountId = (req.query?.id || req.query?.account_id || '').trim();
-  if (!accountId) {
-    return res.status(400).json({ error: 'Informe ?id=<account_id> da conta Leona' });
-  }
+  const email = (req.query?.email || '').trim();
 
   try {
-    const profile = await getLeonaBillingProfile(accountId, leonaToken);
-    if (!profile) {
-      return res.status(404).json({ error: `Conta ${accountId} nao encontrada` });
+    const access = await resolveTrilhaAccess({ accountId, email, leonaToken });
+    if (!access.ok) {
+      return res.status(access.status).json(access.body);
     }
 
-    const email = profile?.user?.email || null;
+    const { profile, profileEmail, demo } = access;
     const redeemEligibility = await resolveTrilhaRedeemEligibility({
-      accountId,
-      email,
+      accountId: profile.account_id ?? accountId,
+      email: profileEmail,
       guruToken
     });
 
@@ -38,11 +36,12 @@ export default async function handler(req, res) {
     const { value: revenueValue, source: revenueSource } = resolveTrilhaRevenue(accountId, profileRevenue);
 
     return res.status(200).json(buildTrilhaPayload({
-      accountId,
+      accountId: String(profile.account_id ?? accountId),
       profile,
       revenueValue,
       revenueSource,
-      redeemEligibility
+      redeemEligibility,
+      demo
     }));
   } catch (error) {
     console.error('trilha error:', error);
