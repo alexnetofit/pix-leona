@@ -1451,7 +1451,14 @@
         function clearDeltas() {
             DELTA_IDS.forEach(id => document.getElementById(id).classList.remove('visible'));
         }
-        function setDelta(id, current, previous, { invert = false, suffix = '', hint = '' } = {}) {
+        // `format` opcional: quando informado, mostra tambem a diferenca absoluta
+        // ao lado do percentual (ex: "▼ 34,9% (−R$ 26.616,78)").
+        function setDelta(id, current, previous, {
+            invert = false,
+            suffix = '',
+            hint = '',
+            format = null
+        } = {}) {
             const el = document.getElementById(id);
             const cur = Number(current);
             const prev = Number(previous);
@@ -1463,7 +1470,11 @@
             const pct = (cur - prev) / prev * 100;
             const up = pct >= 0;
             const good = invert ? !up : up;
-            el.textContent = `${up ? '▲' : '▼'} ${Math.abs(pct).toFixed(1).replace('.', ',')}%${suffix}`;
+            const amount = format
+                ? ` (${up ? '+' : '−'}${format(Math.abs(cur - prev))})`
+                : '';
+            el.textContent =
+                `${up ? '▲' : '▼'} ${Math.abs(pct).toFixed(1).replace('.', ',')}%${amount}${suffix}`;
             el.classList.toggle('up', good);
             el.classList.toggle('down', !good);
             el.classList.add('visible');
@@ -1482,13 +1493,25 @@
             const ref = body.refunded || {};
             const pref = previous.refunded || {};
             const label = comparison?.label || 'vs período anterior';
-            const hint = `${label}: ${formatDateBR(previous.range.start)} a `
-                + `${formatDateBR(previous.range.end)} · bruto ${formatBRL(pa.gross)}`;
+            const period = `${formatDateBR(previous.range.start)} a `
+                + `${formatDateBR(previous.range.end)}`;
+            const hintFor = (metric, value) => `${label} (${period}): ${metric} ${value}`;
 
-            setDelta('grossDelta', a.gross, pa.gross, { suffix: ` ${label}`, hint });
-            setDelta('miniNetDelta', a.net, pa.net, { hint });
-            setDelta('miniSalesDelta', a.count, pa.count, { hint });
-            setDelta('miniRefundsDelta', ref.gross, pref.gross, { invert: true, hint });
+            setDelta('grossDelta', a.gross, pa.gross, {
+                suffix: ` ${label}`,
+                format: formatBRL,
+                hint: hintFor('bruto', formatBRL(pa.gross))
+            });
+            setDelta('miniNetDelta', a.net, pa.net, {
+                hint: hintFor('líquido', formatBRL(pa.net))
+            });
+            setDelta('miniSalesDelta', a.count, pa.count, {
+                hint: hintFor('vendas', pa.count)
+            });
+            setDelta('miniRefundsDelta', ref.gross, pref.gross, {
+                invert: true,
+                hint: hintFor('reembolsos', formatBRL(pref.gross))
+            });
         }
 
         function renderResult(body, comparison) {
