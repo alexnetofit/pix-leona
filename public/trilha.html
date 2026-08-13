@@ -210,11 +210,39 @@
     }
 
     .prizes {
+      position: relative;
       display: grid;
       gap: 16px;
     }
 
+    .prizes::before,
+    .prizes::after {
+      content: '';
+      position: absolute;
+      left: 78px;
+      top: 78px;
+      bottom: 78px;
+      width: 3px;
+      border-radius: 99px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .prizes::before {
+      background: rgba(255,255,255,0.08);
+    }
+
+    .prizes::after {
+      bottom: auto;
+      height: var(--trail-fill, 0%);
+      max-height: calc(100% - 156px);
+      background: linear-gradient(180deg, var(--accent-2), var(--accent) 55%, var(--gold));
+      box-shadow: 0 0 16px rgba(34,211,238,0.35);
+    }
+
     .prize {
+      position: relative;
+      z-index: 1;
       display: grid;
       grid-template-columns: 120px 1fr auto;
       gap: 18px;
@@ -240,6 +268,10 @@
     @media (max-width: 720px) {
       .prize {
         grid-template-columns: 1fr;
+      }
+      .prizes::before,
+      .prizes::after {
+        left: 78px;
       }
     }
 
@@ -323,6 +355,15 @@
       margin-right: 8px;
     }
 
+    .prize li.highlight {
+      color: #d8b4fe;
+      font-weight: 600;
+    }
+
+    .prize li.highlight::before {
+      color: var(--gold);
+    }
+
     .prize-actions {
       text-align: right;
       min-width: 180px;
@@ -336,6 +377,11 @@
       font-size: 1.25rem;
       font-weight: 800;
       margin-bottom: 4px;
+    }
+
+    .price-tag.gratis {
+      color: var(--success);
+      letter-spacing: 0.04em;
     }
 
     .ship-tag {
@@ -758,6 +804,10 @@
       const progress = calcSegmentProgress(data.revenue.value, next);
       const eligibility = data.redeem_eligibility;
       const redeemableCount = data.prizes.filter(p => p.status === 'available').length;
+      const lastUnlocked = data.prizes.reduce((acc, p, i) => (p.unlocked ? i : acc), -1);
+      const trailFill = lastUnlocked < 0
+        ? 0
+        : (lastUnlocked / Math.max(1, data.prizes.length - 1)) * 100;
 
       app.innerHTML = `
         <section class="hero">
@@ -771,7 +821,7 @@
               <div class="revenue-label">Faturamento acumulado</div>
               <div class="revenue-value">${esc(data.revenue.formatted)}</div>
               <div class="revenue-meta">
-                ${data.revenue.source === 'mock' ? 'Valor de demonstração (conta demo).' : data.revenue.source === 'none' ? 'Faturamento real em breve na API.' : 'Atualizado pela Leona.'}
+                ${data.revenue.source === 'mock' ? 'Valor de demonstração (conta demo).' : data.revenue.source === 'none' ? 'Ainda sem vendas em BRL nesta conta.' : 'Atualizado pela Leona.'}
               </div>
               ${next ? `
                 <div class="progress-block">
@@ -806,7 +856,7 @@
         </div>
 
         <h2 class="section-title">Premiações</h2>
-        <div class="prizes">
+        <div class="prizes" style="--trail-fill:${trailFill.toFixed(1)}%">
           ${data.prizes.map(renderPrize).join('')}
         </div>
       `;
@@ -838,10 +888,14 @@
           <div>
             <span class="status-chip ${chip}">${chipLabel}</span>
             <h3>${esc(prize.title)}</h3>
-            <ul>${prize.items.map(i => `<li>${esc(i)}</li>`).join('')}</ul>
+            <ul>${prize.items.map((item) => {
+              const text = typeof item === 'string' ? item : item.text;
+              const highlight = typeof item === 'object' && item.highlight;
+              return `<li class="${highlight ? 'highlight' : ''}">${esc(text)}</li>`;
+            }).join('')}</ul>
           </div>
           <div class="prize-actions">
-            <div class="price-tag">${esc(prize.priceFormatted)}</div>
+            <div class="price-tag ${prize.prizeFree ? 'gratis' : ''}">${esc(prize.priceFormatted)}</div>
             <div class="ship-tag ${prize.freeShipping ? 'free' : ''}">${esc(prize.shippingLabel)}</div>
             <button class="btn btn-primary" data-resgate="${esc(prize.id)}" ${canResgate ? '' : 'disabled'}>
               ${canResgate ? 'Resgatar' : prize.status === 'ineligible' ? '3 meses pagos necessários' : 'Meta não atingida'}
@@ -900,7 +954,8 @@
       checkoutSummary.innerHTML = `
         <div class="row"><span>Prêmio</span><strong>${esc(selectedPrize.title)}</strong></div>
         <div class="row"><span>Marco</span><span>${esc(selectedPrize.label)}</span></div>
-        <div class="row"><span>Entrega</span><span>${esc(selectedPrize.shippingLabel)}</span></div>
+        <div class="row"><span>Valor</span><span>${esc(selectedPrize.prizeFree ? 'GRÁTIS' : selectedPrize.priceFormatted)}</span></div>
+        <div class="row"><span>Frete</span><span>${esc(selectedPrize.prizeFree ? formatBrl(selectedPrize.priceCents / 100) : selectedPrize.shippingLabel)}</span></div>
         ${bumpRows}
         <div class="row total"><span>Total hoje</span><span>${esc(formatBrl(calcCheckoutTotalCents() / 100))}</span></div>
       `;

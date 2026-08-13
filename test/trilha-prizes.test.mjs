@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildTrilhaPayload,
+  pickBrlLifetimeRevenue,
   resolveTrilhaRevenue,
   formatRevenueDisplay
 } from '../lib/trilha-prizes.js';
@@ -49,6 +50,26 @@ test('buildTrilhaPayload bloqueia resgate sem 3 meses pagos', () => {
   assert.equal(payload.prizes.filter(p => p.status === 'available').length, 0);
 });
 
-test('formatRevenueDisplay compacto', () => {
-  assert.equal(formatRevenueDisplay(267_000), 'R$ 267 mil');
+test('pickBrlLifetimeRevenue usa só BRL', () => {
+  assert.equal(pickBrlLifetimeRevenue({ revenue_by_currency: { BRL: 10047.9, USD: 10 } }), 10047.9);
+  assert.equal(pickBrlLifetimeRevenue({ revenue_by_currency: { PYG: 19433400 } }), null);
+  assert.equal(pickBrlLifetimeRevenue({ revenue_by_currency: {} }), null);
+});
+
+test('prêmios de R$ 29,90 aparecem como GRÁTIS com frete', () => {
+  const payload = buildTrilhaPayload({
+    accountId: '1234',
+    profile: { user: { name: 'Demo' }, plan_summary: '1 Starter', subscription_status: 'active' },
+    revenueValue: 267_000,
+    revenueSource: 'mock'
+  });
+  const fifty = payload.prizes.find((p) => p.id === '50k');
+  const placa = payload.prizes.find((p) => p.id === '100k');
+  assert.equal(fifty.prizeFree, true);
+  assert.equal(fifty.priceFormatted, 'GRÁTIS');
+  assert.equal(fifty.shippingLabel, 'Frete: R$ 29,90');
+  assert.equal(fifty.priceCents, 2990);
+  assert.equal(placa.prizeFree, false);
+  assert.match(placa.priceFormatted, /297/);
+  assert.ok(placa.items.some((i) => i.highlight && /Grupo VIP/.test(i.text)));
 });

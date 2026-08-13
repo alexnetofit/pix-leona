@@ -1,8 +1,10 @@
 import { applyCors } from '../lib/auth.js';
+import { getLeonaLifetimeRevenue } from '../lib/leona.js';
 import { resolveTrilhaRedeemEligibility } from '../lib/trilha-eligibility.js';
 import { resolveTrilhaAccess } from '../lib/trilha-access.js';
 import {
   buildTrilhaPayload,
+  pickBrlLifetimeRevenue,
   resolveTrilhaRevenue
 } from '../lib/trilha-prizes.js';
 
@@ -26,25 +28,37 @@ export default async function handler(req, res) {
     }
 
     const { profile, profileEmail, demo } = access;
-    const redeemEligibility = await resolveTrilhaRedeemEligibility({
-      accountId: profile.account_id ?? accountId,
-      email: profileEmail,
-      guruToken
-    });
+    const resolvedAccountId = String(profile.account_id ?? accountId);
 
+    const [redeemEligibility, lifetime] = await Promise.all([
+      resolveTrilhaRedeemEligibility({
+        accountId: resolvedAccountId,
+        email: profileEmail,
+        guruToken
+      }),
+      demo ? Promise.resolve(null) : getLeonaLifetimeRevenue(resolvedAccountId, leonaToken)
+    ]);
+
+    const apiRevenue = pickBrlLifetimeRevenue(lifetime);
     const profileRevenue = profile.total_revenue ?? profile.lifetime_revenue ?? profile.revenue ?? null;
-    const { value: revenueValue, source: revenueSource } = resolveTrilhaRevenue(accountId, profileRevenue);
+    const { value: revenueValue, source: revenueSource } = resolveTrilhaRevenue(
+      resolvedAccountId,
+      apiRevenue ?? profileRevenue
+    );
 
     return res.status(200).json(buildTrilhaPayload({
-      accountId: String(profile.account_id ?? accountId),
+      accountId: resolvedAccountId,
       profile,
       revenueValue,
       revenueSource,
       redeemEligibility,
-      demo
+      demo,
+      revenueByCurrency: lifetime?.revenue_by_currency || null,
+      revenueComputedAt: lifetime?.computed_at || null
     }));
   } catch (error) {
     console.error('trilha error:', error);
     return res.status(500).json({ error: error.message || 'Erro interno' });
   }
 }
+
