@@ -72,4 +72,7 @@ test('prêmios de R$ 29,90 aparecem como GRÁTIS com frete', () => {
   assert.equal(placa.prizeFree, false);
   assert.match(placa.priceFormatted, /297/);
   assert.ok(placa.items.some((i) => i.highlight && /Grupo VIP/.test(i.text)));
+  assert.equal(fifty.extraUnitCents, 6750);
+  assert.equal(placa.extraUnitCents, 34650);
+  assert.equal(payload.prizes.find((p) => p.id === '250k').extraUnitCents, 5450);
 });

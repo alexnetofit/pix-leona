@@ -210,34 +210,63 @@
     }
 
     .prizes {
-      position: relative;
       display: grid;
       gap: 16px;
     }
 
-    .prizes::before,
-    .prizes::after {
-      content: '';
+    .prize-row {
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .trail-col {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .trail-line {
       position: absolute;
-      left: 78px;
-      top: 78px;
-      bottom: 78px;
+      left: 50%;
       width: 3px;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.1);
       border-radius: 99px;
-      pointer-events: none;
-      z-index: 0;
     }
 
-    .prizes::before {
-      background: rgba(255,255,255,0.08);
+    .trail-line.up { top: 0; height: 50%; }
+    .trail-line.down { top: 50%; bottom: 0; height: auto; }
+
+    .prize-row:first-child .trail-line.up { display: none; }
+    .prize-row:last-child .trail-line.down { display: none; }
+
+    .prize-row.reached .trail-line.up {
+      background: var(--success);
+      box-shadow: 0 0 8px rgba(52,211,153,0.35);
     }
 
-    .prizes::after {
-      bottom: auto;
-      height: var(--trail-fill, 0%);
-      max-height: calc(100% - 156px);
-      background: linear-gradient(180deg, var(--accent-2), var(--accent) 55%, var(--gold));
-      box-shadow: 0 0 16px rgba(34,211,238,0.35);
+    .prize-row.continue .trail-line.down {
+      background: var(--success);
+      box-shadow: 0 0 8px rgba(52,211,153,0.35);
+    }
+
+    .checkpoint {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--bg);
+      border: 2px solid rgba(255,255,255,0.22);
+      z-index: 1;
+      flex-shrink: 0;
+    }
+
+    .checkpoint.done {
+      background: var(--success);
+      border-color: #6ee7b7;
+      box-shadow: 0 0 0 4px rgba(52,211,153,0.18), 0 0 14px rgba(52,211,153,0.55);
     }
 
     .prize {
@@ -269,9 +298,9 @@
       .prize {
         grid-template-columns: 1fr;
       }
-      .prizes::before,
-      .prizes::after {
-        left: 78px;
+      .prize-row {
+        grid-template-columns: 22px 1fr;
+        gap: 10px;
       }
     }
 
@@ -469,6 +498,33 @@
       color: var(--muted);
       font-size: 0.88rem;
       line-height: 1.45;
+    }
+
+    .req-list {
+      list-style: none;
+      margin-top: 8px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .req-list li {
+      color: var(--muted);
+      font-size: 0.92rem;
+      padding-left: 0;
+    }
+
+    .req-list li.ok {
+      color: var(--text);
+    }
+
+    .req-list li::before {
+      content: '○ ';
+      color: var(--muted);
+    }
+
+    .req-list li.ok::before {
+      content: '✓ ';
+      color: var(--success);
     }
 
     .eligibility-meta {
@@ -684,9 +740,67 @@
       white-space: nowrap;
     }
 
-    .checkout-summary .row.bump {
+    .qty-bump {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .qty-bump-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
       color: var(--muted);
-      font-size: 0.85rem;
+      margin-bottom: 8px;
+    }
+
+    .qty-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .qty-copy {
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
+    .qty-copy strong {
+      color: var(--gold);
+      font-weight: 700;
+    }
+
+    .qty-stepper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .qty-stepper button {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      font-size: 1.05rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .qty-stepper button:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .qty-stepper span {
+      min-width: 18px;
+      text-align: center;
+      font-weight: 800;
     }
   </style>
 </head>
@@ -763,6 +877,7 @@
     let currentData = null;
     let selectedPrize = null;
     let selectedBumps = new Set();
+    const extraQtyByPrize = {};
 
     const ORDER_BUMPS = [
       {
@@ -804,10 +919,6 @@
       const progress = calcSegmentProgress(data.revenue.value, next);
       const eligibility = data.redeem_eligibility;
       const redeemableCount = data.prizes.filter(p => p.status === 'available').length;
-      const lastUnlocked = data.prizes.reduce((acc, p, i) => (p.unlocked ? i : acc), -1);
-      const trailFill = lastUnlocked < 0
-        ? 0
-        : (lastUnlocked / Math.max(1, data.prizes.length - 1)) * 100;
 
       app.innerHTML = `
         <section class="hero">
@@ -837,15 +948,12 @@
         </section>
 
         ${eligibility ? `
-          <div class="eligibility-banner ${eligibility.eligible ? 'ok' : ''}">
-            <strong>${eligibility.eligible ? '✓ Requisito de resgate atendido' : 'Requisito para resgate'}</strong>
-            <p>${esc(eligibility.message)}</p>
-            <div class="eligibility-meta">
-              Meses pagos: ${esc(eligibility.paid_months)} / ${esc(eligibility.required_months)}
-              ${eligibility.sources?.guru != null ? ` · Guru: ${esc(eligibility.sources.guru)}` : ''}
-              ${eligibility.sources?.paddle != null ? ` · Paddle: ${esc(eligibility.sources.paddle)}` : ''}
-              ${eligibility.demo ? ' · Conta demo' : ''}
-            </div>
+          <div class="eligibility-banner ${eligibility.eligible && data.summary.unlocked > 0 ? 'ok' : ''}">
+            <strong>${eligibility.eligible && data.summary.unlocked > 0 ? '✓ Requisito de resgate atendido' : 'Requisitos para resgate'}</strong>
+            <ul class="req-list">
+              <li class="${eligibility.eligible ? 'ok' : ''}">3 meses de Leona Flow</li>
+              <li class="${data.summary.unlocked > 0 ? 'ok' : ''}">Faturamento atingido</li>
+            </ul>
           </div>
         ` : ''}
 
@@ -856,17 +964,29 @@
         </div>
 
         <h2 class="section-title">Premiações</h2>
-        <div class="prizes" style="--trail-fill:${trailFill.toFixed(1)}%">
-          ${data.prizes.map(renderPrize).join('')}
+        <div class="prizes">
+          ${data.prizes.map((prize, i) => renderPrize(prize, i, data.prizes)).join('')}
         </div>
       `;
 
       document.querySelectorAll('[data-resgate]').forEach((btn) => {
         btn.addEventListener('click', () => openCheckout(btn.dataset.resgate));
       });
+      document.querySelectorAll('[data-qty]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.prize;
+          const delta = Number(btn.dataset.qty);
+          extraQtyByPrize[id] = Math.max(0, (extraQtyByPrize[id] || 0) + delta);
+          render(currentData);
+        });
+      });
     }
 
-    function renderPrize(prize) {
+    function extraQty(prizeId) {
+      return extraQtyByPrize[prizeId] || 0;
+    }
+
+    function renderPrize(prize, index, prizes) {
       const cls = prize.status === 'available'
         ? 'available'
         : prize.status === 'ineligible'
@@ -879,29 +999,51 @@
           ? 'Requisito pendente'
           : 'Bloqueado';
       const canResgate = prize.status === 'available';
+      const reached = prize.unlocked;
+      const continues = reached && prizes[index + 1]?.unlocked;
+      const qty = extraQty(prize.id);
+      const extraLabel = formatBrl((prize.extraUnitCents || 0) / 100);
       return `
-        <article class="prize ${cls}">
-          <div class="prize-thumb">
-            <img src="${esc(prize.image || '')}" alt="${esc(prize.title)}" loading="lazy">
-            <div class="milestone-label">${esc(prize.label.replace('R$ ', ''))}</div>
+        <div class="prize-row ${reached ? 'reached' : ''} ${continues ? 'continue' : ''}">
+          <div class="trail-col">
+            <span class="trail-line up"></span>
+            <span class="checkpoint ${reached ? 'done' : ''}" aria-hidden="true"></span>
+            <span class="trail-line down"></span>
           </div>
-          <div>
-            <span class="status-chip ${chip}">${chipLabel}</span>
-            <h3>${esc(prize.title)}</h3>
-            <ul>${prize.items.map((item) => {
-              const text = typeof item === 'string' ? item : item.text;
-              const highlight = typeof item === 'object' && item.highlight;
-              return `<li class="${highlight ? 'highlight' : ''}">${esc(text)}</li>`;
-            }).join('')}</ul>
-          </div>
-          <div class="prize-actions">
-            <div class="price-tag ${prize.prizeFree ? 'gratis' : ''}">${esc(prize.priceFormatted)}</div>
-            <div class="ship-tag ${prize.freeShipping ? 'free' : ''}">${esc(prize.shippingLabel)}</div>
-            <button class="btn btn-primary" data-resgate="${esc(prize.id)}" ${canResgate ? '' : 'disabled'}>
-              ${canResgate ? 'Resgatar' : prize.status === 'ineligible' ? '3 meses pagos necessários' : 'Meta não atingida'}
-            </button>
-          </div>
-        </article>
+          <article class="prize ${cls}">
+            <div class="prize-thumb">
+              <img src="${esc(prize.image || '')}" alt="${esc(prize.title)}" loading="lazy">
+              <div class="milestone-label">${esc(prize.label.replace('R$ ', ''))}</div>
+            </div>
+            <div>
+              <span class="status-chip ${chip}">${chipLabel}</span>
+              <h3>${esc(prize.title)}</h3>
+              <ul>${prize.items.map((item) => {
+                const text = typeof item === 'string' ? item : item.text;
+                const highlight = typeof item === 'object' && item.highlight;
+                return `<li class="${highlight ? 'highlight' : ''}">${esc(text)}</li>`;
+              }).join('')}</ul>
+            </div>
+            <div class="prize-actions">
+              <div class="price-tag ${prize.prizeFree ? 'gratis' : ''}">${esc(prize.priceFormatted)}</div>
+              <div class="ship-tag ${prize.freeShipping ? 'free' : ''}">${esc(prize.shippingLabel)}</div>
+              <button class="btn btn-primary" data-resgate="${esc(prize.id)}" ${canResgate ? '' : 'disabled'}>
+                ${canResgate ? 'Resgatar' : prize.status === 'ineligible' ? '3 meses pagos necessários' : 'Meta não atingida'}
+              </button>
+              <div class="qty-bump">
+                <div class="qty-bump-label">Order bump</div>
+                <div class="qty-row">
+                  <div class="qty-copy">Unidades extras<br><strong>${esc(extraLabel)}</strong> cada</div>
+                  <div class="qty-stepper">
+                    <button type="button" data-qty="-1" data-prize="${esc(prize.id)}" ${qty <= 0 || !canResgate ? 'disabled' : ''}>−</button>
+                    <span>${qty}</span>
+                    <button type="button" data-qty="1" data-prize="${esc(prize.id)}" ${!canResgate ? 'disabled' : ''}>+</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
       `;
     }
 
@@ -910,8 +1052,22 @@
     }
 
     function renderOrderBumps() {
+      const qty = extraQty(selectedPrize.id);
+      const extraLabel = formatBrl((selectedPrize.extraUnitCents || 0) / 100);
       orderBumpsEl.innerHTML = `
         <div class="order-bumps-title">Adicionar ao pedido</div>
+        <div class="bump-item" style="grid-template-columns: 52px 1fr auto; cursor: default;">
+          <img src="${esc(selectedPrize.image || '')}" alt="${esc(selectedPrize.title)}" loading="lazy">
+          <div class="bump-copy">
+            <strong>Unidades extras</strong>
+            <span>Mesmo item · ${esc(extraLabel)} cada</span>
+          </div>
+          <div class="qty-stepper">
+            <button type="button" id="checkoutExtraMinus" ${qty <= 0 ? 'disabled' : ''}>−</button>
+            <span id="checkoutExtraQty">${qty}</span>
+            <button type="button" id="checkoutExtraPlus">+</button>
+          </div>
+        </div>
         ${ORDER_BUMPS.map((bump) => `
           <label class="bump-item">
             <input type="checkbox" name="bump_${esc(bump.id)}" value="${esc(bump.id)}" ${selectedBumps.has(bump.id) ? 'checked' : ''}>
@@ -925,6 +1081,14 @@
         `).join('')}
       `;
 
+      const syncExtra = (delta) => {
+        extraQtyByPrize[selectedPrize.id] = Math.max(0, extraQty(selectedPrize.id) + delta);
+        renderOrderBumps();
+        updateCheckoutSummary();
+      };
+      document.getElementById('checkoutExtraMinus')?.addEventListener('click', () => syncExtra(-1));
+      document.getElementById('checkoutExtraPlus')?.addEventListener('click', () => syncExtra(1));
+
       orderBumpsEl.querySelectorAll('input[type="checkbox"]').forEach((input) => {
         input.addEventListener('change', () => {
           if (input.checked) selectedBumps.add(input.value);
@@ -934,9 +1098,14 @@
       });
     }
 
+    function extraUnitsCents(prize) {
+      return extraQty(prize.id) * (prize.extraUnitCents || 0);
+    }
+
     function calcCheckoutTotalCents() {
       if (!selectedPrize) return 0;
       let total = selectedPrize.priceCents || 0;
+      total += extraUnitsCents(selectedPrize);
       for (const bump of ORDER_BUMPS) {
         if (selectedBumps.has(bump.id)) total += bump.priceCents;
       }
@@ -945,6 +1114,11 @@
 
     function updateCheckoutSummary() {
       if (!selectedPrize) return;
+      const extras = extraQty(selectedPrize.id);
+
+      const extraRow = extras > 0
+        ? `<div class="row bump"><span>${esc(selectedPrize.title)} × ${extras}</span><span>+ ${esc(formatBrl(extraUnitsCents(selectedPrize) / 100))}</span></div>`
+        : '';
 
       const bumpRows = ORDER_BUMPS
         .filter((b) => selectedBumps.has(b.id))
@@ -956,6 +1130,7 @@
         <div class="row"><span>Marco</span><span>${esc(selectedPrize.label)}</span></div>
         <div class="row"><span>Valor</span><span>${esc(selectedPrize.prizeFree ? 'GRÁTIS' : selectedPrize.priceFormatted)}</span></div>
         <div class="row"><span>Frete</span><span>${esc(selectedPrize.prizeFree ? formatBrl(selectedPrize.priceCents / 100) : selectedPrize.shippingLabel)}</span></div>
+        ${extraRow}
         ${bumpRows}
         <div class="row total"><span>Total hoje</span><span>${esc(formatBrl(calcCheckoutTotalCents() / 100))}</span></div>
       `;
@@ -990,10 +1165,12 @@
 
     checkoutForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      const extras = ORDER_BUMPS.filter((b) => selectedBumps.has(b.id)).map((b) => b.title);
+      const extras = extraQty(selectedPrize?.id);
+      const extrasLabel = extras ? `\nUnidades extras: ${extras}` : '';
+      const merch = ORDER_BUMPS.filter((b) => selectedBumps.has(b.id)).map((b) => b.title);
+      const merchLabel = merch.length ? `\nExtras: ${merch.join(', ')}` : '';
       const total = formatBrl(calcCheckoutTotalCents() / 100);
-      const extrasLabel = extras.length ? `\nExtras: ${extras.join(', ')}` : '';
-      alert(`Checkout preparado para "${selectedPrize?.title}" (${total}).${extrasLabel}\nIntegração de pagamento entra na próxima etapa.`);
+      alert(`Checkout preparado para "${selectedPrize?.title}" (${total}).${extrasLabel}${merchLabel}\nIntegração de pagamento entra na próxima etapa.`);
       closeCheckout();
     });
 
