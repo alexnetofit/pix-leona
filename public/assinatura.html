@@ -655,6 +655,51 @@
             return (Date.now() - startedAt) < 10 * 60 * 1000;
         }
 
+        function guruIdOf(bp) {
+            return bp?.guru_account_id ? String(bp.guru_account_id) : '';
+        }
+
+        function subMatchesGuruId(sub, guruId) {
+            if (!guruId || !sub) return false;
+            return String(sub.id) === guruId || (sub.subscription_code && String(sub.subscription_code) === guruId);
+        }
+
+        function subscriptionsForProfile(guru, bp, allProfiles) {
+            if (!guru?.found || !Array.isArray(guru.subscriptions)) return [];
+            const ownId = guruIdOf(bp);
+            const siblingIds = (allProfiles || [])
+                .filter(p => p && String(p.account_id) !== String(bp.account_id) && p.guru_account_id)
+                .map(p => String(p.guru_account_id));
+            return guru.subscriptions.filter(sub => {
+                if (subMatchesGuruId(sub, ownId)) return true;
+                if (siblingIds.some(id => subMatchesGuruId(sub, id))) return false;
+                // Conta ainda sem vinculo: so pega sub recem-criada (webhook
+                // desta empresa ainda nao ligou). Nao herda a sub paga de
+                // outra empresa do mesmo e-mail.
+                if (!ownId && isGuruSubFresh(sub)) return true;
+                return false;
+            });
+        }
+
+        function invoicesForProfile(guru, bp) {
+            const ownId = guruIdOf(bp);
+            if (!ownId || !Array.isArray(guru?.invoices)) return [];
+            return guru.invoices.filter(inv =>
+                inv.subscription_id && String(inv.subscription_id) === ownId
+            );
+        }
+
+        function scopedGuru(guru, bp, allProfiles) {
+            const subscriptions = subscriptionsForProfile(guru, bp, allProfiles);
+            const invoices = invoicesForProfile(guru, bp);
+            return {
+                found: subscriptions.length > 0 || invoices.length > 0,
+                contact: guru?.contact || null,
+                subscriptions,
+                invoices
+            };
+        }
+
         function hasGuruPendingInvoice(sub) {
             const inv = sub.current_invoice;
             if (!inv) return false;
@@ -1318,8 +1363,9 @@
             // valido (ciclo atual pago e em curso) ou foi criada nos ultimos
             // minutos — nesses casos o pagamento e legitimo e estamos so
             // esperando o webhook ativar a Leona. Ver Cenario 5 abaixo.
-            const expiredProfile = profiles.find(p => isLeonaExpired(p));
-            const staleGuruSub = findStaleGuruSub(guru);
+            const allProfiles = leona.billing_profiles || (leona.billing_profile ? [leona.billing_profile] : profiles);
+            const expiredProfile = profiles.find(p => isLeonaExpired(p) && findStaleGuruSub(scopedGuru(guru, p, allProfiles)));
+            const staleGuruSub = expiredProfile ? findStaleGuruSub(scopedGuru(guru, expiredProfile, allProfiles)) : null;
             if (expiredProfile && staleGuruSub) {
                 await fixGuruInconsistency(expiredProfile.account_id, staleGuruSub.id, email);
                 try {
@@ -1343,17 +1389,17 @@
             // Cenario 5: Leona vencida + Guru com pagamento valido em
             // processamento. Detectado depois do Cenario 3 para que o
             // cancelamento por data divergente tenha prioridade quando
-            // realmente fizer sentido. Calculado uma vez aqui e reutilizado
-            // no loop de profiles abaixo.
-            const processingGuruSub = findProcessingGuruSub(guru);
-
-            const hasGuruAny = guru.found && guru.subscriptions.length > 0;
+            // realmente fizer sentido. Sempre no escopo DA CONTA — senão
+            // a sub paga de outra empresa do mesmo e-mail trava o checkout.
 
             let html = '';
 
             for (let i = 0; i < profiles.length; i++) {
                 const bp = profiles[i];
                 const expired = isLeonaExpired(bp);
+                const accountGuru = scopedGuru(guru, bp, allProfiles);
+                const processingGuruSub = findProcessingGuruSub(accountGuru);
+                const hasGuruAny = accountGuru.found && accountGuru.subscriptions.length > 0;
 
                 html += renderProfileCard(bp, i, profiles.length);
 
@@ -1366,7 +1412,7 @@
                         html += renderProcessingState(processingGuruSub);
                     } else if (hasGuruAny) {
                         // Cenário 2: Leona vencida + Guru vencida/cancelada
-                        const invoicesHtml = renderOpenInvoices(guru.invoices);
+                        const invoicesHtml = renderOpenInvoices(accountGuru.invoices);
                         if (invoicesHtml) {
                             html += invoicesHtml;
                         } else {
@@ -1379,23 +1425,25 @@
                             html += renderQtySelector(offers, email, `exp${i}`, bp.account_id);
                         }
                     } else {
-                        // Cenário 1: Leona vencida + sem Guru
-                        html += `
-                            <div class="alert alert-error">
-                                <strong>Sua assinatura venceu</strong>
-                                Escolha um plano abaixo para renovar.
-                            </div>
-                        `;
+                        // Cenário 1: Leona inativa/vencida + sem Guru desta conta
+                        if (bp.current_period_end) {
+                            html += `
+                                <div class="alert alert-error">
+                                    <strong>Sua assinatura venceu</strong>
+                                    Escolha um plano abaixo para renovar.
+                                </div>
+                            `;
+                        }
                         html += renderQtySelector(offers, email, `noguru${i}`, bp.account_id);
                     }
                 } else {
                     // Cenário 4: Leona ativa — upgrade/downgrade
-                    const pendingInvoice = findPendingInvoice(guru);
+                    const pendingInvoice = findPendingInvoice(accountGuru);
                     if (pendingInvoice) {
                         html += renderPendingInvoice(pendingInvoice, bp);
                     }
 
-                    if (needsRenewalAlert(bp, guru)) {
+                    if (needsRenewalAlert(bp, accountGuru)) {
                         // Cenario 6: Leona ainda ativa, mas perto de vencer e
                         // sem renovacao Guru garantida (cliente teve sub Guru
                         // no passado mas nenhuma esta active+valida agora).
@@ -1453,13 +1501,15 @@
             const newValue = newOffer.value;
             const isUpgrade = newQty > currentQty;
             const diff = Math.abs(newQty - currentQty);
-            const hasGuru = data.guru.found && data.guru.subscriptions.length > 0;
+            const allProfiles = data.leona?.billing_profiles || (data.leona?.billing_profile ? [data.leona.billing_profile] : profiles);
+            const accountGuru = scopedGuru(data.guru, bp, allProfiles);
+            const hasGuru = accountGuru.found && accountGuru.subscriptions.length > 0;
             const periodEnd = bp.current_period_end;
 
             resultDiv.style.display = 'block';
 
             if (!isUpgrade) {
-                const activeSub = hasGuru ? (data.guru.subscriptions.find(s => s.status === 'active') || data.guru.subscriptions[0]) : null;
+                const activeSub = hasGuru ? (accountGuru.subscriptions.find(s => s.status === 'active') || accountGuru.subscriptions[0]) : null;
                 const subId = activeSub?.id;
                 const canExecute = hasGuru && subId && bp.account_id;
 
@@ -1544,7 +1594,7 @@
             const { proRata, diasRestantes, diasNoCiclo } = calcProRata(currentValue, newValue, periodEnd);
 
             if (hasGuru) {
-                const activeSub = data.guru.subscriptions.find(s => s.status === 'active') || data.guru.subscriptions[0];
+                const activeSub = accountGuru.subscriptions.find(s => s.status === 'active') || accountGuru.subscriptions[0];
                 const subId = activeSub?.id;
                 // Quando ja existe uma fatura cycle/upgrade em aberto na Guru,
                 // a rota PUT /subscriptions/:id/plans (upgrade tradicional)

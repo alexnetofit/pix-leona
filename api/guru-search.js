@@ -10,6 +10,58 @@ const GURU_HEADERS = (token) => ({
 
 const LEONA_PRODUCT_ID = 'a1869b83-b28d-4257-a986-1df94558a152';
 
+function isGuruSubFresh(sub) {
+  if (!sub?.started_at) return false;
+  const startedAt = typeof sub.started_at === 'number'
+    ? sub.started_at * 1000
+    : new Date(sub.started_at).getTime();
+  if (!Number.isFinite(startedAt)) return false;
+  return (Date.now() - startedAt) < 10 * 60 * 1000;
+}
+
+function subMatchesGuruId(sub, guruId) {
+  if (!guruId || !sub) return false;
+  const id = String(guruId);
+  return String(sub.id) === id || (sub.subscription_code && String(sub.subscription_code) === id);
+}
+
+function subscriptionOwnedByAccount(sub, linkedGuruId, siblingGuruIds) {
+  if (subMatchesGuruId(sub, linkedGuruId)) return true;
+  for (const sib of siblingGuruIds) {
+    if (subMatchesGuruId(sub, sib)) return false;
+  }
+  // Conta ainda sem vinculo: so herda sub recem-criada (webhook ainda nao ligou).
+  if (!linkedGuruId && isGuruSubFresh(sub)) return true;
+  return false;
+}
+
+async function collectSiblingGuruIds(email, currentAccountId, leonaToken, headers) {
+  const ids = new Set();
+  if (!leonaToken || !email) return ids;
+  try {
+    const r = await fetch(
+      `https://apiaws.leonasolutions.io/api/v1/integration/accounts/billing_profile?email=${encodeURIComponent(email)}`,
+      { headers }
+    );
+    if (r.status !== 409) return ids;
+    const conflict = await r.json().catch(() => ({}));
+    const accountIds = Array.isArray(conflict.account_ids) ? conflict.account_ids : [];
+    await Promise.all(accountIds.map(async (accId) => {
+      if (String(accId) === String(currentAccountId)) return;
+      try {
+        const pr = await fetch(
+          `https://apiaws.leonasolutions.io/api/v1/integration/accounts/${encodeURIComponent(accId)}/billing_profile`,
+          { headers }
+        );
+        if (!pr.ok) return;
+        const profile = await pr.json();
+        if (profile?.guru_account_id) ids.add(String(profile.guru_account_id));
+      } catch (_) {}
+    }));
+  } catch (_) {}
+  return ids;
+}
+
 // O produto Leona tem >50 ofertas. A API da Guru pagina e a ordem nao garante
 // que planos como 8/9 conexoes venham nas primeiras 50, entao paginamos tudo.
 async function fetchAllOffers(productId, headers) {
@@ -327,6 +379,29 @@ export default async function handler(req, res) {
           guru.invoices = Array.from(invoiceMap.values());
         }
       }
+    }
+
+    // Varias empresas no mesmo e-mail: a Guru e por contato, nao por conta
+    // Leona. Sem este filtro, a sub paga da empresa A aparece na pagina da
+    // empresa B (ainda inactive) como "pagamento confirmado, ativacao em andamento".
+    if (hasAccountId && leonaPriority?.billing_profile && guru.subscriptions.length > 0) {
+      const linkedGuruId = leonaPriority.billing_profile.guru_account_id
+        ? String(leonaPriority.billing_profile.guru_account_id)
+        : '';
+      const siblingGuruIds = await collectSiblingGuruIds(
+        emailClean,
+        accountIdRaw,
+        leonaToken,
+        leonaAuthHeaders
+      );
+      guru.subscriptions = guru.subscriptions.filter((sub) =>
+        subscriptionOwnedByAccount(sub, linkedGuruId, siblingGuruIds)
+      );
+      const keepIds = new Set(guru.subscriptions.map((s) => String(s.id)));
+      if (linkedGuruId) keepIds.add(linkedGuruId);
+      guru.invoices = (guru.invoices || []).filter((inv) =>
+        inv.subscription_id && keepIds.has(String(inv.subscription_id))
+      );
     }
 
     return res.status(200).json({ guru, leona, offers });
