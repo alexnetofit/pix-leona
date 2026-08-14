@@ -689,28 +689,20 @@
 
     .bump-item {
       display: grid;
-      grid-template-columns: auto 52px 1fr auto;
+      grid-template-columns: 52px 1fr auto;
       gap: 12px;
       align-items: center;
       padding: 12px;
       border: 1px solid var(--border);
       border-radius: 14px;
       background: var(--card);
-      cursor: pointer;
       transition: border-color 0.15s ease, background 0.15s ease;
       margin-bottom: 8px;
     }
 
-    .bump-item:has(input:checked) {
+    .bump-item.active {
       border-color: rgba(139,92,246,0.55);
       background: rgba(139,92,246,0.08);
-    }
-
-    .bump-item input {
-      width: 18px;
-      height: 18px;
-      accent-color: var(--accent);
-      cursor: pointer;
     }
 
     .bump-item img {
@@ -771,6 +763,84 @@
     .qty-copy strong {
       color: var(--gold);
       font-weight: 700;
+    }
+
+    .help-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+
+    .help-tip {
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.28);
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.62rem;
+      font-weight: 800;
+      line-height: 1;
+      cursor: help;
+      padding: 0;
+      display: inline-grid;
+      place-items: center;
+    }
+
+    .help-tip:hover,
+    .help-wrap.open .help-tip,
+    .help-wrap:focus-within .help-tip {
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+
+    .help-bubble {
+      display: none;
+      position: absolute;
+      z-index: 30;
+      width: 236px;
+      bottom: calc(100% + 8px);
+      right: -6px;
+      padding: 10px 12px;
+      background: #1a1526;
+      border: 1px solid rgba(251,191,36,0.28);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 0.75rem;
+      font-weight: 400;
+      line-height: 1.45;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+      text-align: left;
+      text-transform: none;
+      letter-spacing: 0;
+      white-space: normal;
+    }
+
+    .help-bubble::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      right: 10px;
+      border: 6px solid transparent;
+      border-top-color: #1a1526;
+    }
+
+    .help-wrap.start .help-bubble {
+      right: auto;
+      left: -6px;
+    }
+
+    .help-wrap.start .help-bubble::after {
+      right: auto;
+      left: 10px;
+    }
+
+    .help-wrap:hover .help-bubble,
+    .help-wrap.open .help-bubble,
+    .help-wrap:focus-within .help-bubble {
+      display: block;
     }
 
     .qty-stepper {
@@ -876,8 +946,8 @@
     const orderBumpsEl = document.getElementById('orderBumps');
     let currentData = null;
     let selectedPrize = null;
-    let selectedBumps = new Set();
     const extraQtyByPrize = {};
+    let bumpQtyById = {};
 
     const ORDER_BUMPS = [
       {
@@ -900,6 +970,15 @@
       return String(s ?? '').replace(/[&<>"']/g, (c) => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
       })[c]);
+    }
+
+    const EXTRA_PRICE_HINT = 'O prêmio da sua conta já sai com desconto. Unidades extras cobramos só o custo de produção — a Leona não lucra nelas.';
+
+    function extraPriceHintHtml(align = '') {
+      return `<span class="help-wrap${align ? ` ${align}` : ''}">
+        <button type="button" class="help-tip" aria-label="Por que esse preço?">?</button>
+        <span class="help-bubble" role="tooltip">${esc(EXTRA_PRICE_HINT)}</span>
+      </span>`;
     }
 
     function calcSegmentProgress(revenue, next) {
@@ -1033,7 +1112,7 @@
               <div class="qty-bump">
                 <div class="qty-bump-label">Order bump</div>
                 <div class="qty-row">
-                  <div class="qty-copy">Unidades extras<br><strong>${esc(extraLabel)}</strong> cada</div>
+                  <div class="qty-copy">Unidades extras<br><strong>${esc(extraLabel)}</strong> cada${extraPriceHintHtml()}</div>
                   <div class="qty-stepper">
                     <button type="button" data-qty="-1" data-prize="${esc(prize.id)}" ${qty <= 0 || !canResgate ? 'disabled' : ''}>−</button>
                     <span>${qty}</span>
@@ -1051,34 +1130,45 @@
       return Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     }
 
+    function bumpQty(id) {
+      return bumpQtyById[id] || 0;
+    }
+
     function renderOrderBumps() {
+      if (!selectedPrize) return;
       const qty = extraQty(selectedPrize.id);
       const extraLabel = formatBrl((selectedPrize.extraUnitCents || 0) / 100);
       orderBumpsEl.innerHTML = `
         <div class="order-bumps-title">Adicionar ao pedido</div>
-        <div class="bump-item" style="grid-template-columns: 52px 1fr auto; cursor: default;">
+        <div class="bump-item">
           <img src="${esc(selectedPrize.image || '')}" alt="${esc(selectedPrize.title)}" loading="lazy">
           <div class="bump-copy">
             <strong>Unidades extras</strong>
-            <span>Mesmo item · ${esc(extraLabel)} cada</span>
+            <span>Mesmo item · ${esc(extraLabel)} cada${extraPriceHintHtml('start')}</span>
           </div>
           <div class="qty-stepper">
             <button type="button" id="checkoutExtraMinus" ${qty <= 0 ? 'disabled' : ''}>−</button>
-            <span id="checkoutExtraQty">${qty}</span>
+            <span>${qty}</span>
             <button type="button" id="checkoutExtraPlus">+</button>
           </div>
         </div>
-        ${ORDER_BUMPS.map((bump) => `
-          <label class="bump-item">
-            <input type="checkbox" name="bump_${esc(bump.id)}" value="${esc(bump.id)}" ${selectedBumps.has(bump.id) ? 'checked' : ''}>
-            <img src="${esc(bump.image)}" alt="${esc(bump.title)}" loading="lazy">
-            <div class="bump-copy">
-              <strong>${esc(bump.title)}</strong>
-              <span>${esc(bump.subtitle)}</span>
+        ${ORDER_BUMPS.map((bump) => {
+          const q = bumpQty(bump.id);
+          return `
+            <div class="bump-item ${q > 0 ? 'active' : ''}">
+              <img src="${esc(bump.image)}" alt="${esc(bump.title)}" loading="lazy">
+              <div class="bump-copy">
+                <strong>${esc(bump.title)}</strong>
+                <span>${esc(bump.subtitle)} · ${esc(formatBrl(bump.priceCents / 100))} cada</span>
+              </div>
+              <div class="qty-stepper">
+                <button type="button" data-bump="${esc(bump.id)}" data-delta="-1" ${q <= 0 ? 'disabled' : ''}>−</button>
+                <span>${q}</span>
+                <button type="button" data-bump="${esc(bump.id)}" data-delta="1">+</button>
+              </div>
             </div>
-            <div class="bump-price">+ ${esc(formatBrl(bump.priceCents / 100))}</div>
-          </label>
-        `).join('')}
+          `;
+        }).join('')}
       `;
 
       const syncExtra = (delta) => {
@@ -1089,10 +1179,12 @@
       document.getElementById('checkoutExtraMinus')?.addEventListener('click', () => syncExtra(-1));
       document.getElementById('checkoutExtraPlus')?.addEventListener('click', () => syncExtra(1));
 
-      orderBumpsEl.querySelectorAll('input[type="checkbox"]').forEach((input) => {
-        input.addEventListener('change', () => {
-          if (input.checked) selectedBumps.add(input.value);
-          else selectedBumps.delete(input.value);
+      orderBumpsEl.querySelectorAll('[data-bump]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.bump;
+          const delta = Number(btn.dataset.delta);
+          bumpQtyById[id] = Math.max(0, bumpQty(id) + delta);
+          renderOrderBumps();
           updateCheckoutSummary();
         });
       });
@@ -1107,7 +1199,7 @@
       let total = selectedPrize.priceCents || 0;
       total += extraUnitsCents(selectedPrize);
       for (const bump of ORDER_BUMPS) {
-        if (selectedBumps.has(bump.id)) total += bump.priceCents;
+        total += bumpQty(bump.id) * bump.priceCents;
       }
       return total;
     }
@@ -1121,8 +1213,8 @@
         : '';
 
       const bumpRows = ORDER_BUMPS
-        .filter((b) => selectedBumps.has(b.id))
-        .map((b) => `<div class="row bump"><span>${esc(b.title)}</span><span>+ ${esc(formatBrl(b.priceCents / 100))}</span></div>`)
+        .filter((b) => bumpQty(b.id) > 0)
+        .map((b) => `<div class="row bump"><span>${esc(b.title)} × ${bumpQty(b.id)}</span><span>+ ${esc(formatBrl((bumpQty(b.id) * b.priceCents) / 100))}</span></div>`)
         .join('');
 
       checkoutSummary.innerHTML = `
@@ -1140,7 +1232,7 @@
       selectedPrize = currentData.prizes.find(p => p.id === prizeId);
       if (!selectedPrize || selectedPrize.status !== 'available') return;
 
-      selectedBumps = new Set();
+      bumpQtyById = {};
       checkoutTitle.textContent = selectedPrize.title;
       renderOrderBumps();
       updateCheckoutSummary();
@@ -1156,18 +1248,32 @@
       overlay.classList.remove('open');
       overlay.setAttribute('aria-hidden', 'true');
       selectedPrize = null;
-      selectedBumps = new Set();
+      bumpQtyById = {};
       orderBumpsEl.innerHTML = '';
     }
 
     document.getElementById('closeCheckout').addEventListener('click', closeCheckout);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) closeCheckout(); });
 
+    document.addEventListener('click', (e) => {
+      const tip = e.target.closest('.help-tip');
+      if (tip) {
+        e.preventDefault();
+        e.stopPropagation();
+        const wrap = tip.closest('.help-wrap');
+        const wasOpen = wrap.classList.contains('open');
+        document.querySelectorAll('.help-wrap.open').forEach((w) => w.classList.remove('open'));
+        if (!wasOpen) wrap.classList.add('open');
+        return;
+      }
+      document.querySelectorAll('.help-wrap.open').forEach((w) => w.classList.remove('open'));
+    });
+
     checkoutForm.addEventListener('submit', (e) => {
       e.preventDefault();
       const extras = extraQty(selectedPrize?.id);
       const extrasLabel = extras ? `\nUnidades extras: ${extras}` : '';
-      const merch = ORDER_BUMPS.filter((b) => selectedBumps.has(b.id)).map((b) => b.title);
+      const merch = ORDER_BUMPS.filter((b) => bumpQty(b.id) > 0).map((b) => `${b.title} × ${bumpQty(b.id)}`);
       const merchLabel = merch.length ? `\nExtras: ${merch.join(', ')}` : '';
       const total = formatBrl(calcCheckoutTotalCents() / 100);
       alert(`Checkout preparado para "${selectedPrize?.title}" (${total}).${extrasLabel}${merchLabel}\nIntegração de pagamento entra na próxima etapa.`);
