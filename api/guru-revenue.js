@@ -1,5 +1,5 @@
 /**
- * api/guru-revenue.js — Faturamento consolidado (Guru + Paddle) da tela /guru.
+ * api/guru-revenue.js — Faturamento consolidado (Guru + Paddle + Pagou) da tela /guru.
  *
  * Body JSON:
  *   {

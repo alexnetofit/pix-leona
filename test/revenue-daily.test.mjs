@@ -47,12 +47,19 @@ test('summarizeRange soma plataformas e converte centavos em reais', () => {
       refund_net_cents: 18_000,
       refund_count: 1
     }),
-    row('2026-08-02', 'paddle')
+    row('2026-08-02', 'paddle'),
+    row('2026-08-01', 'pagou', {
+      gross_cents: 2_449,
+      net_cents: 2_288,
+      sales_count: 1,
+      transactions_scanned: 12_700
+    })
   ];
 
   const summary = summarizeRange('2026-08-01', '2026-08-02', rows, {
     guru: { count: 40, recurring: null, prepaid: null },
-    paddle: { count: 12, recurring: 9, prepaid: 3 }
+    paddle: { count: 12, recurring: 9, prepaid: 3 },
+    pagou: { count: 2, recurring: 0, prepaid: 2 }
   });
 
   assert.deepEqual(summary.approved, { gross: 641, net: 582, count: 4 });
@@ -63,8 +70,10 @@ test('summarizeRange soma plataformas e converte centavos em reais', () => {
   ]);
   assert.deepEqual(summary.platforms.guru.approved, { gross: 591, net: 540, count: 3 });
   assert.deepEqual(summary.platforms.paddle.approved, { gross: 50, net: 42, count: 1 });
-  assert.equal(summary.active_subscribers.count, 52);
+  assert.equal(summary.active_subscribers.count, 54);
   assert.equal(summary.platforms.paddle.active_subscribers.recurring, 9);
+  assert.equal(summary.platforms.pagou.currency, 'USD');
+  assert.deepEqual(summary.platforms.pagou.approved, { gross: 24.49, net: 22.88, count: 1, brl: 127 });
   assert.equal(summary.days_missing, 0);
 });
 
@@ -93,14 +102,17 @@ test('findDaysToSync cobre dia sem registro, plataforma faltando e dia recente v
     // Dia antigo completo: nunca precisa voltar pra fonte.
     row('2026-08-01', 'guru'),
     row('2026-08-01', 'paddle'),
+    row('2026-08-01', 'pagou'),
     // Dia antigo com uma plataforma faltando.
     row('2026-08-02', 'guru'),
     // Ontem, sincronizado há muito tempo.
     row('2026-08-03', 'guru', { synced_at: old }),
     row('2026-08-03', 'paddle', { synced_at: old }),
+    row('2026-08-03', 'pagou', { synced_at: old }),
     // Hoje, recém sincronizado.
     row(today, 'guru', { synced_at: fresh }),
-    row(today, 'paddle', { synced_at: fresh })
+    row(today, 'paddle', { synced_at: fresh }),
+    row(today, 'pagou', { synced_at: fresh })
   ];
 
   assert.deepEqual(
@@ -114,7 +126,8 @@ test('findDaysToSync considera hoje vencido quando o snapshot envelhece', () => 
   const stale = new Date(Date.now() - 20 * 60 * 1000).toISOString();
   const rows = [
     row(today, 'guru', { synced_at: stale }),
-    row(today, 'paddle', { synced_at: stale })
+    row(today, 'paddle', { synced_at: stale }),
+    row(today, 'pagou', { synced_at: stale })
   ];
 
   assert.deepEqual(findDaysToSync([today], rows, { today }), [today]);

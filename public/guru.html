@@ -216,7 +216,7 @@
 
         .platform-grid {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 14px;
             margin-top: 16px;
         }
@@ -230,6 +230,7 @@
         }
         .platform-card.guru-platform { border-color: rgba(139, 92, 246, 0.32); }
         .platform-card.paddle-platform { border-color: rgba(56, 189, 248, 0.32); }
+        .platform-card.pagou-platform { border-color: rgba(16, 185, 129, 0.32); }
         .platform-card h3 {
             display: flex;
             justify-content: space-between;
@@ -260,6 +261,14 @@
         .paddle-platform .platform-badge {
             color: var(--blue);
             background: var(--blue-soft);
+        }
+        .pagou-platform .platform-logo {
+            color: var(--green);
+            background: var(--green-soft);
+        }
+        .pagou-platform .platform-badge {
+            color: var(--green);
+            background: var(--green-soft);
         }
         .platform-badge {
             padding: 3px 8px;
@@ -299,6 +308,9 @@
             margin-top: 12px;
             padding-top: 12px;
             border-top: 1px solid var(--border);
+        }
+        @media (max-width: 980px) {
+            .platform-grid { grid-template-columns: 1fr; }
         }
         @media (max-width: 760px) {
             .platform-grid { grid-template-columns: 1fr; }
@@ -718,11 +730,12 @@
         .mini-delta.up { color: #067647; background: #e5f7f1; }
         .mini-delta.down { color: #d92d20; background: #feecea; }
 
-        /* Barra de participação Guru vs Paddle */
+        /* Barra de participação Guru vs Paddle vs Pagou */
         .share-card { margin-bottom: 16px; }
         .share-legend {
             display: flex;
             justify-content: space-between;
+            flex-wrap: wrap;
             gap: 12px;
             margin-bottom: 11px;
             color: var(--text-secondary);
@@ -739,6 +752,7 @@
             background: var(--accent);
         }
         .share-dot.paddle { background: var(--blue); }
+        .share-dot.pagou { background: var(--green); }
         .share-bar {
             display: flex;
             height: 13px;
@@ -749,6 +763,7 @@
         .share-seg { transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
         .share-seg.guru { background: linear-gradient(90deg, #7c6cf5, #5b4ce1); }
         .share-seg.paddle { background: linear-gradient(90deg, #3f92ff, #1877f2); }
+        .share-seg.pagou { background: linear-gradient(90deg, #12b886, #0d8a64); }
         .platform-grid { gap: 16px; }
         .platform-card {
             padding: 24px;
@@ -769,6 +784,13 @@
             background:
                 radial-gradient(circle at 90% 0%, rgba(112, 195, 255, 0.4), transparent 15rem),
                 linear-gradient(145deg, #0758c7, #12418f);
+        }
+        .platform-card.pagou-platform {
+            color: #fff;
+            border: 0;
+            background:
+                radial-gradient(circle at 90% 0%, rgba(72, 220, 170, 0.38), transparent 15rem),
+                linear-gradient(145deg, #0b3d2e, #146c4d);
         }
         .platform-card h3 { color: #fff; font-size: 1rem; }
         .platform-logo {
@@ -866,7 +888,7 @@
                 <div>
                     <div class="header-kicker">Leona Finance</div>
                     <h1 class="title">Receita & Assinaturas</h1>
-                    <p class="subtitle">Visão unificada de Guru, Paddle, cartão e PIX. · <a href="/guru/logs" style="color:#38bdf8;text-decoration:none;">Logs /assinatura</a></p>
+                    <p class="subtitle">Visão unificada de Guru, Paddle e Pagou. · <a href="/guru/logs" style="color:#38bdf8;text-decoration:none;">Logs /assinatura</a></p>
                 </div>
             </div>
             <div class="header-status"><span class="live-dot"></span> Dados conectados</div>
@@ -950,7 +972,7 @@
                 <div class="mini-card orange">
                     <div class="mini-head"><span class="mini-label">Assinantes ativos</span><span class="mini-icon">●</span></div>
                     <div class="mini-value" id="activeSubsValue">—</div>
-                    <div class="mini-foot"><span class="mini-sub">Guru + Paddle</span></div>
+                    <div class="mini-foot"><span class="mini-sub">Guru + Paddle + Pagou</span></div>
                 </div>
                 <div class="mini-card">
                     <div class="mini-head"><span class="mini-label">Vendas</span><span class="mini-icon">↗</span></div>
@@ -977,10 +999,12 @@
                 <div class="share-legend">
                     <span><span class="share-dot"></span>Guru <b id="shareGuruPct">—</b> · <span id="shareGuruVal"></span></span>
                     <span><span class="share-dot paddle"></span>Paddle <b id="sharePaddlePct">—</b> · <span id="sharePaddleVal"></span></span>
+                    <span><span class="share-dot pagou"></span>Pagou <b id="sharePagouPct">—</b> · <span id="sharePagouVal"></span></span>
                 </div>
                 <div class="share-bar">
-                    <div class="share-seg guru" id="shareGuruSeg" style="width: 50%"></div>
-                    <div class="share-seg paddle" id="sharePaddleSeg" style="width: 50%"></div>
+                    <div class="share-seg guru" id="shareGuruSeg" style="width: 40%"></div>
+                    <div class="share-seg paddle" id="sharePaddleSeg" style="width: 40%"></div>
+                    <div class="share-seg pagou" id="sharePagouSeg" style="width: 20%"></div>
                 </div>
             </div>
             <div class="platform-grid">
@@ -1026,6 +1050,28 @@
                         </div>
                     </div>
                     <div class="platform-note" id="paddleNote">—</div>
+                </div>
+
+                <div class="platform-card pagou-platform">
+                    <h3>
+                        <span class="platform-title"><span class="platform-logo">$</span> Pagou</span>
+                        <span class="platform-badge">USD</span>
+                    </h3>
+                    <div class="platform-metrics">
+                        <div class="platform-metric">
+                            <div class="label">Bruto</div>
+                            <div class="value" id="pagouGross">—</div>
+                        </div>
+                        <div class="platform-metric">
+                            <div class="label">Líquido</div>
+                            <div class="value" id="pagouNet">—</div>
+                        </div>
+                        <div class="platform-metric">
+                            <div class="label">Assinantes</div>
+                            <div class="value" id="pagouSubscribers">—</div>
+                        </div>
+                    </div>
+                    <div class="platform-note" id="pagouNote">—</div>
                 </div>
             </div>
 
@@ -1275,6 +1321,13 @@
             }).format(Number(v) || 0).replace(/\s/g, '\u00a0');
         }
 
+        function formatUSD(v) {
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'USD'
+            }).format(Number(v) || 0).replace(/\s/g, '\u00a0');
+        }
+
         function showError(msg) {
             const box = document.getElementById('message');
             box.innerHTML = `<div class="alert alert-error">${msg}</div>`;
@@ -1519,9 +1572,12 @@
             const ref = body.refunded || {};
             const guru = body.platforms?.guru || {};
             const paddle = body.platforms?.paddle || {};
+            const pagou = body.platforms?.pagou || {};
             const guruApproved = guru.approved || {};
             const paddleApproved = paddle.approved || {};
+            const pagouApproved = pagou.approved || {};
             const paddleSubscribers = paddle.active_subscribers || {};
+            const pagouSubscribers = pagou.active_subscribers || {};
             const rangeKey = `${body.range.start}:${body.range.end}`;
             const rangeChanged = lastRendered?.key !== rangeKey;
             lastRendered = { key: rangeKey, body };
@@ -1546,15 +1602,22 @@
 
             const guruGrossV = Number(guruApproved.gross) || 0;
             const paddleGrossV = Number(paddleApproved.gross) || 0;
-            const totalGross = guruGrossV + paddleGrossV;
-            const guruPct = totalGross > 0 ? (guruGrossV / totalGross * 100) : 50;
+            const pagouGrossUsd = Number(pagouApproved.gross) || 0;
+            const pagouGrossBrl = Number(pagouApproved.brl) || 0;
+            const totalGross = guruGrossV + paddleGrossV + pagouGrossBrl;
+            const guruPct = totalGross > 0 ? (guruGrossV / totalGross * 100) : 40;
+            const paddlePct = totalGross > 0 ? (paddleGrossV / totalGross * 100) : 40;
+            const pagouPct = totalGross > 0 ? (pagouGrossBrl / totalGross * 100) : 20;
             const fmtPct = p => p > 0 && p < 1 ? '<1%' : p > 99 && p < 100 ? '>99%' : `${Math.round(p)}%`;
             document.getElementById('shareGuruSeg').style.width = `${guruPct.toFixed(2)}%`;
-            document.getElementById('sharePaddleSeg').style.width = `${(100 - guruPct).toFixed(2)}%`;
+            document.getElementById('sharePaddleSeg').style.width = `${paddlePct.toFixed(2)}%`;
+            document.getElementById('sharePagouSeg').style.width = `${pagouPct.toFixed(2)}%`;
             document.getElementById('shareGuruPct').textContent = fmtPct(guruPct);
-            document.getElementById('sharePaddlePct').textContent = fmtPct(100 - guruPct);
+            document.getElementById('sharePaddlePct').textContent = fmtPct(paddlePct);
+            document.getElementById('sharePagouPct').textContent = fmtPct(pagouPct);
             document.getElementById('shareGuruVal').textContent = formatBRL(guruGrossV);
             document.getElementById('sharePaddleVal').textContent = formatBRL(paddleGrossV);
+            document.getElementById('sharePagouVal').textContent = formatUSD(pagouGrossUsd);
 
             renderSparkline(body.daily);
 
@@ -1572,6 +1635,14 @@
             document.getElementById('paddleNote').textContent =
                 `${paddleApproved.count || 0} venda(s) · ${paddleSubscribers.recurring || 0} recorrente(s) · ` +
                 `${paddleSubscribers.pix_prepaid || 0} PIX ativo(s) em ${paddleSubscribers.pix_active_window_days || 32} dias`;
+
+            document.getElementById('pagouGross').textContent = formatUSD(pagouApproved.gross);
+            document.getElementById('pagouNet').textContent = formatUSD(pagouApproved.net);
+            document.getElementById('pagouSubscribers').textContent =
+                String(pagouSubscribers.count ?? '—');
+            document.getElementById('pagouNote').textContent =
+                `${pagouApproved.count || 0} venda(s) · ${pagouSubscribers.recurring || 0} recorrente(s) · ` +
+                `${pagouSubscribers.prepaid || 0} pagante(s) em 32 dias`;
 
             document.getElementById('approvedCount').textContent = String(a.count || 0);
             document.getElementById('refundedCount').textContent = String(ref.count || 0);
