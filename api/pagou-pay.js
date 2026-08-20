@@ -145,6 +145,10 @@ export default async function handler(req, res) {
   if (payMethod === 'credit_card') {
     payload.token = token;
     payload.installments = Math.min(12, Math.max(1, Number(installments) || 1));
+    const ip = String(req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || '')
+      .split(',')[0]
+      .trim();
+    if (ip) payload.ip_address = ip;
   }
 
   const created = await createPagouTransaction(payload);

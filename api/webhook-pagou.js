@@ -53,13 +53,17 @@ function extractRef(payload, extra = {}) {
     extra.correlation_id,
     extra.description,
     pick(payload, 'data.correlation_id', 'data.external_ref', 'data.title', 'correlation_id', 'external_ref'),
-    extra.products?.[0]?.external_id
+    extra.products?.[0]?.external_id,
+    extra.products?.[0]?.title,
+    extra.products?.[0]?.name
   ];
   for (const c of candidates) {
     const parsed = parseLeonaRef(c);
     if (parsed) return parsed;
     const qtyOnly = String(c || '').match(/^leona-starter-(\d+)$/i);
     if (qtyOnly) return { accountId: null, qty: Number(qtyOnly[1]) };
+    const planQty = String(c || '').match(/(\d+)\s*conex/i);
+    if (planQty) return { accountId: null, qty: Number(planQty[1]) };
   }
   return null;
 }
@@ -83,19 +87,21 @@ async function rememberEvent(eventId, accountId, action, details) {
   }
 }
 
-async function resolveIntent({ accountId, email, qty, amountCents }) {
+async function resolveIntent({ accountId, email, qty, amountCents, checkoutUrl }) {
   if (!sbConfigured()) return null;
   try {
     const rows = await sbSelect('pagou_checkout_intents', {
       eq: { status: 'pending' },
       order: 'created_at.desc',
-      limit: 20
+      limit: 40
     });
     return rows.find((row) => {
+      if (checkoutUrl && row.checkout_url && String(row.checkout_url) === String(checkoutUrl)) return true;
       if (accountId && row.account_id === String(accountId)) return true;
       if (email && row.email && String(row.email).toLowerCase() === String(email).toLowerCase()) {
         if (qty && Number(row.qty) === Number(qty)) return true;
         if (amountCents && Number(row.amount_cents) === Number(amountCents)) return true;
+        return true;
       }
       return false;
     }) || null;
@@ -158,13 +164,14 @@ export default async function handler(req, res) {
   }
 
   const email = extra.buyer?.email || extra.customer_email || extra.customer?.email || payload?.data?.customer_email || null;
-  const amountCents = extra.payment?.amount || extra.amount || extra.base_price || null;
+  const amountCents = extra.paid_amount || extra.payment?.amount || extra.amount || extra.base_price || null;
   const ref = extractRef(payload, extra);
   const intent = await resolveIntent({
     accountId: ref?.accountId,
     email,
     qty: ref?.qty,
-    amountCents
+    amountCents,
+    checkoutUrl: extra.attribution?.checkout_url || extra.checkout_url || null
   });
 
   const accountId = ref?.accountId || intent?.account_id || null;
