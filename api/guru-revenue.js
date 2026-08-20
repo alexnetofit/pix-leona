@@ -25,12 +25,12 @@
 import { applyCors } from '../lib/auth.js';
 import {
   collectRevenueDays,
-  findDaysToSync,
+  findSyncPlan,
   readRevenueRows,
   readSubscriberSnapshot,
   revenueCacheEnabled,
   summarizeRange,
-  syncRevenueDays
+  syncRevenuePlan
 } from '../lib/revenue-daily.js';
 import { brtToday, daysBetween, isValidDay, shiftDays } from '../lib/revenue-source.js';
 
@@ -129,11 +129,11 @@ async function servedFromCache({ start, end, compareStart, compareEnd, force, gu
     readSubscriberSnapshot()
   ]);
 
-  const pending = findDaysToSync(readDays, rows);
-  const synced = selectDaysToSyncInline(pending, force);
+  const pending = findSyncPlan(readDays, rows);
+  const synced = selectPlanToSyncInline(pending, force);
 
-  if (synced.length) {
-    await syncRevenueDays(synced, { guruToken });
+  if (planHasDays(synced)) {
+    await syncRevenuePlan(synced, { guruToken });
     [rows, snapshot] = await Promise.all([
       readRevenueRows(readStart, readEnd),
       readSubscriberSnapshot()
@@ -147,7 +147,7 @@ async function servedFromCache({ start, end, compareStart, compareEnd, force, gu
     ? summarizeRange(compareStart, compareEnd, rows, null)
     : null;
 
-  const outdated = pending.length - synced.length;
+  const outdated = countPlanDays(pending) - countPlanDays(synced);
   const missing = current.days_missing + (previous?.days_missing || 0);
   return {
     ...current,
@@ -155,7 +155,7 @@ async function servedFromCache({ start, end, compareStart, compareEnd, force, gu
     fetch_ms: Date.now() - startedAt,
     cache: {
       status: missing > 0 ? 'partial' : 'cached',
-      days_synced_now: synced.length,
+      days_synced_now: countPlanDays(synced),
       days_outdated: outdated > 0 ? outdated : 0,
       age_seconds: snapshotAgeSeconds(snapshot)
     }
@@ -163,14 +163,30 @@ async function servedFromCache({ start, end, compareStart, compareEnd, force, gu
 }
 
 /**
- * Sem `force`, apenas os dias recentes entram na coleta ao vivo. Com `force`
- * (botao de atualizar) vale refazer o intervalo inteiro, respeitando o teto.
+ * Guru e cara: sem `force` so os 2 dias recentes. Pagou e barata, entao
+ * preenche o intervalo inteiro (teto de MAX_LIVE_DAYS) sem reconsultar Guru.
  */
+function selectPlanToSyncInline(pending, force) {
+  return {
+    guru: selectDaysToSyncInline(pending.guru, force),
+    paddle: selectDaysToSyncInline(pending.paddle, force),
+    pagou: (pending.pagou || []).slice(-MAX_LIVE_DAYS)
+  };
+}
+
 function selectDaysToSyncInline(pending, force) {
-  if (!pending.length) return [];
+  if (!pending?.length) return [];
   if (force) return pending.slice(-MAX_LIVE_DAYS);
   const recentCutoff = shiftDays(brtToday(), -MAX_INLINE_SYNC_DAYS + 1);
   return pending.filter(day => day >= recentCutoff).slice(-MAX_INLINE_SYNC_DAYS);
+}
+
+function planHasDays(plan) {
+  return Boolean(plan.guru?.length || plan.paddle?.length || plan.pagou?.length);
+}
+
+function countPlanDays(plan) {
+  return new Set([...(plan.guru || []), ...(plan.paddle || []), ...(plan.pagou || [])]).size;
 }
 
 function snapshotAgeSeconds(snapshot) {

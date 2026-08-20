@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { findDaysToSync, summarizeRange } from '../lib/revenue-daily.js';
+import { findDaysToSync, findSyncPlan, summarizeRange } from '../lib/revenue-daily.js';
 import { daysBetween, shiftDays } from '../lib/revenue-source.js';
 
 function row(day, platform, overrides = {}) {
@@ -131,4 +131,25 @@ test('findDaysToSync considera hoje vencido quando o snapshot envelhece', () => 
   ];
 
   assert.deepEqual(findDaysToSync([today], rows, { today }), [today]);
+});
+
+test('findSyncPlan nao manda Guru de volta so porque falta Pagou', () => {
+  const today = '2026-08-04';
+  const fresh = new Date().toISOString();
+  const days = daysBetween('2026-08-01', today);
+  const rows = [
+    row('2026-08-01', 'guru'),
+    row('2026-08-01', 'paddle'),
+    row('2026-08-02', 'guru'),
+    row('2026-08-02', 'paddle'),
+    row('2026-08-03', 'guru', { synced_at: fresh }),
+    row('2026-08-03', 'paddle', { synced_at: fresh }),
+    row(today, 'guru', { synced_at: fresh }),
+    row(today, 'paddle', { synced_at: fresh })
+  ];
+
+  const plan = findSyncPlan(days, rows, { today });
+  assert.deepEqual(plan.guru, []);
+  assert.deepEqual(plan.paddle, []);
+  assert.deepEqual(plan.pagou, days);
 });
