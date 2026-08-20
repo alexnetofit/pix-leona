@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pagar — Leona Flow</title>
+    <link rel="icon" type="image/png" href="/logo-leona.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+    <style>
+        :root {
+            --purple-0: #2a1454;
+            --purple-1: #4c1d95;
+            --purple-2: #6d28d9;
+            --accent: #8b5cf6;
+            --accent-2: #a78bfa;
+            --text: #f5f3ff;
+            --muted: #d4c8f0;
+            --card: #ffffff;
+            --ink: #1e1233;
+            --ink-2: #5b4d72;
+            --line: #e8e0f4;
+            --error: #dc2626;
+            --ok: #059669;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { min-height: 100%; }
+        body {
+            font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--ink);
+            background:
+                radial-gradient(ellipse 900px 520px at 50% -8%, rgba(196, 181, 253, 0.28), transparent 58%),
+                radial-gradient(ellipse 700px 480px at 100% 100%, rgba(109, 40, 217, 0.45), transparent 55%),
+                linear-gradient(165deg, #3b1769 0%, #5b21b6 42%, #6d28d9 72%, #4c1d95 100%);
+            background-attachment: fixed;
+            -webkit-font-smoothing: antialiased;
+        }
+        .wrap {
+            width: min(520px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 36px 0 48px;
+        }
+        .brand {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+        .brand img {
+            height: 72px;
+            width: auto;
+            filter: drop-shadow(0 10px 28px rgba(0, 0, 0, 0.28));
+        }
+        .brand p {
+            margin-top: 12px;
+            color: var(--muted);
+            font-size: 0.86rem;
+            font-weight: 500;
+            letter-spacing: 0.04em;
+        }
+        .card {
+            background: var(--card);
+            border-radius: 24px;
+            padding: 28px 26px 24px;
+            box-shadow: 0 30px 70px -28px rgba(24, 8, 56, 0.55);
+        }
+        .product {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding-bottom: 18px;
+            margin-bottom: 18px;
+            border-bottom: 1px solid var(--line);
+        }
+        .product img {
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+        }
+        .product h1 {
+            font-size: 1.02rem;
+            letter-spacing: -0.02em;
+        }
+        .product span { color: var(--ink-2); font-size: 0.82rem; }
+        .price {
+            margin-left: auto;
+            text-align: right;
+            font-weight: 800;
+            font-size: 1.2rem;
+            color: var(--purple-1);
+            white-space: nowrap;
+        }
+        label {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--ink-2);
+            margin: 12px 0 6px;
+        }
+        input, select {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 12px 13px;
+            font: inherit;
+            color: var(--ink);
+            background: #fff;
+            outline: none;
+        }
+        input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.14); }
+        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .methods {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin: 18px 0 14px;
+        }
+        .methods button {
+            border: 1.5px solid var(--line);
+            background: #fff;
+            border-radius: 12px;
+            padding: 12px 10px;
+            font-weight: 700;
+            cursor: pointer;
+            color: var(--ink-2);
+        }
+        .methods button.active {
+            border-color: var(--accent);
+            color: var(--purple-1);
+            background: #f5f0ff;
+        }
+        .pay {
+            width: 100%;
+            margin-top: 16px;
+            border: 0;
+            border-radius: 14px;
+            padding: 14px 16px;
+            font-weight: 800;
+            font-size: 1rem;
+            color: #fff;
+            cursor: pointer;
+            background: linear-gradient(135deg, #7c3aed, #8b5cf6 55%, #6d28d9);
+        }
+        .pay:disabled { opacity: 0.55; cursor: default; }
+        .err {
+            display: none;
+            margin-top: 12px;
+            background: #fef2f2;
+            color: var(--error);
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-size: 0.86rem;
+        }
+        .pix-box, .ok-box { display: none; text-align: center; }
+        .pix-box img {
+            width: 220px;
+            height: 220px;
+            border-radius: 16px;
+            border: 1px solid var(--line);
+            margin: 8px 0 14px;
+        }
+        .copy {
+            width: 100%;
+            border: 1px dashed #c4b5fd;
+            background: #f5f3ff;
+            border-radius: 12px;
+            padding: 12px;
+            font-size: 0.78rem;
+            word-break: break-all;
+            cursor: pointer;
+            color: var(--purple-1);
+        }
+        .ok-box { color: var(--ok); }
+        .ok-box h2 { margin: 8px 0 6px; }
+        #card-element {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 12px;
+            min-height: 48px;
+        }
+        .hint { color: var(--ink-2); font-size: 0.78rem; margin-top: 10px; text-align: center; }
+        a { color: var(--purple-2); }
+        @media (max-width: 520px) {
+            .brand img { height: 56px; }
+            .card { padding: 22px 18px; }
+            .row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <div class="brand">
+            <img src="/logo-leona-branca.png" alt="Leona">
+            <p>Pagamento seguro · Leona Flow</p>
+        </div>
+
+        <div class="card" id="formCard">
+            <div class="product">
+                <img src="/leona-finance-192.png" alt="">
+                <div>
+                    <h1 id="offerName">Leona Flow</h1>
+                    <span id="offerQty">1 conexão · mensal</span>
+                </div>
+                <div class="price" id="offerPrice">—</div>
+            </div>
+
+            <label>E-mail</label>
+            <input id="email" type="email" autocomplete="email" readonly>
+
+            <label>Nome completo</label>
+            <input id="name" type="text" autocomplete="name" placeholder="Como no documento">
+
+            <div class="row">
+                <div>
+                    <label>CPF / CNPJ</label>
+                    <input id="document" type="text" inputmode="numeric" placeholder="000.000.000-00">
+                </div>
+                <div>
+                    <label>Celular</label>
+                    <input id="phone" type="tel" placeholder="(12) 99999-9999">
+                </div>
+            </div>
+            <label>CEP</label>
+            <input id="cep" type="text" inputmode="numeric" placeholder="00000-000" maxlength="9">
+
+            <div class="methods">
+                <button type="button" id="tabPix" class="active" onclick="setMethod('pix')">PIX</button>
+                <button type="button" id="tabCard" onclick="setMethod('card')">Cartão</button>
+            </div>
+
+            <div id="cardFields" style="display:none;">
+                <label>Cartão</label>
+                <div id="card-element"></div>
+                <label>Parcelas</label>
+                <select id="installments">
+                    <option value="1">À vista</option>
+                </select>
+            </div>
+
+            <button class="pay" id="payBtn" type="button" onclick="submitPay()">Pagar agora</button>
+            <div class="err" id="err"></div>
+            <p class="hint">PIX libera na hora. Cartão pode pedir confirmação do banco.</p>
+        </div>
+
+        <div class="card pix-box" id="pixCard">
+            <h2>Pague com PIX</h2>
+            <p class="hint" style="margin-bottom:8px;">Escaneie o QR ou toque no código para copiar.</p>
+            <img id="pixQr" alt="QR Code PIX">
+            <div class="copy" id="pixCopy" onclick="copyPix()"></div>
+            <p class="hint" id="pixWait">Aguardando pagamento...</p>
+        </div>
+
+        <div class="card ok-box" id="okCard">
+            <h2>Pagamento confirmado</h2>
+            <p>Sua Leona já está sendo liberada.</p>
+            <p class="hint" style="margin-top:16px;"><a id="backLink" href="/assinatura">Voltar para a assinatura</a></p>
+        </div>
+    </div>
+
+    <script src="https://js.pagou.ai/payments/v3.js"></script>
+    <script>
+        const params = new URLSearchParams(location.search);
+        const state = {
+            accountId: params.get('account_id') || '',
+            email: params.get('email') || '',
+            qty: Math.max(1, Number(params.get('qty')) || 1),
+            amount: Number(params.get('amount')) || 0,
+            offer: params.get('offer') || '',
+            method: 'pix',
+            elements: null,
+            card: null,
+            cardValid: false,
+            txId: null,
+            pixCode: ''
+        };
+
+        function money(n) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
+        }
+        function showErr(msg) {
+            const el = document.getElementById('err');
+            el.textContent = msg || '';
+            el.style.display = msg ? 'block' : 'none';
+        }
+        function digits(v) { return String(v || '').replace(/\D/g, ''); }
+
+        document.getElementById('email').value = state.email;
+        document.getElementById('offerName').textContent = state.offer || `Leona Flow — ${state.qty} conex${state.qty === 1 ? 'ão' : 'ões'}`;
+        document.getElementById('offerQty').textContent = `${state.qty} conex${state.qty === 1 ? 'ão' : 'ões'} · mensal`;
+        document.getElementById('offerPrice').textContent = state.amount ? money(state.amount) : '—';
+        document.getElementById('backLink').href = `/assinatura?account_id=${encodeURIComponent(state.accountId)}&email=${encodeURIComponent(state.email)}`;
+
+        const inst = document.getElementById('installments');
+        for (let i = 2; i <= 12; i++) {
+            const opt = document.createElement('option');
+            const parcela = state.amount ? money(state.amount / i) : `${i}x`;
+            opt.value = String(i);
+            opt.textContent = state.amount ? `${i}x de ${parcela}` : `${i}x`;
+            inst.appendChild(opt);
+        }
+
+        async function setMethod(method) {
+            state.method = method;
+            document.getElementById('tabPix').classList.toggle('active', method === 'pix');
+            document.getElementById('tabCard').classList.toggle('active', method === 'card');
+            document.getElementById('cardFields').style.display = method === 'card' ? 'block' : 'none';
+            document.getElementById('payBtn').textContent = method === 'pix' ? 'Gerar PIX' : 'Pagar no cartão';
+            if (method === 'card') await ensureCard();
+        }
+
+        async function ensureCard() {
+            if (state.card || !window.Pagou) return;
+            const cfg = await fetch('/api/pagou-config').then((r) => r.json());
+            if (!cfg.public_key) {
+                showErr('Cartão indisponível no momento. Use PIX.');
+                setMethod('pix');
+                return;
+            }
+            state.elements = Pagou.elements({
+                publicKey: cfg.public_key,
+                locale: 'pt-BR',
+                origin: location.origin
+            });
+            state.card = state.elements.create('card', {
+                theme: 'default',
+                style: {
+                    base: {
+                        color: '#1e1233',
+                        fontFamily: 'Inter, system-ui, sans-serif',
+                        fontSize: '16px',
+                        borderRadius: '8px',
+                        backgroundColor: '#ffffff'
+                    },
+                    focus: { borderColor: '#8b5cf6' },
+                    invalid: { color: '#dc2626' }
+                }
+            });
+            state.card.mount('#card-element');
+            state.card.on('change', ({ valid }) => { state.cardValid = !!valid; });
+        }
+
+        const addressState = {
+            zip: '',
+            street: '',
+            number: 's/n',
+            neighborhood: '',
+            city: '',
+            state: ''
+        };
+
+        document.getElementById('cep').addEventListener('blur', async () => {
+            const cep = digits(document.getElementById('cep').value);
+            addressState.zip = cep;
+            if (cep.length !== 8) return;
+            try {
+                const r = await fetch('https://viacep.com.br/ws/' + cep + '/json/');
+                const d = await r.json();
+                if (d.erro) return;
+                addressState.street = d.logradouro || addressState.street;
+                addressState.neighborhood = d.bairro || addressState.neighborhood;
+                addressState.city = d.localidade || addressState.city;
+                addressState.state = d.uf || addressState.state;
+            } catch (_) {}
+        });
+
+        function buyer() {
+            return {
+                name: document.getElementById('name').value.trim(),
+                document: digits(document.getElementById('document').value),
+                phone: digits(document.getElementById('phone').value),
+                zip: digits(document.getElementById('cep').value) || addressState.zip,
+                street: addressState.street,
+                number: addressState.number,
+                neighborhood: addressState.neighborhood,
+                city: addressState.city,
+                state: addressState.state
+            };
+        }
+
+        async function createTx(extra = {}) {
+            const r = await fetch('/api/pagou-pay', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    account_id: state.accountId,
+                    email: state.email,
+                    qty: state.qty,
+                    amount: state.amount,
+                    offer_name: state.offer,
+                    buyer: buyer(),
+                    ...extra
+                })
+            });
+            const data = await r.json();
+            if (!r.ok) throw new Error(data.error || 'Falha ao gerar o pagamento');
+            return data;
+        }
+
+        async function submitPay() {
+            const btn = document.getElementById('payBtn');
+            showErr('');
+            if (!state.accountId || !state.email) {
+                showErr('Abra esta página pelo painel da Leona.');
+                return;
+            }
+            btn.disabled = true;
+            btn.textContent = 'Processando...';
+            try {
+                if (state.method === 'pix') {
+                    const data = await createTx({ method: 'pix' });
+                    showPix(data);
+                    return;
+                }
+                if (!state.elements || !state.cardValid) {
+                    throw new Error('Preencha os dados do cartão');
+                }
+                const result = await state.elements.submit({
+                    createTransaction: async (tokenData) => {
+                        const created = await createTx({
+                            method: 'credit_card',
+                            token: tokenData.token,
+                            installments: Number(document.getElementById('installments').value) || 1
+                        });
+                        state.txId = created.id;
+                        return { id: created.id, status: created.status, next_action: created.next_action };
+                    }
+                });
+                if (result.status === 'error') throw new Error(result.error || 'Cartão recusado');
+                await waitPaid(state.txId);
+            } catch (err) {
+                showErr(err.message + ' Tentando o checkout alternativo...');
+                try {
+                    const r = await fetch('/api/pagou-checkout', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            account_id: state.accountId,
+                            email: state.email,
+                            qty: state.qty,
+                            amount: state.amount,
+                            offer_name: state.offer,
+                            hosted: true
+                        })
+                    });
+                    const data = await r.json();
+                    if (r.ok && data.url) {
+                        location.href = data.url;
+                        return;
+                    }
+                    showErr(err.message);
+                } catch (_) {
+                    showErr(err.message);
+                }
+                btn.disabled = false;
+                btn.textContent = state.method === 'pix' ? 'Gerar PIX' : 'Pagar no cartão';
+            }
+        }
+
+        function showPix(data) {
+            state.txId = data.id;
+            state.pixCode = data.pix?.qr_code || '';
+            document.getElementById('formCard').style.display = 'none';
+            document.getElementById('pixCard').style.display = 'block';
+            document.getElementById('pixCopy').textContent = state.pixCode || 'Código indisponível';
+            if (state.pixCode) {
+                document.getElementById('pixQr').src = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' + encodeURIComponent(state.pixCode);
+            }
+            pollPaid();
+        }
+
+        function copyPix() {
+            if (!state.pixCode) return;
+            navigator.clipboard.writeText(state.pixCode).then(() => {
+                document.getElementById('pixWait').textContent = 'Código copiado. Aguardando pagamento...';
+            });
+        }
+
+        async function waitPaid(id) {
+            for (let i = 0; i < 20; i++) {
+                const paid = await checkPaid(id);
+                if (paid) return showOk();
+                await new Promise((r) => setTimeout(r, 2000));
+            }
+            document.getElementById('pixWait').textContent = 'Pagamento em análise. Você já pode voltar à assinatura.';
+        }
+
+        function pollPaid() {
+            const timer = setInterval(async () => {
+                if (await checkPaid(state.txId)) {
+                    clearInterval(timer);
+                    showOk();
+                }
+            }, 3500);
+        }
+
+        async function checkPaid(id) {
+            if (!id) return false;
+            const q = new URLSearchParams({ id, account_id: state.accountId, email: state.email });
+            const r = await fetch('/api/pagou-pay?' + q.toString());
+            const data = await r.json();
+            return !!(r.ok && data.paid);
+        }
+
+        function showOk() {
+            document.getElementById('formCard').style.display = 'none';
+            document.getElementById('pixCard').style.display = 'none';
+            document.getElementById('okCard').style.display = 'block';
+        }
+    </script>
+</body>
+</html>

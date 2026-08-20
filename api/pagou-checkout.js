@@ -1,6 +1,6 @@
 /**
  * POST /api/pagou-checkout
- * Gera checkout hospedado da Pagou (PIX + cartão) pra /assinatura.
+ * Devolve o checkout Leona (/pagar) pra /assinatura.
  */
 import { applyCors } from '../lib/auth.js';
 import { assertAccountAccess } from '../lib/leona.js';
@@ -17,7 +17,7 @@ export default async function handler(req, res) {
   if (!leonaToken) return res.status(500).json({ error: 'LEONA_BILLING_TOKEN não configurado' });
   if (!pagouConfigured()) return res.status(500).json({ error: 'PAGOU_SECRET_KEY não configurado' });
 
-  const { account_id, email, qty, amount, offer_name } = req.body || {};
+  const { account_id, email, qty, amount, offer_name, hosted } = req.body || {};
   const accountId = account_id != null ? String(account_id).trim() : '';
   const qtyN = Math.max(1, Number(qty) || 0);
   if (!accountId) return res.status(400).json({ error: 'account_id obrigatório' });
@@ -35,35 +35,37 @@ export default async function handler(req, res) {
   const title = makeLeonaRef(accountId, qtyN);
   const productName = offer_name || `Leona Flow — ${qtyN} conex${qtyN === 1 ? 'ão' : 'ões'}`;
 
-  const created = await createPagouCheckoutLink({
-    currency: 'BRL',
-    title,
-    products: [{
-      external_id: `leona-starter-${qtyN}`,
-      name: productName,
-      price: amountCents,
-      quantity: 1,
-      type: 'digital'
-    }]
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || 'client.leonaflow.com').split(',')[0].trim();
+  const proto = String(req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim();
+  const params = new URLSearchParams({
+    account_id: accountId,
+    qty: String(qtyN),
+    amount: String(amountCents / 100)
   });
+  if (access.profileEmail || email) params.set('email', access.profileEmail || email);
+  if (productName) params.set('offer', productName);
+  let url = `${proto}://${host}/pagar?${params.toString()}`;
 
-  const url = created.body?.data?.url || created.body?.url || null;
-  if (!created.ok || !url) {
-    logAssinaturaEvent(req, {
-      action: 'pagou_create_error',
-      provider: 'pagou',
-      email: access.profileEmail || email,
-      account_id: accountId,
-      details: {
-        qty: qtyN,
-        amount_cents: amountCents,
-        status: created.status,
-        error: created.body?.detail || created.body?.message || created.body?.error || created.body
-      }
+  if (hosted) {
+    const created = await createPagouCheckoutLink({
+      currency: 'BRL',
+      title,
+      products: [{
+        external_id: `leona-starter-${qtyN}`,
+        name: productName,
+        price: amountCents,
+        quantity: 1,
+        type: 'digital',
+        image_url: 'https://client.leonaflow.com/leona-finance-192.png'
+      }]
     });
-    return res.status(created.status || 502).json({
-      error: created.body?.detail || created.body?.message || 'Pagou não gerou o checkout'
-    });
+    const hostedUrl = created.body?.data?.url || created.body?.url || null;
+    if (!created.ok || !hostedUrl) {
+      return res.status(created.status || 502).json({
+        error: created.body?.detail || created.body?.message || 'Pagou não gerou o checkout'
+      });
+    }
+    url = hostedUrl;
   }
 
   if (sbConfigured()) {

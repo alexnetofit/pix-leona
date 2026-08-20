@@ -1114,8 +1114,8 @@
                     if (btn) { btn.disabled = false; btn.textContent = 'Assinar agora'; }
                     return;
                 }
-                window.open(data.url, '_blank');
-                if (btn) { btn.disabled = false; btn.textContent = 'Assinar agora'; }
+                window.location.href = data.url;
+                return;
             } catch (err) {
                 alert('Erro ao abrir a Pagou: ' + err.message);
                 if (btn) { btn.disabled = false; btn.textContent = 'Assinar agora'; }
@@ -1271,7 +1271,7 @@
                             </button>
                         </div>
                         <a href="${payUrl}" target="_blank" rel="noopener" class="btn-orange" style="display: block; text-align: center; padding: 12px; margin-top: 12px; font-size: 0.92rem; text-decoration: none; border-radius: 10px;">
-                            Abrir pagamento Pagou →
+                            Abrir pagamento Leona →
                         </a>
                     </div>
                 `;

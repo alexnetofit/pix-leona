@@ -50,6 +50,10 @@
       "dest": "/public/checkout-next.html"
     },
     {
+      "src": "/pagar",
+      "dest": "/public/pagar.html"
+    },
+    {
       "src": "/guru/logs",
       "dest": "/public/guru/logs.html"
     },
