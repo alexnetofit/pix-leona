@@ -535,12 +535,13 @@
             if (!el) return;
             const href = el.getAttribute('href') || '';
             const text = (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80);
-            if (href.includes('suporte-whatsapp') || el.id === 'whatsappBtn') {
+            if (href.includes('suporte-whatsapp') || href.includes('wa.me/5512991426510') || el.id === 'whatsappBtn') {
                 logAssinatura('click_support', { details: { href, text } });
                 return;
             }
             if (
                 href.includes('go.leonaflow.com') ||
+                href.includes('checkout.pagou.ai') ||
                 href.includes('/pay/') ||
                 href.includes('/subscribe/') ||
                 /pagar|pagamento|renovar agora/i.test(text)
@@ -662,10 +663,18 @@
             }
         }
 
+        function supportWhatsappHref(email, accountId) {
+            const parts = ['Oi Alex, preciso de ajuda na /assinatura'];
+            if (email) parts.push('E-mail: ' + email);
+            if (accountId) parts.push('Conta: ' + accountId);
+            return 'https://wa.me/5512991426510?text=' + encodeURIComponent(parts.join('\n'));
+        }
+
         function showWhatsapp(email) {
             const section = document.getElementById('whatsappSection');
             const btn = document.getElementById('whatsappBtn');
-            btn.href = 'https://leonaflow.com/leona-tube/suporte-whatsapp';
+            const bp = (_data && getDisplayProfiles(_data)[0]) || {};
+            btn.href = supportWhatsappHref(email || _email, bp.account_id || getAccountIdParam());
             section.style.display = 'block';
         }
 
@@ -852,7 +861,7 @@
                         <button class="btn-primary" style="padding: 12px 20px; font-size: 0.9rem;" onclick="window.location.reload()">
                             Recarregar agora
                         </button>
-                        <a href="https://leonaflow.com/leona-tube/suporte-whatsapp" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; padding: 12px 20px; border: 1px solid var(--border); border-radius: 12px; color: var(--text-primary); text-decoration: none; font-size: 0.9rem; font-weight: 500;">
+                        <a href="https://wa.me/5512991426510?text=Oi%20Alex%2C%20preciso%20de%20ajuda%20na%20%2Fassinatura" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; padding: 12px 20px; border: 1px solid var(--border); border-radius: 12px; color: var(--text-primary); text-decoration: none; font-size: 0.9rem; font-weight: 500;">
                             Falar com o suporte
                         </a>
                     </div>
@@ -951,7 +960,7 @@
                     <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; margin-bottom: 24px;">
                         Tente acessar novamente pelo botão dentro do painel do Leona, ou fale com o suporte para resolver.
                     </p>
-                    <a href="https://leonaflow.com/leona-tube/suporte-whatsapp" target="_blank" rel="noopener"
+                    <a href="https://wa.me/5512991426510?text=Oi%20Alex%2C%20preciso%20de%20ajuda%20na%20%2Fassinatura" target="_blank" rel="noopener"
                        class="btn-orange"
                        style="display: inline-block; padding: 14px 28px; text-decoration: none; font-size: 0.95rem;">
                         Falar com o suporte
@@ -1068,27 +1077,49 @@
             }
         }
 
-        function qtySelGoCheckout(slot) {
+        async function qtySelGoCheckout(slot) {
             const state = _qtySelStates[slot];
             if (!state) return;
             const input = document.getElementById(`qtySel-${slot}`);
+            const btn = document.getElementById(`qtySelBtn-${slot}`);
             const qty = parseInt(input.value) || 0;
             const offer = getOfferForQty(state.offers, qty);
-            if (!offer || !offer.checkout_url) return;
-            const params = [];
-            if (state.email) params.push('email=' + encodeURIComponent(state.email));
-            // src = account_id da Leona (quando existe), pra que o webhook-guru
-            // saiba qual conta atualizar mesmo se o cliente comprar com email
-            // diferente do cadastrado.
-            if (state.accountId) params.push('src=' + encodeURIComponent(String(state.accountId)));
-            const sep = offer.checkout_url.includes('?') ? '&' : '?';
-            const url = offer.checkout_url + (params.length ? sep + params.join('&') : '');
+            if (!offer && !qty) return;
+            if (!state.accountId) {
+                alert('Abra esta página pelo painel do Leona para gerar o pagamento.');
+                return;
+            }
             logAssinatura('click_buy', {
+                provider: 'pagou',
                 account_id: state.accountId,
                 email: state.email,
-                details: { qty, offer: offer.name || null, value: offer.value ?? null }
+                details: { qty, offer: offer?.name || null, value: offer?.value ?? null }
             });
-            window.open(url, '_blank');
+            if (btn) { btn.disabled = true; btn.textContent = 'Gerando pagamento...'; }
+            try {
+                const r = await fetch('/api/pagou-checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        account_id: state.accountId,
+                        email: state.email || _email,
+                        qty,
+                        amount: offer?.value,
+                        offer_name: offer?.name
+                    })
+                });
+                const data = await r.json();
+                if (!r.ok || !data.url) {
+                    alert(data.error || 'Não consegui gerar o pagamento na Pagou. Fale com o suporte.');
+                    if (btn) { btn.disabled = false; btn.textContent = 'Assinar agora'; }
+                    return;
+                }
+                window.open(data.url, '_blank');
+                if (btn) { btn.disabled = false; btn.textContent = 'Assinar agora'; }
+            } catch (err) {
+                alert('Erro ao abrir a Pagou: ' + err.message);
+                if (btn) { btn.disabled = false; btn.textContent = 'Assinar agora'; }
+            }
         }
 
         function renderOpenInvoices(invoices) {
@@ -1192,52 +1223,55 @@
             const panel = document.getElementById(`replacePanel-${slot}`);
             const qty = Math.max(1, parseInt(input.value) || 1);
 
-            if (btn) { btn.disabled = true; btn.textContent = 'Gerando link...'; }
+            if (btn) { btn.disabled = true; btn.textContent = 'Gerando pagamento...'; }
             logAssinatura('click_buy', {
+                provider: 'pagou',
                 account_id: state.accountId,
                 details: { qty, via: 'replace' }
             });
 
             try {
-                const r = await fetch('/api/guru-replace-subscription', {
+                const r = await fetch('/api/pagou-checkout', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ account_id: state.accountId, qty, email: _email })
                 });
                 const data = await r.json();
 
-                if (!r.ok || !data.success) {
+                if (!r.ok || !data.url) {
                     panel.innerHTML = `
                         <div class="alert alert-error">
-                            <strong>Não foi possível gerar o link</strong>
+                            <strong>Não foi possível gerar o pagamento</strong>
                             ${data.error || `HTTP ${r.status}`}
                         </div>
                     `;
                     return;
                 }
 
+                const payUrl = data.url;
+                const payValue = data.amount_cents ? data.amount_cents / 100 : null;
                 panel.innerHTML = `
                     <div style="background: var(--bg-secondary); padding: 16px; border-radius: 12px; border: 1px solid rgba(16,185,129,0.3);">
-                        <div style="color: var(--success); font-weight: 700; margin-bottom: 10px;">✅ Link de pagamento gerado</div>
+                        <div style="color: var(--success); font-weight: 700; margin-bottom: 10px;">✅ Pagamento Pagou gerado</div>
                         <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px;">
                             <span style="color: var(--text-secondary);">Plano:</span>
                             <span style="font-weight: 600;">${data.offer_name || `${data.qty} conex${data.qty !== 1 ? 'ões' : 'ão'}`}</span>
                         </div>
                         <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 14px;">
                             <span style="color: var(--text-secondary);">Valor:</span>
-                            <span style="color: var(--orange); font-weight: 700;">${fmtCurrency(data.value)}/mês</span>
+                            <span style="color: var(--orange); font-weight: 700;">${payValue != null ? fmtCurrency(payValue) : '—'}/mês</span>
                         </div>
                         <div style="display: flex; gap: 8px;">
-                            <input type="text" value="${data.checkout_url}" readonly
+                            <input type="text" value="${payUrl}" readonly
                                 style="flex: 1; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; color: var(--text-primary); font-size: 0.78rem; font-family: monospace;"
                                 onclick="this.select()">
                             <button class="btn-orange" style="padding: 10px 14px; font-size: 0.85rem; white-space: nowrap;"
-                                onclick="navigator.clipboard.writeText('${data.checkout_url}').then(() => { this.textContent = 'Copiado!'; setTimeout(() => this.textContent = 'Copiar', 2000); })">
+                                onclick="navigator.clipboard.writeText('${payUrl}').then(() => { this.textContent = 'Copiado!'; setTimeout(() => this.textContent = 'Copiar', 2000); })">
                                 Copiar
                             </button>
                         </div>
-                        <a href="${data.checkout_url}" target="_blank" rel="noopener" class="btn-orange" style="display: block; text-align: center; padding: 12px; margin-top: 12px; font-size: 0.92rem; text-decoration: none; border-radius: 10px;">
-                            Abrir link de pagamento →
+                        <a href="${payUrl}" target="_blank" rel="noopener" class="btn-orange" style="display: block; text-align: center; padding: 12px; margin-top: 12px; font-size: 0.92rem; text-decoration: none; border-radius: 10px;">
+                            Abrir pagamento Pagou →
                         </a>
                     </div>
                 `;
@@ -1472,19 +1506,15 @@
                         // pagar de novo por algo que ja foi pago.
                         html += renderProcessingState(processingGuruSub);
                     } else if (hasGuruAny) {
-                        // Cenário 2: Leona vencida + Guru vencida/cancelada
-                        const invoicesHtml = renderOpenInvoices(accountGuru.invoices);
-                        if (invoicesHtml) {
-                            html += invoicesHtml;
-                        } else {
-                            html += `
-                                <div class="alert alert-error">
-                                    <strong>Sua assinatura venceu</strong>
-                                    Escolha um plano abaixo para renovar.
-                                </div>
-                            `;
-                            html += renderQtySelector(offers, email, `exp${i}`, bp.account_id);
-                        }
+                        // Cenário 2: Leona vencida + Guru vencida/cancelada.
+                        // Renovação nova vai pra Pagou (não gera outra Guru).
+                        html += `
+                            <div class="alert alert-error">
+                                <strong>Sua assinatura venceu</strong>
+                                Escolha um plano abaixo para renovar.
+                            </div>
+                        `;
+                        html += renderQtySelector(offers, email, `exp${i}`, bp.account_id);
                     } else {
                         // Cenário 1: Leona inativa/vencida + sem Guru desta conta
                         if (bp.current_period_end) {
