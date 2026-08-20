@@ -1,5 +1,6 @@
 import { applyCors } from '../lib/auth.js';
 import { updateLeonaBillingProfile, assertAccountAccess } from '../lib/leona.js';
+import { logAssinaturaEvent } from '../lib/assinatura-log.js';
 
 const GURU_BASE = 'https://digitalmanager.guru/api/v2';
 
@@ -125,6 +126,20 @@ export default async function handler(req, res) {
         error: result.ok ? null : (result.body?.error || result.error || `HTTP ${result.status || '?'}`)
       };
     }
+
+    logAssinaturaEvent(req, {
+      action: 'upgrade',
+      provider: 'guru',
+      email: validatedSyncLeona?.email || req.body?.sync_leona?.email || null,
+      account_id: validatedSyncLeona?.account_id || req.body?.sync_leona?.account_id || null,
+      details: {
+        subscription_id,
+        offer_id,
+        invoice_status: invoice?.status || null,
+        invoice_value: invoice?.value ?? null,
+        leona_sync: leonaSync
+      }
+    });
 
     return res.status(200).json({
       success: true,

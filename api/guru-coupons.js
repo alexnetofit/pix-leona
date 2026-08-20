@@ -1,4 +1,5 @@
 import { applyCors } from '../lib/auth.js';
+import { logAssinaturaEvent } from '../lib/assinatura-log.js';
 
 const GURU_BASE = 'https://digitalmanager.guru/api/v2';
 const GURU_HEADERS = (token) => ({
@@ -121,6 +122,13 @@ export default async function handler(req, res) {
         body: JSON.stringify(putBody)
       });
       const patchData = await patchRes.json();
+
+      logAssinaturaEvent(req, {
+        action: 'coupon_add_email',
+        provider: 'guru',
+        email: emailLower,
+        details: { coupon_code, coupon_id: found.id, ok: patchRes.ok }
+      });
 
       return res.status(200).json({
         success: patchRes.ok,

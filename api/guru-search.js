@@ -1,4 +1,5 @@
 import { applyCors } from '../lib/auth.js';
+import { logAssinaturaEvent } from '../lib/assinatura-log.js';
 
 const GURU_BASE = 'https://digitalmanager.guru/api/v2';
 const GURU_HEADERS = (token) => ({
@@ -403,6 +404,20 @@ export default async function handler(req, res) {
         inv.subscription_id && keepIds.has(String(inv.subscription_id))
       );
     }
+
+    const bp = leonaPriority?.billing_profile || leona?.billing_profile || null;
+    logAssinaturaEvent(req, {
+      action: 'view',
+      provider: 'guru',
+      email: bp?.user?.email || queryEmail || null,
+      account_id: bp?.account_id || accountIdRaw || null,
+      details: {
+        leona_status: bp?.subscription_status || null,
+        starter: bp?.starter_instances ?? null,
+        guru_statuses: (guru.subscriptions || []).map((s) => s.last_status || s.status),
+        invoices_open: (guru.invoices || []).filter((i) => i.status && i.status !== 'paid').length
+      }
+    });
 
     return res.status(200).json({ guru, leona, offers });
 

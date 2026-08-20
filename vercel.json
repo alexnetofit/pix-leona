@@ -25,6 +25,10 @@
     {
       "path": "/api/cron/revenue-sync?window=rescan",
       "schedule": "20 7 * * *"
+    },
+    {
+      "path": "/api/cron/assinatura-logs-purge",
+      "schedule": "0 * * * *"
     }
   ],
   "functions": {
@@ -44,6 +48,10 @@
     {
       "src": "/checkout",
       "dest": "/public/checkout-next.html"
+    },
+    {
+      "src": "/guru/logs",
+      "dest": "/public/guru/logs.html"
     },
     {
       "src": "/(.*)",

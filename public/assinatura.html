@@ -507,6 +507,21 @@
         let _data = null;
         let _email = '';
 
+        function logAssinatura(action, extra = {}) {
+            const bp = (_data && getDisplayProfiles(_data)[0]) || {};
+            fetch('/api/assinatura-log', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action,
+                    provider: extra.provider || 'guru',
+                    email: extra.email || _email || getEmail() || null,
+                    account_id: extra.account_id || bp.account_id || getAccountIdParam() || null,
+                    details: extra.details || null
+                })
+            }).catch(() => {});
+        }
+
         function getEmail() {
             const params = new URLSearchParams(window.location.search);
             return (params.get('email') || '').trim().toLowerCase();
@@ -819,6 +834,7 @@
         }
 
         function copyLink(text, btnId) {
+            logAssinatura('copy_payment_link', { details: { preview: String(text || '').slice(0, 80) } });
             const btn = document.getElementById(btnId);
             navigator.clipboard.writeText(text).then(() => {
                 btn.textContent = '✓ Copiado!';
@@ -879,6 +895,15 @@
                 }
 
                 _data = data;
+                const bp = getDisplayProfiles(data)[0] || {};
+                logAssinatura('page_view', {
+                    email,
+                    account_id: bp.account_id,
+                    details: {
+                        leona_status: bp.subscription_status || null,
+                        starter: bp.starter_instances ?? null
+                    }
+                });
                 await renderProfile(data, email);
                 showWhatsapp(email);
             } catch (err) {

@@ -24,6 +24,7 @@
 import { LEONA_BASE, leonaHeaders, assertAccountAccess } from '../lib/leona.js';
 import { GURU_BASE, LEONA_GURU_PRODUCT_ID, guruHeaders } from '../lib/guru.js';
 import { applyCors } from '../lib/auth.js';
+import { logAssinaturaEvent } from '../lib/assinatura-log.js';
 
 function pickOfferByQty(offers, qty) {
   if (!Array.isArray(offers)) return null;
@@ -139,6 +140,20 @@ export default async function handler(req, res) {
       `offer=${offer.id} (${offer.name}), email=${checkoutEmail || '(nenhum)'}, ` +
       `current_guru_id=${profile.guru_account_id || '(nenhum)'}`
     );
+
+    logAssinaturaEvent(req, {
+      action: 'replace_checkout',
+      provider: 'guru',
+      email: checkoutEmail || null,
+      account_id: accountId,
+      details: {
+        qty: qtyNum,
+        offer_id: offer.id,
+        offer_name: offer.name,
+        value: offer.value,
+        previous_guru_account_id: profile.guru_account_id || null
+      }
+    });
 
     return res.status(200).json({
       success: true,

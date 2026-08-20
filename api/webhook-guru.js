@@ -1,4 +1,5 @@
 import { updateGuruContact, cancelGuruSubscription } from '../lib/guru.js';
+import { logAssinaturaEvent } from '../lib/assinatura-log.js';
 
 const LEONA_PRODUCT_ID = 'a1869b83-b28d-4257-a986-1df94558a152';
 const LEONA_BASE = 'https://apiaws.leonasolutions.io/api/v1/integration';
@@ -198,6 +199,20 @@ export default async function handler(req, res) {
     const guruSubCode = payload.subscription.subscription_code || null;
 
     console.log(`webhook-guru: email=${email}, plano="${planName}", instances=${instances}, invoice.type=${invoiceType}, upgrade/downgrade=${isUpgradeOrDowngrade}, sub=${guruSubId}`);
+
+    logAssinaturaEvent(req, {
+      action: isUpgradeOrDowngrade ? `webhook_${invoiceType}` : 'webhook_payment',
+      provider: 'guru',
+      email,
+      account_id: extractSrc(payload) || null,
+      details: {
+        status: payload.status,
+        plan: planName,
+        instances,
+        invoice_type: invoiceType || null,
+        subscription_id: guruSubId
+      }
+    });
 
     const leonaHeaders = {
       'Authorization': `Bearer ${leonaToken}`,
