@@ -230,10 +230,6 @@
             <div id="cardFields" style="display:none;">
                 <label>Cartão</label>
                 <div id="card-element"></div>
-                <label>Parcelas</label>
-                <select id="installments">
-                    <option value="1">À vista</option>
-                </select>
             </div>
 
             <button class="pay" id="payBtn" type="button" onclick="submitPay()">Pagar agora</button>
@@ -288,15 +284,6 @@
         document.getElementById('offerQty').textContent = `${state.qty} conex${state.qty === 1 ? 'ão' : 'ões'} · mensal`;
         document.getElementById('offerPrice').textContent = state.amount ? money(state.amount) : '—';
         document.getElementById('backLink').href = `/assinatura?account_id=${encodeURIComponent(state.accountId)}&email=${encodeURIComponent(state.email)}`;
-
-        const inst = document.getElementById('installments');
-        for (let i = 2; i <= 12; i++) {
-            const opt = document.createElement('option');
-            const parcela = state.amount ? money(state.amount / i) : `${i}x`;
-            opt.value = String(i);
-            opt.textContent = state.amount ? `${i}x de ${parcela}` : `${i}x`;
-            inst.appendChild(opt);
-        }
 
         async function setMethod(method) {
             state.method = method;
@@ -418,7 +405,7 @@
                         const created = await createTx({
                             method: 'credit_card',
                             token: tokenData.token,
-                            installments: Number(document.getElementById('installments').value) || 1
+                            installments: 1
                         });
                         state.txId = created.id;
                         return { id: created.id, status: created.status, next_action: created.next_action };
