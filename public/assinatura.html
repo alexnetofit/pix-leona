@@ -509,18 +509,45 @@
 
         function logAssinatura(action, extra = {}) {
             const bp = (_data && getDisplayProfiles(_data)[0]) || {};
+            const payload = JSON.stringify({
+                action,
+                provider: extra.provider || 'guru',
+                email: extra.email || _email || getEmail() || null,
+                account_id: extra.account_id || bp.account_id || getAccountIdParam() || null,
+                details: extra.details || null
+            });
+            try {
+                if (navigator.sendBeacon) {
+                    navigator.sendBeacon('/api/assinatura-log', new Blob([payload], { type: 'application/json' }));
+                    return;
+                }
+            } catch (_) {}
             fetch('/api/assinatura-log', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action,
-                    provider: extra.provider || 'guru',
-                    email: extra.email || _email || getEmail() || null,
-                    account_id: extra.account_id || bp.account_id || getAccountIdParam() || null,
-                    details: extra.details || null
-                })
+                body: payload,
+                keepalive: true
             }).catch(() => {});
         }
+
+        document.addEventListener('click', (e) => {
+            const el = e.target.closest('a, button');
+            if (!el) return;
+            const href = el.getAttribute('href') || '';
+            const text = (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+            if (href.includes('suporte-whatsapp') || el.id === 'whatsappBtn') {
+                logAssinatura('click_support', { details: { href, text } });
+                return;
+            }
+            if (
+                href.includes('go.leonaflow.com') ||
+                href.includes('/pay/') ||
+                href.includes('/subscribe/') ||
+                /pagar|pagamento|renovar agora/i.test(text)
+            ) {
+                logAssinatura('click_pay', { details: { href: href.slice(0, 220), text } });
+            }
+        }, true);
 
         function getEmail() {
             const params = new URLSearchParams(window.location.search);
@@ -1056,6 +1083,11 @@
             if (state.accountId) params.push('src=' + encodeURIComponent(String(state.accountId)));
             const sep = offer.checkout_url.includes('?') ? '&' : '?';
             const url = offer.checkout_url + (params.length ? sep + params.join('&') : '');
+            logAssinatura('click_buy', {
+                account_id: state.accountId,
+                email: state.email,
+                details: { qty, offer: offer.name || null, value: offer.value ?? null }
+            });
             window.open(url, '_blank');
         }
 
@@ -1161,6 +1193,10 @@
             const qty = Math.max(1, parseInt(input.value) || 1);
 
             if (btn) { btn.disabled = true; btn.textContent = 'Gerando link...'; }
+            logAssinatura('click_buy', {
+                account_id: state.accountId,
+                details: { qty, via: 'replace' }
+            });
 
             try {
                 const r = await fetch('/api/guru-replace-subscription', {
@@ -1491,6 +1527,7 @@
             const data = _data;
             const email = _email;
             if (!data) return;
+            logAssinatura('click_upgrade', { details: { step: 'calcular', bpIdx } });
 
             const profiles = getDisplayProfiles(data);
             const bp = profiles[bpIdx];
@@ -1775,6 +1812,9 @@
             const resultDiv = document.getElementById(`simResult-${bpIdx}`);
             const btn = document.getElementById(`execUpgrade-${bpIdx}`);
             if (btn) { btn.disabled = true; btn.textContent = 'Executando...'; }
+            logAssinatura('click_upgrade', {
+                details: { subscription_id: subscriptionId, offer_id: offerId }
+            });
 
             try {
                 const res = await fetch('/api/guru-upgrade', {
@@ -1872,6 +1912,10 @@
         }
 
         function askDowngradeConfirm(subId, offerId, accountId, currentQty, newQty, bpIdx) {
+            logAssinatura('click_downgrade', {
+                account_id: accountId,
+                details: { from: currentQty, to: newQty }
+            });
             openConfirmModal({
                 title: 'Confirmar downgrade',
                 bodyHtml: `
