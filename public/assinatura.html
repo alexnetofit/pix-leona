@@ -1042,6 +1042,7 @@
                 <h1 class="page">${active ? 'Assinatura' : 'Renovar'}${total > 1 ? ` #${idx + 1}` : ''}</h1>
                 <p class="lede">${active ? 'Sua conta está ativa.' : 'Sua assinatura venceu. Escolha um plano para continuar.'}</p>
                 <div class="group" style="margin-bottom:16px;">
+                    ${bp.account_id ? `<div class="row"><span class="label">ID da conta</span><span class="value">${bp.account_id}</span></div>` : ''}
                     ${bp.plan_summary ? `<div class="row"><span class="label">Plano</span><span class="value">${bp.plan_summary}</span></div>` : ''}
                     ${connections > 0 ? `<div class="row"><span class="label">Conexões</span><span class="value">${connections}</span></div>` : ''}
                     ${bp.current_period_end ? `<div class="row"><span class="label">${validityLabel}</span><span class="value">${formatDate(bp.current_period_end)}</span></div>` : ''}
