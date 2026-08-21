@@ -272,25 +272,38 @@
         if (!state.elements || !state.cardValid) {
           throw new Error('Preencha os dados do cartão');
         }
-        const result = await state.elements.submit({
-          mode: kind() === 'subscription' ? 'subscription' : 'payment',
-          createTransaction: async (tokenData) => {
-            const created = await createTx({
-              method: 'credit_card',
-              token: tokenData.token,
-              installments: 1
-            });
-            state.txId = created.id;
-            state.subId = created.subscription_id || null;
-            const st = String(created.status || '').toLowerCase();
-            if (['error', 'refused', 'failed'].includes(st) && !created.next_action) {
-              throw new Error(created.error || 'Cartão recusado. Tente outro cartão ou pague com PIX.');
+        const chargeCard = async (mode, payKind) => {
+          const result = await state.elements.submit({
+            mode,
+            createTransaction: async (tokenData) => {
+              const created = await createTx({
+                method: 'credit_card',
+                token: tokenData.token,
+                installments: 1,
+                kind: payKind
+              });
+              state.txId = created.id;
+              state.subId = created.subscription_id || null;
+              const st = String(created.status || '').toLowerCase();
+              if (['error', 'refused', 'failed', 'incomplete'].includes(st) && !created.next_action) {
+                throw new Error(created.error || 'Cartão recusado. Tente outro cartão ou pague com PIX.');
+              }
+              return { id: created.id, status: created.status, next_action: created.next_action };
             }
-            return { id: created.id, status: created.status, next_action: created.next_action };
+          });
+          if (result.status === 'error') throw new Error(result.error || 'Cartão recusado');
+          await waitPaid(state.subId || state.txId);
+        };
+        try {
+          await chargeCard(kind() === 'subscription' ? 'subscription' : 'payment', kind());
+        } catch (firstErr) {
+          if (await checkPaid(state.subId || state.txId)) {
+            showOk();
+            return;
           }
-        });
-        if (result.status === 'error') throw new Error(result.error || 'Cartão recusado');
-        await waitPaid(state.subId || state.txId);
+          if (kind() !== 'subscription') throw firstErr;
+          await chargeCard('payment', 'one_shot');
+        }
       } catch (err) {
         if (await checkPaid(state.subId || state.txId)) {
           showOk();

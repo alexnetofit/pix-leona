@@ -93,7 +93,12 @@ function isOneShotKind(value) {
 
 function chargeFailed(status, nextAction) {
   const st = String(status || '').toLowerCase();
-  return ['error', 'refused', 'failed', 'canceled', 'cancelled'].includes(st) && !nextAction;
+  return ['error', 'refused', 'failed', 'canceled', 'cancelled', 'incomplete'].includes(st) && !nextAction;
+}
+
+function documentRequiredError(body) {
+  const text = JSON.stringify(body || {}).toLowerCase();
+  return text.includes('document is required') || (text.includes('document') && text.includes('pagar.me'));
 }
 
 function buildOneShotPayload({
@@ -386,9 +391,7 @@ export default async function handler(req, res) {
     email: buyerEmail,
     document,
     phone: customerPhone(buyer?.phone),
-    address,
-    externalRef: `leona:${accountId}`,
-    ...(ip ? { ip_address: ip } : {})
+    externalRef: `leona:${accountId}`
   });
   if (!customer.ok || !customer.data?.id) {
     logAssinaturaEvent(req, {
@@ -498,14 +501,17 @@ export default async function handler(req, res) {
     }
   }
   if (!created.ok || !data?.id) {
-    const fallback = await fallbackCardOneShot(req, oneShotArgs, {
-      buyerEmail,
-      accountId,
-      qtyN,
-      amountCents,
-      title,
-      productName
-    });
+    const skipSameToken = documentRequiredError(created.body);
+    const fallback = skipSameToken
+      ? null
+      : await fallbackCardOneShot(req, oneShotArgs, {
+          buyerEmail,
+          accountId,
+          qtyN,
+          amountCents,
+          title,
+          productName
+        });
     if (fallback) return res.status(200).json(fallback);
 
     logAssinaturaEvent(req, {
@@ -518,11 +524,15 @@ export default async function handler(req, res) {
         method: payMethod,
         kind: 'subscription',
         status: created.status,
-        error: created.body
+        error: created.body,
+        retry_one_shot: skipSameToken || payMethod === 'credit_card'
       }
     });
     return res.status(created.status || 502).json({
-      error: pagouError(created.body)
+      error: skipSameToken
+        ? 'Não deu para assinar neste cartão. Tentando cobrança avulsa…'
+        : pagouError(created.body),
+      retry_one_shot: true
     });
   }
 
