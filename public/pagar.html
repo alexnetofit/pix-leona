@@ -54,9 +54,7 @@
         .row + .row { border-top: 1px solid #d2d2d7; }
         .row .label { color: #6e6e73; font-size: 15px; }
         .row .value { font-size: 15px; font-weight: 500; text-align: right; }
-        .field {
-            padding: 10px 18px 12px;
-        }
+        .field { padding: 10px 18px 12px; }
         .field + .field { border-top: 1px solid #d2d2d7; }
         .field label {
             display: block;
@@ -99,8 +97,7 @@
             background: #fff;
             box-shadow: 0 0 0 0.5px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.08);
         }
-        #cardFields { margin-bottom: 8px; }
-        #card-element {
+        [id^="card-element"] {
             background: #fff;
             border-radius: 12px;
             padding: 14px 16px;
@@ -142,7 +139,6 @@
             letter-spacing: -0.03em;
             margin-bottom: 8px;
         }
-        .ok-box h2 { color: #1d1d1f; }
         .pix-box img {
             width: 200px;
             height: 200px;
@@ -172,66 +168,21 @@
             <img src="/logo-leona.png" alt="Leona">
         </header>
 
-        <div id="formCard">
-            <h1 class="page">Assinar</h1>
+        <div id="payChrome-main">
+            <h1 class="page" id="pageTitle">Assinar</h1>
             <p class="lede" id="offerQty">1 conexão · assinatura mensal</p>
-
             <div class="group">
                 <div class="row">
                     <span class="label" id="offerName">Leona Flow</span>
                     <span class="value" id="offerPrice">—</span>
                 </div>
             </div>
-
-            <div class="group" style="margin-top:16px;">
-                <div class="field">
-                    <label>E-mail</label>
-                    <input id="email" type="email" autocomplete="email" readonly>
-                </div>
-                <div class="field">
-                    <label>Nome</label>
-                    <input id="name" type="text" autocomplete="name" placeholder="Como no documento">
-                </div>
-                <div class="field">
-                    <label>CPF ou CNPJ</label>
-                    <input id="document" type="text" inputmode="numeric" placeholder="000.000.000-00">
-                </div>
-                <div class="field">
-                    <label>Celular</label>
-                    <input id="phone" type="tel" placeholder="(11) 99999-9999">
-                </div>
-            </div>
-
-            <div class="seg">
-                <button type="button" id="tabPix" class="active" onclick="setMethod('pix')">PIX</button>
-                <button type="button" id="tabCard" onclick="setMethod('card')">Cartão</button>
-            </div>
-
-            <div id="cardFields" style="display:none;">
-                <div id="card-element"></div>
-            </div>
-
-            <button class="pay" id="payBtn" type="button" onclick="submitPay()">Assinar com PIX</button>
-            <div class="err" id="err"></div>
-            <p class="hint" id="payHint">A cobrança se repete todo mês. Cancele quando quiser.</p>
         </div>
-
-        <div class="panel pix-box" id="pixCard">
-            <h2>Pague com PIX</h2>
-            <p class="hint">Escaneie o QR ou toque no código para copiar.</p>
-            <img id="pixQr" alt="QR Code PIX">
-            <div class="copy" id="pixCopy" onclick="copyPix()"></div>
-            <p class="hint" id="pixWait">Aguardando pagamento…</p>
-        </div>
-
-        <div class="panel ok-box" id="okCard">
-            <h2>Pronto</h2>
-            <p class="lede" style="margin-bottom:0;">Sua Leona já está sendo liberada.</p>
-            <p class="hint" style="margin-top:20px;"><a id="backLink" href="/assinatura">Voltar para a assinatura</a></p>
-        </div>
+        <div id="payMount"></div>
     </div>
 
     <script src="https://js.pagou.ai/payments/v3.js"></script>
+    <script src="/pagou-pay-ui.js"></script>
     <script>
         const params = new URLSearchParams(location.search);
         const state = {
@@ -242,238 +193,32 @@
             offer: params.get('offer') || '',
             kind: ['one_shot', 'oneshot', 'avulso', 'upgrade'].includes(String(params.get('kind') || '').toLowerCase())
                 ? 'one_shot'
-                : 'subscription',
-            method: 'pix',
-            elements: null,
-            card: null,
-            cardValid: false,
-            txId: null,
-            subId: null,
-            pixCode: ''
+                : 'subscription'
         };
 
-        function money(n) {
-            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
-        }
-        function showErr(msg) {
-            const el = document.getElementById('err');
-            el.textContent = msg || '';
-            el.style.display = msg ? 'block' : 'none';
-        }
-        function digits(v) { return String(v || '').replace(/\D/g, ''); }
-        function payLabel() {
-            if (state.method === 'pix') return state.kind === 'one_shot' ? 'Gerar PIX' : 'Assinar com PIX';
-            return state.kind === 'one_shot' ? 'Pagar no cartão' : 'Assinar no cartão';
-        }
-
-        document.getElementById('email').value = state.email;
+        document.getElementById('pageTitle').textContent = state.kind === 'one_shot' ? 'Ajuste' : 'Assinar';
         document.getElementById('offerName').textContent = state.offer || `Leona Flow — ${state.qty} conex${state.qty === 1 ? 'ão' : 'ões'}`;
         document.getElementById('offerQty').textContent = state.kind === 'one_shot'
             ? `${state.qty} conex${state.qty === 1 ? 'ão' : 'ões'} · ajuste avulso`
             : `${state.qty} conex${state.qty === 1 ? 'ão' : 'ões'} · assinatura mensal`;
-        document.getElementById('offerPrice').textContent = state.amount ? money(state.amount) : '—';
-        document.getElementById('payHint').textContent = state.kind === 'one_shot'
-            ? 'Pagamento único do upgrade no ciclo atual. Não cria nova recorrência.'
-            : 'A cobrança se repete todo mês. Cancele quando quiser.';
-        document.getElementById('payBtn').textContent = payLabel();
-        document.getElementById('backLink').href = `/assinatura?account_id=${encodeURIComponent(state.accountId)}&email=${encodeURIComponent(state.email)}`;
+        document.getElementById('offerPrice').textContent = state.amount ? PagouPay.money(state.amount) : '—';
 
-        async function setMethod(method) {
-            state.method = method;
-            document.getElementById('tabPix').classList.toggle('active', method === 'pix');
-            document.getElementById('tabCard').classList.toggle('active', method === 'card');
-            document.getElementById('cardFields').style.display = method === 'card' ? 'block' : 'none';
-            document.getElementById('payBtn').textContent = payLabel();
-            if (method === 'card') await ensureCard();
-        }
-
-        async function ensureCard() {
-            if (state.card || !window.Pagou) return;
-            const cfg = await fetch('/api/pagou-config').then((r) => r.json());
-            if (!cfg.public_key) {
-                showErr('Cartão indisponível no momento. Use PIX.');
-                setMethod('pix');
-                return;
-            }
-            state.elements = Pagou.elements({
-                publicKey: cfg.public_key,
-                locale: 'pt-BR',
-                origin: location.origin
-            });
-            state.card = state.elements.create('card', {
-                theme: 'default',
-                style: {
-                    base: {
-                        color: '#1d1d1f',
-                        fontFamily: '-apple-system, BlinkMacSystemFont, Helvetica Neue, sans-serif',
-                        fontSize: '17px',
-                        borderRadius: '8px',
-                        backgroundColor: '#ffffff'
-                    },
-                    focus: { borderColor: '#0071e3' },
-                    invalid: { color: '#d70015' }
-                }
-            });
-            state.card.mount('#card-element');
-            state.card.on('change', ({ valid }) => { state.cardValid = !!valid; });
-        }
-
-        function buyer() {
-            return {
-                name: document.getElementById('name').value.trim(),
-                document: digits(document.getElementById('document').value),
-                phone: digits(document.getElementById('phone').value)
-            };
-        }
-
-        async function createTx(extra = {}) {
-            const r = await fetch('/api/pagou-pay', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    account_id: state.accountId,
-                    email: state.email,
-                    qty: state.qty,
-                    amount: state.amount,
-                    offer_name: state.offer,
-                    kind: state.kind,
-                    buyer: buyer(),
-                    ...extra
-                })
-            });
-            const data = await r.json();
-            if (!r.ok) throw new Error(data.error || 'Falha ao gerar o pagamento');
-            return data;
-        }
-
-        async function submitPay() {
-            const btn = document.getElementById('payBtn');
-            showErr('');
-            if (!state.accountId || !state.email) {
-                showErr('Abra esta página pelo painel da Leona.');
-                return;
-            }
-            btn.disabled = true;
-            btn.textContent = 'Processando...';
-            try {
-                if (state.method === 'pix') {
-                    const data = await createTx({ method: 'pix' });
-                    showPix(data);
-                    return;
-                }
-                if (!state.elements || !state.cardValid) {
-                    throw new Error('Preencha os dados do cartão');
-                }
-                const result = await state.elements.submit({
-                    mode: state.kind === 'subscription' ? 'subscription' : 'payment',
-                    createTransaction: async (tokenData) => {
-                        const created = await createTx({
-                            method: 'credit_card',
-                            token: tokenData.token,
-                            installments: 1
-                        });
-                        state.txId = created.id;
-                        state.subId = created.subscription_id || null;
-                        return { id: created.id, status: created.status, next_action: created.next_action };
-                    }
-                });
-                if (result.status === 'error') throw new Error(result.error || 'Cartão recusado');
-                await waitPaid(state.subId || state.txId);
-            } catch (err) {
-                if (state.kind === 'one_shot') {
-                    showErr(err.message + ' Tentando o checkout alternativo...');
-                    try {
-                        const r = await fetch('/api/pagou-checkout', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                account_id: state.accountId,
-                                email: state.email,
-                                qty: state.qty,
-                                amount: state.amount,
-                                offer_name: state.offer,
-                                kind: 'one_shot',
-                                hosted: true
-                            })
-                        });
-                        const data = await r.json();
-                        if (r.ok && data.url) {
-                            location.href = data.url;
-                            return;
-                        }
-                        showErr(err.message);
-                    } catch (_) {
-                        showErr(err.message);
-                    }
-                } else {
-                    showErr(err.message);
-                }
-                btn.disabled = false;
-                btn.textContent = payLabel();
-            }
-        }
-
-        function showPix(data) {
-            state.txId = data.id;
-            state.subId = data.subscription_id || null;
-            state.pixCode = data.pix?.qr_code || '';
-            document.getElementById('formCard').style.display = 'none';
-            document.getElementById('pixCard').style.display = 'block';
-            document.getElementById('pixCopy').textContent = state.pixCode || (
-                state.kind === 'subscription'
-                    ? 'Abra o app do banco e autorize o PIX automático da Leona.'
-                    : 'Código indisponível'
-            );
-            if (state.pixCode) {
-                document.getElementById('pixQr').src = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' + encodeURIComponent(state.pixCode);
-            } else {
-                document.getElementById('pixQr').style.display = 'none';
-                document.getElementById('pixWait').textContent = state.kind === 'subscription'
-                    ? 'Aguardando autorização do PIX automático...'
-                    : 'Aguardando pagamento...';
-            }
-            pollPaid();
-        }
-
-        function copyPix() {
-            if (!state.pixCode) return;
-            navigator.clipboard.writeText(state.pixCode).then(() => {
-                document.getElementById('pixWait').textContent = 'Código copiado. Aguardando pagamento...';
-            });
-        }
-
-        async function waitPaid(id) {
-            for (let i = 0; i < 20; i++) {
-                const paid = await checkPaid(id);
-                if (paid) return showOk();
-                await new Promise((r) => setTimeout(r, 2000));
-            }
-            document.getElementById('pixWait').textContent = 'Pagamento em análise. Você já pode voltar à assinatura.';
-        }
-
-        function pollPaid() {
-            const timer = setInterval(async () => {
-                if (await checkPaid(state.subId || state.txId)) {
-                    clearInterval(timer);
-                    showOk();
-                }
-            }, 3500);
-        }
-
-        async function checkPaid(id) {
-            if (!id) return false;
-            const q = new URLSearchParams({ id, account_id: state.accountId, email: state.email });
-            if (state.subId && id === state.subId) q.set('type', 'subscription');
-            const r = await fetch('/api/pagou-pay?' + q.toString());
-            const data = await r.json();
-            return !!(r.ok && data.paid);
-        }
-
-        function showOk() {
-            document.getElementById('formCard').style.display = 'none';
-            document.getElementById('pixCard').style.display = 'none';
-            document.getElementById('okCard').style.display = 'block';
-        }
+        const backHref = `/assinatura?account_id=${encodeURIComponent(state.accountId)}&email=${encodeURIComponent(state.email)}`;
+        document.getElementById('payMount').innerHTML = PagouPay.formHtml('main', {
+            email: state.email,
+            kind: state.kind,
+            backHref
+        });
+        PagouPay.attach('main', {
+            getCheckout: () => ({
+                accountId: state.accountId,
+                email: state.email,
+                qty: state.qty,
+                amount: state.amount,
+                offer: state.offer,
+                kind: state.kind
+            })
+        });
     </script>
 </body>
 </html>

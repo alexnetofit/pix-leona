@@ -7,74 +7,234 @@
     <link rel="icon" type="image/png" href="/logo-leona.png">
     <style>
         :root {
-            --bg-primary: #0c0a12;
-            --bg-secondary: #151120;
-            --bg-card: #1e1830;
-            --bg-elevated: #261f3a;
-            --accent: #8b5cf6;
-            --accent-hover: #7c3aed;
-            --accent-soft: rgba(139, 92, 246, 0.12);
-            --orange: #f59e0b;
-            --orange-hover: #d97706;
-            --orange-soft: rgba(245, 158, 11, 0.12);
-            --text-primary: #f0ecf7;
-            --text-secondary: #9589ad;
-            --text-muted: #6b5f82;
-            --error: #ef4444;
-            --success: #10b981;
-            --warning: #f59e0b;
-            --border: #2a2240;
-            --border-light: #352d50;
-            --glow-purple: rgba(139, 92, 246, 0.25);
-            --glow-orange: rgba(245, 158, 11, 0.2);
+            --bg-primary: #f5f5f7;
+            --bg-secondary: #ffffff;
+            --bg-card: #ffffff;
+            --bg-elevated: #ffffff;
+            --accent: #0071e3;
+            --accent-hover: #0077ed;
+            --accent-soft: rgba(0, 113, 227, 0.08);
+            --orange: #1d1d1f;
+            --orange-hover: #1d1d1f;
+            --orange-soft: #f5f5f7;
+            --text-primary: #1d1d1f;
+            --text-secondary: #6e6e73;
+            --text-muted: #86868b;
+            --error: #d70015;
+            --success: #248a3d;
+            --warning: #b54400;
+            --border: #d2d2d7;
+            --border-light: #d2d2d7;
+            --glow-purple: transparent;
+            --glow-orange: transparent;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
             background: var(--bg-primary);
             color: var(--text-primary);
             min-height: 100vh;
-            line-height: 1.6;
-        }
-
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0; left: 0; right: 0;
-            height: 400px;
-            background: radial-gradient(ellipse at 50% -20%, rgba(139, 92, 246, 0.08) 0%, transparent 70%);
-            pointer-events: none;
-            z-index: 0;
+            line-height: 1.45;
+            -webkit-font-smoothing: antialiased;
         }
 
         .container {
-            max-width: 600px;
+            width: min(420px, calc(100% - 40px));
             margin: 0 auto;
-            padding: 40px 20px 60px;
-            position: relative;
-            z-index: 1;
+            padding: 48px 0 72px;
         }
 
         header {
-            text-align: center;
-            margin-bottom: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 36px;
         }
 
         .logo-img {
-            height: 64px;
+            height: 28px;
             width: auto;
-            margin-bottom: 8px;
-            filter: drop-shadow(0 4px 20px var(--glow-purple));
         }
 
-        .subtitle {
-            color: var(--text-secondary);
-            font-size: 0.85rem;
+        .subtitle { display: none; }
+
+        h1.page {
+            font-size: 32px;
+            font-weight: 600;
+            letter-spacing: -0.03em;
+            line-height: 1.15;
+            margin-bottom: 8px;
+        }
+
+        .lede {
+            color: #6e6e73;
+            font-size: 15px;
+            line-height: 1.4;
+            margin-bottom: 22px;
+        }
+
+        .group {
+            background: #fff;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .group + .group { margin-top: 16px; }
+
+        .row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 16px 18px;
+        }
+
+        .row + .row { border-top: 1px solid #d2d2d7; }
+        .row .label { color: #6e6e73; font-size: 15px; }
+        .row .value { font-size: 15px; font-weight: 500; text-align: right; }
+
+        .field { padding: 10px 18px 12px; }
+        .field + .field { border-top: 1px solid #d2d2d7; }
+        .field label {
+            display: block;
+            font-size: 12px;
+            color: #6e6e73;
+            margin-bottom: 2px;
+        }
+        .field input {
+            width: 100%;
+            border: 0;
+            background: transparent;
+            font: inherit;
+            font-size: 17px;
+            color: #1d1d1f;
+            outline: none;
+            padding: 2px 0 4px;
+        }
+        .field input::placeholder { color: #86868b; }
+        .field input[readonly] { color: #6e6e73; }
+
+        .stepper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 18px;
+            padding: 18px;
+        }
+        .stepper button {
+            width: 36px;
+            height: 36px;
+            border: 0;
+            border-radius: 50%;
+            background: #e8e8ed;
+            color: #1d1d1f;
+            font-size: 22px;
+            line-height: 1;
+            cursor: pointer;
+        }
+        .stepper input {
+            width: 64px;
+            border: 0;
+            background: transparent;
+            font: inherit;
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: -0.03em;
+            text-align: center;
+            outline: none;
+            color: #1d1d1f;
+            -moz-appearance: textfield;
+        }
+        .stepper input::-webkit-outer-spin-button,
+        .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+        .seg {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            background: #e8e8ed;
+            border-radius: 9px;
+            padding: 2px;
+            margin: 22px 0 18px;
+        }
+        .seg button {
+            border: 0;
+            background: transparent;
+            border-radius: 7px;
+            padding: 8px 0;
+            font: inherit;
+            font-size: 13px;
             font-weight: 500;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
+            color: #1d1d1f;
+            cursor: pointer;
+        }
+        .seg button.active {
+            background: #fff;
+            box-shadow: 0 0 0 0.5px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.08);
+        }
+
+        .pay, .btn-primary, .btn-orange {
+            width: 100%;
+            border: 0;
+            border-radius: 980px;
+            padding: 14px 18px;
+            margin-top: 8px;
+            font: inherit;
+            font-size: 17px;
+            font-weight: 500;
+            color: #fff;
+            background: #0071e3;
+            cursor: pointer;
+            box-shadow: none;
+        }
+        .pay:hover, .btn-primary:hover, .btn-orange:hover { background: #0077ed; }
+        .pay:disabled, .btn-primary:disabled, .btn-orange:disabled { opacity: 0.4; cursor: default; }
+
+        [id^="card-element"] {
+            background: #fff;
+            border-radius: 12px;
+            padding: 14px 16px;
+            min-height: 48px;
+        }
+
+        .err {
+            display: none;
+            margin-top: 14px;
+            color: #d70015;
+            font-size: 13px;
+            text-align: center;
+        }
+        .hint {
+            margin-top: 14px;
+            color: #86868b;
+            font-size: 12px;
+            line-height: 1.45;
+            text-align: center;
+        }
+        .panel { display: none; text-align: center; padding: 8px 4px 4px; }
+        .panel h2 {
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: -0.03em;
+            margin-bottom: 8px;
+        }
+        .pix-box img {
+            width: 200px;
+            height: 200px;
+            border-radius: 8px;
+            margin: 20px 0 16px;
+            background: #fff;
+        }
+        .copy {
+            background: #fff;
+            border-radius: 12px;
+            padding: 14px 16px;
+            font-size: 13px;
+            color: #6e6e73;
+            word-break: break-all;
+            cursor: pointer;
+            text-align: left;
         }
 
         .search-box {
@@ -95,82 +255,36 @@
             transition: all 0.25s ease;
         }
 
-        .search-box input:focus {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px var(--glow-purple);
-        }
+        .search-box input:focus { border-color: var(--accent); }
 
         .search-box input::placeholder { color: var(--text-muted); }
 
-        .btn-primary {
-            padding: 14px 24px;
-            background: linear-gradient(135deg, var(--accent), #a78bfa);
-            color: #fff;
-            border: none;
-            border-radius: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            font-size: 1rem;
-            white-space: nowrap;
-            transition: all 0.25s ease;
-            box-shadow: 0 2px 12px var(--glow-purple);
-        }
-
-        .btn-primary:hover {
-            background: linear-gradient(135deg, var(--accent-hover), var(--accent));
-            box-shadow: 0 4px 20px var(--glow-purple);
-            transform: translateY(-1px);
-        }
-
-        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
-
-        .btn-orange {
-            padding: 14px 24px;
-            background: linear-gradient(135deg, var(--orange), #fbbf24);
-            color: #1a1005;
-            border: none;
-            border-radius: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            font-size: 1rem;
-            white-space: nowrap;
-            transition: all 0.25s ease;
-            box-shadow: 0 2px 12px var(--glow-orange);
-        }
-
-        .btn-orange:hover {
-            background: linear-gradient(135deg, var(--orange-hover), var(--orange));
-            box-shadow: 0 4px 20px var(--glow-orange);
-            transform: translateY(-1px);
-        }
+        .search-box .btn-primary { width: auto; margin-top: 0; }
 
         .card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 24px;
+            background: #fff;
+            border: 0;
+            border-radius: 12px;
+            padding: 0;
             margin-bottom: 16px;
-            backdrop-filter: blur(8px);
-            transition: border-color 0.25s ease;
+            overflow: hidden;
         }
 
-        .card:hover { border-color: var(--border-light); }
-
         .card h3 {
-            font-size: 1rem;
-            margin-bottom: 16px;
-            color: var(--accent);
+            font-size: 15px;
             font-weight: 600;
-            letter-spacing: 0.3px;
+            color: #1d1d1f;
+            padding: 16px 18px 0;
+            margin-bottom: 0;
         }
 
         .info-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 11px 0;
+            padding: 14px 18px;
             border-bottom: 1px solid var(--border);
-            font-size: 0.9rem;
+            font-size: 15px;
         }
 
         .info-row:last-child { border-bottom: none; }
@@ -237,23 +351,9 @@
             line-height: 1.5;
         }
 
-        .alert-warning {
-            background: var(--orange-soft);
-            border: 1px solid rgba(245, 158, 11, 0.25);
-            color: var(--orange);
-        }
-
-        .alert-error {
-            background: rgba(239, 68, 68, 0.08);
-            border: 1px solid rgba(239, 68, 68, 0.25);
-            color: var(--error);
-        }
-
-        .alert-info {
-            background: var(--accent-soft);
-            border: 1px solid rgba(139, 92, 246, 0.2);
-            color: #b49cfa;
-        }
+        .alert-warning { background: #fff; color: #1d1d1f; }
+        .alert-error { background: #fff; color: #d70015; }
+        .alert-info { background: #fff; color: #1d1d1f; }
 
         .alert strong { display: block; margin-bottom: 6px; font-size: 1rem; }
 
@@ -276,19 +376,14 @@
             transition: all 0.25s ease;
         }
 
-        .offer-card:hover {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 1px var(--glow-purple);
-        }
+        .offer-card:hover { border-color: var(--accent); }
 
         .offer-card .offer-name { font-weight: 600; font-size: 0.95rem; }
 
         .offer-card .offer-value {
             font-size: 1.4rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, var(--accent), #c084fc);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            font-weight: 600;
+            color: #1d1d1f;
         }
 
         .offer-card .btn-copy {
@@ -338,8 +433,7 @@
             display: none;
         }
 
-        a { color: var(--orange); }
-        a:hover { color: var(--orange-hover); }
+        a { color: #0071e3; text-decoration: none; }
 
         .wpp-section { margin-top: 28px; }
 
@@ -349,22 +443,16 @@
             justify-content: center;
             gap: 8px;
             width: 100%;
-            padding: 13px 18px;
-            background: #25d366;
-            color: #fff;
+            padding: 12px;
+            background: transparent;
+            color: #0071e3;
             text-decoration: none;
-            border-radius: 12px;
-            font-weight: 600;
-            font-size: 0.88rem;
-            transition: all 0.25s ease;
-            box-shadow: 0 3px 12px rgba(37, 211, 102, 0.25);
+            font-weight: 500;
+            font-size: 14px;
         }
 
-        .wpp-btn:hover {
-            background: #1ebe5a;
-            box-shadow: 0 5px 20px rgba(37, 211, 102, 0.35);
-            transform: translateY(-1px);
-        }
+        .wpp-btn:hover { color: #0077ed; }
+        .wpp-btn svg { fill: #0071e3; }
 
         .footer {
             text-align: center;
@@ -382,26 +470,10 @@
 
         .footer-logo:hover { opacity: 0.7; }
 
-        @media (max-width: 600px) {
-            .container { padding: 20px 14px 36px; }
+        @media (max-width: 420px) {
+            .container { width: calc(100% - 32px); padding: 36px 0 56px; }
             .search-box { flex-direction: column; }
-            .info-row { font-size: 0.82rem; padding: 8px 0; }
-            .offer-grid { grid-template-columns: 1fr; }
-            .logo-img { height: 44px; }
-            .subtitle { font-size: 0.75rem; }
-            header { margin-bottom: 24px; }
-            .card { padding: 18px; border-radius: 12px; margin-bottom: 12px; }
-            .card h3 { font-size: 0.9rem; margin-bottom: 12px; }
-            .alert { padding: 14px; border-radius: 10px; margin-bottom: 12px; font-size: 0.83rem; }
-            .alert strong { font-size: 0.9rem; }
-            .sim-panel { padding: 16px; border-radius: 12px; margin-top: 12px; }
-            .btn-primary, .btn-orange { padding: 11px 18px; font-size: 0.85rem; border-radius: 10px; }
-            .status-badge { font-size: 0.68rem; padding: 3px 9px; }
-            .wpp-section { margin-top: 20px; }
-            .wpp-btn { padding: 11px 14px; font-size: 0.82rem; border-radius: 10px; gap: 7px; }
-            .wpp-btn svg { width: 16px; height: 16px; }
-            .footer { margin-top: 24px; padding-top: 16px; }
-            .footer-logo { height: 20px; }
+            h1.page { font-size: 28px; }
         }
 
         .modal-overlay {
@@ -416,20 +488,20 @@
         }
         .modal-overlay.open { display: flex; }
         .modal-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
+            background: #fff;
+            border: 0;
             border-radius: 16px;
             padding: 24px;
-            max-width: 480px;
+            max-width: 420px;
             width: 100%;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
             max-height: 90vh;
             overflow-y: auto;
         }
         .modal-card h3 {
             margin: 0 0 12px;
-            color: var(--orange);
-            font-size: 1.05rem;
+            color: #1d1d1f;
+            font-size: 21px;
+            font-weight: 600;
         }
         .modal-card p {
             color: var(--text-secondary);
@@ -458,9 +530,9 @@
         }
         .modal-actions button:hover { border-color: var(--accent); }
         .modal-actions button.danger {
-            background: var(--orange);
+            background: #0071e3;
             color: #fff;
-            border-color: var(--orange);
+            border-color: #0071e3;
         }
         .modal-actions button.danger:hover { filter: brightness(1.05); }
         .modal-actions button:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -470,7 +542,6 @@
     <div class="container">
         <header>
             <img src="/logo-leona.png" alt="Leona" class="logo-img">
-            <p class="subtitle">Minha Assinatura</p>
         </header>
 
         <div id="searchSection" class="search-box" style="display: none;">
@@ -482,7 +553,7 @@
 
         <div id="whatsappSection" class="wpp-section" style="display: none;">
             <a id="whatsappBtn" href="#" target="_blank" class="wpp-btn">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="#0071e3"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                 <span>Precisa de ajuda? Chame nosso suporte</span>
             </a>
         </div>
@@ -503,6 +574,8 @@
         </div>
     </div>
 
+    <script src="https://js.pagou.ai/payments/v3.js"></script>
+    <script src="/pagou-pay-ui.js"></script>
     <script>
         let _data = null;
         let _email = '';
@@ -827,20 +900,12 @@
 
         function renderRenewalAlert(bp, days) {
             const venceTexto = days <= 0
-                ? 'venceu (acesso pode ser interrompido a qualquer momento)'
+                ? 'venceu'
                 : days === 1
                     ? 'vence amanhã'
                     : `vence em ${days} dias`;
             return `
-                <div class="card" style="border-color: var(--orange); box-shadow: 0 0 20px var(--glow-orange); margin-bottom: 16px;">
-                    <h3 style="color: var(--orange); margin-bottom: 12px;">⚠️ Sua assinatura ${venceTexto}</h3>
-                    <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; margin-bottom: 8px;">
-                        Sua cobrança recorrente foi cancelada e <strong style="color: var(--text-primary);">não há renovação automática agendada</strong>.
-                    </p>
-                    <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5;">
-                        Pra continuar usando a Leona, contrate um novo plano abaixo. A quantidade já vem preenchida com a do seu plano atual, mas você pode ajustar.
-                    </p>
-                </div>
+                <p class="lede">Sua assinatura ${venceTexto}. Não há renovação automática. Escolha o plano abaixo.</p>
             `;
         }
 
@@ -848,24 +913,18 @@
             const planLabel = sub.offer_name || sub.product_name || 'sua assinatura';
             const cycleEnd = sub.cycle_end ? formatDate(sub.cycle_end) : null;
             return `
-                <div class="card" style="border-color: var(--accent); box-shadow: 0 0 20px var(--glow-purple);">
-                    <h3 style="color: var(--accent); margin-bottom: 12px;">Pagamento confirmado, ativação em andamento</h3>
-                    <p style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5; margin-bottom: 8px;">
-                        Recebemos o pagamento de <strong style="color: var(--text-primary);">${planLabel}</strong>${cycleEnd ? ` (ciclo até ${cycleEnd})` : ''}.
-                        A liberação no painel pode levar alguns minutos.
-                    </p>
-                    <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5; margin-bottom: 16px;">
-                        Recarregue esta página em alguns minutos. Se continuar assim por mais de 5 minutos, fale com o suporte.
-                    </p>
-                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                        <button class="btn-primary" style="padding: 12px 20px; font-size: 0.9rem;" onclick="window.location.reload()">
-                            Recarregar agora
-                        </button>
-                        <a href="https://wa.me/5512991426510?text=Oi%20Alex%2C%20preciso%20de%20ajuda%20na%20%2Fassinatura" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; padding: 12px 20px; border: 1px solid var(--border); border-radius: 12px; color: var(--text-primary); text-decoration: none; font-size: 0.9rem; font-weight: 500;">
-                            Falar com o suporte
-                        </a>
+                <div class="group" style="margin-bottom:16px;">
+                    <div class="row">
+                        <span class="label">Status</span>
+                        <span class="value">Ativando</span>
+                    </div>
+                    <div class="row">
+                        <span class="label">${planLabel}</span>
+                        <span class="value">${cycleEnd ? `até ${cycleEnd}` : '—'}</span>
                     </div>
                 </div>
+                <p class="lede">Pagamento confirmado. A liberação pode levar alguns minutos.</p>
+                <button class="pay" type="button" onclick="window.location.reload()">Recarregar</button>
             `;
         }
 
@@ -980,16 +1039,12 @@
             const connections = totalConnections(bp);
             const validityLabel = active ? 'Ativa até' : 'Venceu em';
             return `
-                <div class="card" style="${active ? 'border-color: var(--accent); box-shadow: 0 0 20px var(--glow-purple);' : 'border-color: var(--error);'}">
-                    <h3>Sua assinatura${total > 1 ? ` #${idx + 1}` : ''}</h3>
-                    <div>
-                        ${bp.user?.name ? `<div class="info-row"><span class="info-label">Nome</span><span class="info-value">${bp.user.name}</span></div>` : ''}
-                        ${bp.user?.email ? `<div class="info-row"><span class="info-label">E-mail</span><span class="info-value">${bp.user.email}</span></div>` : ''}
-                        ${bp.account_id ? `<div class="info-row"><span class="info-label">ID da conta</span><span class="info-value">${bp.account_id}</span></div>` : ''}
-                        ${bp.plan_summary ? `<div class="info-row"><span class="info-label">Plano</span><span class="info-value">${bp.plan_summary}</span></div>` : ''}
-                        ${connections > 0 ? `<div class="info-row"><span class="info-label">Conexões</span><span class="info-value">${connections}</span></div>` : ''}
-                        ${bp.current_period_end ? `<div class="info-row"><span class="info-label">${validityLabel}</span><span class="info-value">${formatDate(bp.current_period_end)}</span></div>` : ''}
-                    </div>
+                <h1 class="page">${active ? 'Assinatura' : 'Renovar'}${total > 1 ? ` #${idx + 1}` : ''}</h1>
+                <p class="lede">${active ? 'Sua conta está ativa.' : 'Sua assinatura venceu. Escolha um plano para continuar.'}</p>
+                <div class="group" style="margin-bottom:16px;">
+                    ${bp.plan_summary ? `<div class="row"><span class="label">Plano</span><span class="value">${bp.plan_summary}</span></div>` : ''}
+                    ${connections > 0 ? `<div class="row"><span class="label">Conexões</span><span class="value">${connections}</span></div>` : ''}
+                    ${bp.current_period_end ? `<div class="row"><span class="label">${validityLabel}</span><span class="value">${formatDate(bp.current_period_end)}</span></div>` : ''}
                 </div>
             `;
         }
@@ -998,17 +1053,48 @@
 
         function renderQtySelInfo(offer, qty) {
             if (!offer) {
-                return `<div style="color: var(--orange); font-size: 0.9rem;">Não existe plano configurado para ${qty} conex${qty !== 1 ? 'ões' : 'ão'}.</div>`;
+                return `<span class="label">Sem plano para ${qty} conex${qty !== 1 ? 'ões' : 'ão'}</span><span class="value">—</span>`;
             }
-            const pmts = (offer.payment_types || []).map(t => t === 'credit_card' ? 'Cartão' : t === 'pix' ? 'PIX' : t).join(' · ');
-            return `
-                <div style="font-size: 1rem; color: var(--text-primary); font-weight: 600; margin-bottom: 4px;">${offer.name}</div>
-                <div style="font-size: 1.4rem; color: var(--orange); font-weight: 700;">${fmtCurrency(offer.value)}<span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 400;">/mês</span></div>
-                ${pmts ? `<div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">${pmts}</div>` : ''}
-            `;
+            return `<span class="label" id="offerName-${qty}">${offer.name}</span><span class="value">${fmtCurrency(offer.value)}</span>`;
         }
 
-        function renderQtySelector(offers, email, slot, accountId, defaultQty) {
+        function mountPayForm(slotId, kind) {
+            const mount = document.getElementById(`payMount-${slotId}`);
+            if (!mount || !window.PagouPay) return;
+            const state = _qtySelStates[slotId];
+            if (!state) return;
+            mount.innerHTML = PagouPay.formHtml(slotId, { email: state.email || _email, kind });
+            PagouPay.attach(slotId, {
+                getCheckout: () => {
+                    const input = document.getElementById(`qtySel-${slotId}`);
+                    const qty = input
+                        ? Math.max(1, parseInt(input.value) || 1)
+                        : Math.max(1, Number(state.qty) || 1);
+                    const offer = getOfferForQty(state.offers || _data?.offers, qty);
+                    return {
+                        accountId: state.accountId,
+                        email: state.email || _email,
+                        qty,
+                        amount: offer?.value || 0,
+                        offer: offer?.name || '',
+                        kind
+                    };
+                },
+                onSubmit: (c) => {
+                    logAssinatura('click_buy', {
+                        provider: 'pagou',
+                        account_id: c.accountId,
+                        email: c.email,
+                        details: { qty: c.qty, offer: c.offer || null, value: c.amount || null, kind }
+                    });
+                },
+                onPaid: () => {
+                    setTimeout(() => loadProfile(), 1600);
+                }
+            });
+        }
+
+        function renderQtySelector(offers, email, slot, accountId, defaultQty, kind) {
             if (!offers || offers.length === 0) return '';
             const qtys = [];
             for (const o of offers) {
@@ -1021,32 +1107,25 @@
             qtys.sort((a, b) => a - b);
             if (qtys.length === 0) return '';
             const slotId = slot || 'g';
-            // Se veio defaultQty (>0), usa como inicial — mesmo que nao exista
-            // oferta exata pra ela. Aí o cliente ve "Plano indisponivel" e pode
-            // ajustar com +/-. Caso contrario, comeca no menor plano disponivel.
+            const payKind = kind === 'one_shot' ? 'one_shot' : 'subscription';
             const initialQty = (Number.isFinite(defaultQty) && defaultQty > 0) ? defaultQty : qtys[0];
             const initialOffer = getOfferForQty(offers, initialQty);
 
-            _qtySelStates[slotId] = { offers, email, accountId: accountId || null };
+            _qtySelStates[slotId] = { offers, email, accountId: accountId || null, kind: payKind };
 
             return `
-                <div class="card">
-                    <h3>Escolha seu plano</h3>
-                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 16px;">Quantas conexões você precisa?</p>
-                    <div style="display: flex; align-items: center; justify-content: center; gap: 16px;">
-                        <button onclick="qtySelAdjust('${slotId}', -1)" style="width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); font-size: 1.4rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-primary)'">−</button>
-                        <input type="number" id="qtySel-${slotId}" value="${initialQty}" min="1"
-                            style="width: 80px; padding: 10px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; color: var(--text-primary); font-size: 1.3rem; font-weight: 700; text-align: center; outline: none; transition: all 0.25s;"
-                            onfocus="this.style.borderColor='var(--accent)';this.style.boxShadow='0 0 0 3px var(--glow-purple)'"
-                            onblur="this.style.borderColor='var(--border)';this.style.boxShadow='none'"
-                            oninput="qtySelUpdate('${slotId}')">
-                        <button onclick="qtySelAdjust('${slotId}', +1)" style="width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); font-size: 1.4rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--orange)';this.style.color='var(--orange)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-primary)'">+</button>
+                <div id="payChrome-${slotId}">
+                    <div class="group">
+                        <div class="stepper">
+                            <button type="button" onclick="qtySelAdjust('${slotId}', -1)">−</button>
+                            <input type="number" id="qtySel-${slotId}" value="${initialQty}" min="1" oninput="qtySelUpdate('${slotId}')">
+                            <button type="button" onclick="qtySelAdjust('${slotId}', +1)">+</button>
+                        </div>
+                        <div class="row" id="qtySelInfo-${slotId}">${renderQtySelInfo(initialOffer, initialQty)}</div>
                     </div>
-                    <div id="qtySelInfo-${slotId}" style="text-align: center; margin-top: 18px; min-height: 70px;">${renderQtySelInfo(initialOffer, initialQty)}</div>
-                    <button class="btn-orange" id="qtySelBtn-${slotId}" style="width: 100%; padding: 14px; margin-top: 12px; font-size: 0.95rem;" ${initialOffer ? '' : 'disabled'} onclick="qtySelGoCheckout('${slotId}')">
-                        ${initialOffer ? 'Assinar agora' : 'Plano indisponível'}
-                    </button>
+                    <p class="hint" id="qtySelLede-${slotId}" style="margin-top:10px;margin-bottom:0;">${initialOffer ? `${initialQty} conex${initialQty === 1 ? 'ão' : 'ões'} · ${payKind === 'one_shot' ? 'ajuste avulso' : 'assinatura mensal'}` : 'Ajuste as conexões para um plano disponível.'}</p>
                 </div>
+                <div id="payMount-${slotId}"></div>
             `;
         }
 
@@ -1063,63 +1142,22 @@
             if (!state) return;
             const input = document.getElementById(`qtySel-${slot}`);
             const info = document.getElementById(`qtySelInfo-${slot}`);
-            const btn = document.getElementById(`qtySelBtn-${slot}`);
-            if (!input || !info || !btn) return;
+            const lede = document.getElementById(`qtySelLede-${slot}`);
+            const btn = document.getElementById(`payBtn-${slot}`);
+            if (!input || !info) return;
             const qty = parseInt(input.value) || 0;
             const offer = getOfferForQty(state.offers, qty);
             info.innerHTML = renderQtySelInfo(offer, qty);
-            if (offer) {
-                btn.disabled = false;
-                btn.textContent = 'Assinar agora';
-            } else {
-                btn.disabled = true;
-                btn.textContent = 'Plano indisponível';
+            if (lede) {
+                lede.textContent = offer
+                    ? `${qty} conex${qty === 1 ? 'ão' : 'ões'} · ${state.kind === 'one_shot' ? 'ajuste avulso' : 'assinatura mensal'}`
+                    : 'Ajuste as conexões para um plano disponível.';
             }
-        }
-
-        async function qtySelGoCheckout(slot) {
-            const state = _qtySelStates[slot];
-            if (!state) return;
-            const input = document.getElementById(`qtySel-${slot}`);
-            const btn = document.getElementById(`qtySelBtn-${slot}`);
-            const qty = parseInt(input.value) || 0;
-            const offer = getOfferForQty(state.offers, qty);
-            if (!offer && !qty) return;
-            if (!state.accountId) {
-                alert('Abra esta página pelo painel do Leona para gerar o pagamento.');
-                return;
-            }
-            logAssinatura('click_buy', {
-                provider: 'pagou',
-                account_id: state.accountId,
-                email: state.email,
-                details: { qty, offer: offer?.name || null, value: offer?.value ?? null }
-            });
-            if (btn) { btn.disabled = true; btn.textContent = 'Gerando pagamento...'; }
-            try {
-                const r = await fetch('/api/pagou-checkout', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        account_id: state.accountId,
-                        email: state.email || _email,
-                        qty,
-                        amount: offer?.value,
-                        offer_name: offer?.name,
-                        kind: 'subscription'
-                    })
-                });
-                const data = await r.json();
-                if (!r.ok || !data.url) {
-                    alert(data.error || 'Não consegui gerar o pagamento na Pagou. Fale com o suporte.');
-                    if (btn) { btn.disabled = false; btn.textContent = 'Assinar agora'; }
-                    return;
-                }
-                window.location.href = data.url;
-                return;
-            } catch (err) {
-                alert('Erro ao abrir a Pagou: ' + err.message);
-                if (btn) { btn.disabled = false; btn.textContent = 'Assinar agora'; }
+            if (btn) {
+                btn.disabled = !offer;
+                btn.textContent = offer
+                    ? (window.PagouPay ? PagouPay.payLabel('pix', state.kind || 'subscription') : 'Assinar com PIX')
+                    : 'Plano indisponível';
             }
         }
 
@@ -1169,23 +1207,18 @@
             _replaceStates[slot] = { accountId, qty: currentQty || 1 };
             if (openBtn) openBtn.style.display = 'none';
             panel.innerHTML = `
-                <div style="background: var(--bg-secondary); padding: 16px; border-radius: 12px; border: 1px solid var(--border);">
-                    <div style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 12px;">Quantas conexões você quer no novo plano?</div>
-                    <div style="display: flex; align-items: center; justify-content: center; gap: 14px;">
-                        <button onclick="replaceAdjust('${slot}', -1)" style="width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); font-size: 1.2rem; font-weight: 700; cursor: pointer;">−</button>
-                        <input type="number" id="replaceQty-${slot}" value="${currentQty || 1}" min="1"
-                            style="width: 70px; padding: 8px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; color: var(--text-primary); font-size: 1.2rem; font-weight: 700; text-align: center; outline: none;"
-                            oninput="replaceUpdate('${slot}')">
-                        <button onclick="replaceAdjust('${slot}', +1)" style="width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); font-size: 1.2rem; font-weight: 700; cursor: pointer;">+</button>
+                <div class="group">
+                    <div class="stepper">
+                        <button type="button" onclick="replaceAdjust('${slot}', -1)">−</button>
+                        <input type="number" id="replaceQty-${slot}" value="${currentQty || 1}" min="1" oninput="replaceUpdate('${slot}')">
+                        <button type="button" onclick="replaceAdjust('${slot}', +1)">+</button>
                     </div>
-                    <div id="replaceHint-${slot}" style="text-align: center; margin-top: 10px; font-size: 0.85rem; color: var(--text-muted);">
-                        ${currentQty ? `Atual: ${currentQty} conex${currentQty !== 1 ? 'ões' : 'ão'}` : ''}
+                    <div class="row" id="replaceHint-${slot}">
+                        <span class="label">${currentQty ? `Atual: ${currentQty} conex${currentQty !== 1 ? 'ões' : 'ão'}` : 'Novo plano'}</span>
+                        <span class="value"></span>
                     </div>
-                    <button class="btn-orange" id="replaceGoBtn-${slot}" style="width: 100%; padding: 12px; margin-top: 12px; font-size: 0.92rem;"
-                        onclick="replaceGenerate('${slot}')">
-                        Confirmar e gerar link
-                    </button>
                 </div>
+                <button class="pay" id="replaceGoBtn-${slot}" type="button" onclick="replaceGenerate('${slot}')">Continuar</button>
             `;
         }
 
@@ -1207,11 +1240,11 @@
             if (hint) {
                 const diff = qty - current;
                 if (diff === 0) {
-                    hint.innerHTML = `<span style="color: var(--text-muted);">Mesmo plano atual (${current} conex${current !== 1 ? 'ões' : 'ão'})</span>`;
+                    hint.innerHTML = `<span class="label">Atual</span><span class="value">${current} conex${current !== 1 ? 'ões' : 'ão'}</span>`;
                 } else if (diff > 0) {
-                    hint.innerHTML = `<span style="color: var(--success);">+${diff} conex${diff !== 1 ? 'ões' : 'ão'}</span> · <span style="color: var(--text-secondary);">de ${current} para ${qty}</span>`;
+                    hint.innerHTML = `<span class="label">De ${current} para ${qty}</span><span class="value">+${diff}</span>`;
                 } else {
-                    hint.innerHTML = `<span style="color: var(--orange);">${diff} conex${Math.abs(diff) !== 1 ? 'ões' : 'ão'}</span> · <span style="color: var(--text-secondary);">de ${current} para ${qty}</span>`;
+                    hint.innerHTML = `<span class="label">De ${current} para ${qty}</span><span class="value">${diff}</span>`;
                 }
             }
         }
@@ -1220,65 +1253,39 @@
             const state = _replaceStates[slot];
             if (!state) return;
             const input = document.getElementById(`replaceQty-${slot}`);
-            const btn = document.getElementById(`replaceGoBtn-${slot}`);
             const panel = document.getElementById(`replacePanel-${slot}`);
             const qty = Math.max(1, parseInt(input.value) || 1);
+            const offer = getOfferForQty(_data?.offers, qty);
+            const payId = `rep-${slot}`;
 
-            if (btn) { btn.disabled = true; btn.textContent = 'Gerando pagamento...'; }
             logAssinatura('click_buy', {
                 provider: 'pagou',
                 account_id: state.accountId,
                 details: { qty, via: 'replace' }
             });
 
-            try {
-                const r = await fetch('/api/pagou-checkout', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ account_id: state.accountId, qty, email: _email, kind: 'one_shot' })
-                });
-                const data = await r.json();
+            _qtySelStates[payId] = {
+                offers: _data?.offers || [],
+                email: _email,
+                accountId: state.accountId,
+                kind: 'one_shot',
+                qty
+            };
 
-                if (!r.ok || !data.url) {
-                    panel.innerHTML = `
-                        <div class="alert alert-error">
-                            <strong>Não foi possível gerar o pagamento</strong>
-                            ${data.error || `HTTP ${r.status}`}
+            panel.innerHTML = `
+                <div id="payChrome-${payId}">
+                    <h1 class="page">Ajuste</h1>
+                    <p class="lede">${qty} conex${qty === 1 ? 'ão' : 'ões'} · ajuste avulso</p>
+                    <div class="group">
+                        <div class="row">
+                            <span class="label">${offer?.name || `${qty} conex${qty === 1 ? 'ão' : 'ões'}`}</span>
+                            <span class="value">${offer ? fmtCurrency(offer.value) : '—'}</span>
                         </div>
-                    `;
-                    return;
-                }
-
-                const payUrl = data.url;
-                const payValue = data.amount_cents ? data.amount_cents / 100 : null;
-                panel.innerHTML = `
-                    <div style="background: var(--bg-secondary); padding: 16px; border-radius: 12px; border: 1px solid rgba(16,185,129,0.3);">
-                        <div style="color: var(--success); font-weight: 700; margin-bottom: 10px;">✅ Pagamento Pagou gerado</div>
-                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px;">
-                            <span style="color: var(--text-secondary);">Plano:</span>
-                            <span style="font-weight: 600;">${data.offer_name || `${data.qty} conex${data.qty !== 1 ? 'ões' : 'ão'}`}</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 14px;">
-                            <span style="color: var(--text-secondary);">Valor:</span>
-                            <span style="color: var(--orange); font-weight: 700;">${payValue != null ? fmtCurrency(payValue) : '—'}/mês</span>
-                        </div>
-                        <div style="display: flex; gap: 8px;">
-                            <input type="text" value="${payUrl}" readonly
-                                style="flex: 1; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; color: var(--text-primary); font-size: 0.78rem; font-family: monospace;"
-                                onclick="this.select()">
-                            <button class="btn-orange" style="padding: 10px 14px; font-size: 0.85rem; white-space: nowrap;"
-                                onclick="navigator.clipboard.writeText('${payUrl}').then(() => { this.textContent = 'Copiado!'; setTimeout(() => this.textContent = 'Copiar', 2000); })">
-                                Copiar
-                            </button>
-                        </div>
-                        <a href="${payUrl}" target="_blank" rel="noopener" class="btn-orange" style="display: block; text-align: center; padding: 12px; margin-top: 12px; font-size: 0.92rem; text-decoration: none; border-radius: 10px;">
-                            Abrir pagamento Leona →
-                        </a>
                     </div>
-                `;
-            } catch (err) {
-                panel.innerHTML = `<div class="alert alert-error">Erro: ${err.message}</div>`;
-            }
+                </div>
+                <div id="payMount-${payId}"></div>
+            `;
+            mountPayForm(payId, 'one_shot');
         }
 
         function findPendingInvoice(guru) {
@@ -1318,28 +1325,16 @@
                 const slotId = `cyc-${bp?.account_id || 'x'}`;
                 _qtySelStates[slotId] = null;
                 return `
-                    <div style="background: var(--bg-card); padding: 20px; border-radius: 14px; border: 1px solid rgba(245,158,11,0.3); margin-bottom: 16px; box-shadow: 0 0 20px var(--glow-orange);">
-                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
-                            <span style="color: var(--orange); font-size: 1.2rem;">📅</span>
-                            <strong style="color: var(--orange);">${typeLabel}</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                            <span style="color: var(--text-secondary);">Próxima cobrança:</span>
-                            <span style="font-weight: 600;">${chargeAtFmt || '—'}</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 14px;">
-                            <span style="color: var(--text-secondary);">Valor:</span>
-                            <span style="font-weight: 700; color: var(--orange);">${valueFmt}</span>
-                        </div>
-                        <div style="background: rgba(245,158,11,0.08); padding: 12px; border-radius: 10px; color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 14px; line-height: 1.5;">
-                            O link de pagamento da Guru só fica disponível no dia da cobrança às 10h. Se quiser pagar antes ou mudar de plano, gere um link de pagamento agora.
-                        </div>
-                        <button class="btn-orange" id="replaceOpenBtn-${slotId}" style="width: 100%; padding: 14px; font-size: 0.95rem;"
-                            onclick="openReplaceSelector('${slotId}', ${bp?.account_id ? `'${String(bp.account_id).replace(/'/g, "\\'")}'` : 'null'}, ${currentQty})">
-                            Gerar link de pagamento agora
-                        </button>
-                        <div id="replacePanel-${slotId}" style="margin-top: 16px;"></div>
+                    <p class="lede">${typeLabel}. O link da Guru só libera no dia da cobrança às 10h.</p>
+                    <div class="group" style="margin-bottom:16px;">
+                        <div class="row"><span class="label">Próxima cobrança</span><span class="value">${chargeAtFmt || '—'}</span></div>
+                        <div class="row"><span class="label">Valor</span><span class="value">${valueFmt}</span></div>
                     </div>
+                    <button class="pay" id="replaceOpenBtn-${slotId}" type="button"
+                        onclick="openReplaceSelector('${slotId}', ${bp?.account_id ? `'${String(bp.account_id).replace(/'/g, "\\'")}'` : 'null'}, ${currentQty})">
+                        Pagar agora
+                    </button>
+                    <div id="replacePanel-${slotId}"></div>
                 `;
             }
 
@@ -1380,36 +1375,23 @@
         function renderUpgradePanel(bp, idx) {
             const currentQty = bp.starter_instances || 0;
             return `
-                <div class="sim-panel">
-                    <h3 style="color: var(--orange); font-size: 1rem; margin-bottom: 16px;">Quer mudar seu plano?</h3>
-
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                        <span style="color: var(--text-secondary); font-size: 0.85rem;">Plano atual</span>
-                        <span style="color: var(--text-primary); font-weight: 700; font-size: 1.1rem;">${currentQty} conex${currentQty !== 1 ? 'ões' : 'ão'}</span>
+                <p class="lede">Quer mudar o plano?</p>
+                <div class="group">
+                    <div class="row">
+                        <span class="label">Atual</span>
+                        <span class="value">${currentQty} conex${currentQty !== 1 ? 'ões' : 'ão'}</span>
                     </div>
-
-                    <div style="border-top: 1px solid var(--border); padding-top: 16px; margin-top: 8px;">
-                        <span style="color: var(--text-secondary); font-size: 0.85rem; display: block; margin-bottom: 12px;">Quantas conexões você quer:</span>
-                        <div style="display: flex; align-items: center; justify-content: center; gap: 16px;">
-                            <button onclick="adjustQty(${idx}, -1, ${currentQty})" style="width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); font-size: 1.4rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-primary)'">−</button>
-                            <div style="text-align: center; min-width: 80px;">
-                                <input type="number" id="newQty-${idx}" value="${currentQty}" min="1"
-                                    style="width: 64px; padding: 10px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; color: var(--text-primary); font-size: 1.3rem; font-weight: 700; text-align: center; outline: none; transition: all 0.25s;"
-                                    onfocus="this.style.borderColor='var(--accent)';this.style.boxShadow='0 0 0 3px var(--glow-purple)'"
-                                    onblur="this.style.borderColor='var(--border)';this.style.boxShadow='none'"
-                                    oninput="updateQtyLabel(${idx}, ${currentQty})">
-                            </div>
-                            <button onclick="adjustQty(${idx}, +1, ${currentQty})" style="width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary); font-size: 1.4rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--orange)';this.style.color='var(--orange)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-primary)'">+</button>
-                        </div>
-                        <div id="qtyLabel-${idx}" style="text-align: center; margin-top: 12px; font-size: 0.85rem; min-height: 22px; transition: all 0.2s;"></div>
+                    <div class="stepper">
+                        <button type="button" onclick="adjustQty(${idx}, -1, ${currentQty})">−</button>
+                        <input type="number" id="newQty-${idx}" value="${currentQty}" min="1" oninput="updateQtyLabel(${idx}, ${currentQty})">
+                        <button type="button" onclick="adjustQty(${idx}, +1, ${currentQty})">+</button>
                     </div>
-
-                    <button class="btn-orange" style="width: 100%; padding: 14px; margin-top: 16px; font-size: 0.95rem;" onclick="simulateChange(${idx})" id="simBtn-${idx}" disabled>
-                        Calcular nova mensalidade
-                    </button>
-
-                    <div class="sim-result" id="simResult-${idx}"></div>
+                    <div class="row" id="qtyLabel-${idx}"></div>
                 </div>
+                <button class="pay" type="button" onclick="simulateChange(${idx})" id="simBtn-${idx}" disabled>
+                    Calcular
+                </button>
+                <div class="sim-result" id="simResult-${idx}"></div>
             `;
         }
 
@@ -1438,12 +1420,11 @@
 
             if (!leona.found || profiles.length === 0) {
                 content.innerHTML = `
-                    <div class="empty-state">
-                        <div class="icon">🔍</div>
-                        <p>Não encontramos uma assinatura para <strong>${email}</strong>.</p>
-                    </div>
+                    <h1 class="page">Assinar</h1>
+                    <p class="lede">Não encontramos uma assinatura para ${email}.</p>
                     ${renderQtySelector(offers, email, 'none')}
                 `;
+                mountPendingPayForms();
                 return;
             }
 
@@ -1509,23 +1490,9 @@
                     } else if (hasGuruAny) {
                         // Cenário 2: Leona vencida + Guru vencida/cancelada.
                         // Renovação nova vai pra Pagou (não gera outra Guru).
-                        html += `
-                            <div class="alert alert-error">
-                                <strong>Sua assinatura venceu</strong>
-                                Escolha um plano abaixo para renovar.
-                            </div>
-                        `;
                         html += renderQtySelector(offers, email, `exp${i}`, bp.account_id);
                     } else {
                         // Cenário 1: Leona inativa/vencida + sem Guru desta conta
-                        if (bp.current_period_end) {
-                            html += `
-                                <div class="alert alert-error">
-                                    <strong>Sua assinatura venceu</strong>
-                                    Escolha um plano abaixo para renovar.
-                                </div>
-                            `;
-                        }
                         html += renderQtySelector(offers, email, `noguru${i}`, bp.account_id);
                     }
                 } else {
@@ -1552,6 +1519,15 @@
             }
 
             content.innerHTML = html;
+            mountPendingPayForms();
+        }
+
+        function mountPendingPayForms() {
+            for (const slotId of Object.keys(_qtySelStates)) {
+                const state = _qtySelStates[slotId];
+                if (!state || !document.getElementById(`payMount-${slotId}`)) continue;
+                mountPayForm(slotId, state.kind || 'subscription');
+            }
         }
 
         async function simulateChange(bpIdx) {
