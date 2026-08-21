@@ -91,6 +91,132 @@ function isOneShotKind(value) {
   return kind === 'one_shot' || kind === 'oneshot' || kind === 'avulso' || kind === 'upgrade';
 }
 
+function chargeFailed(status, nextAction) {
+  const st = String(status || '').toLowerCase();
+  return ['error', 'refused', 'failed', 'canceled', 'cancelled'].includes(st) && !nextAction;
+}
+
+function buildOneShotPayload({
+  title,
+  amountCents,
+  payMethod,
+  token,
+  ip,
+  buyerName,
+  buyerEmail,
+  document,
+  address,
+  phone,
+  productName
+}) {
+  const payload = {
+    external_ref: title,
+    amount: amountCents,
+    currency: 'BRL',
+    method: payMethod,
+    buyer: {
+      name: buyerName,
+      email: buyerEmail,
+      document,
+      address,
+      ...(phoneFrom(phone) ? { phone: phoneFrom(phone) } : {})
+    },
+    products: [{
+      name: productName,
+      price: amountCents,
+      quantity: 1
+    }]
+  };
+  if (payMethod === 'credit_card') {
+    payload.token = token;
+    payload.installments = 1;
+    if (ip) payload.ip_address = ip;
+  }
+  return payload;
+}
+
+async function settleOneShot(req, {
+  created,
+  data,
+  buyerEmail,
+  accountId,
+  qtyN,
+  amountCents,
+  title,
+  productName,
+  payMethod,
+  fallback
+}) {
+  if (!created.ok || !data?.id) return null;
+  if (chargeFailed(data.status, data.next_action || data.nextAction)) return null;
+
+  await rememberIntent({
+    account_id: accountId,
+    email: buyerEmail || null,
+    qty: qtyN,
+    amount_cents: amountCents,
+    title,
+    checkout_url: null,
+    status: 'pending',
+    pagou_transaction_id: data.id,
+    details: {
+      offer_name: productName,
+      method: payMethod,
+      kind: 'one_shot',
+      ...(fallback ? { fallback } : {})
+    }
+  });
+
+  logAssinaturaEvent(req, {
+    action: payMethod === 'pix' ? 'pagou_pix_created' : 'pagou_card_created',
+    provider: 'pagou',
+    email: buyerEmail,
+    account_id: accountId,
+    details: {
+      qty: qtyN,
+      amount_cents: amountCents,
+      title,
+      tx: data.id,
+      status: data.status,
+      kind: 'one_shot',
+      ...(fallback ? { fallback } : {})
+    }
+  });
+
+  return {
+    success: true,
+    id: data.id,
+    subscription_id: null,
+    status: data.status || null,
+    method: payMethod,
+    kind: 'one_shot',
+    paid: String(data.status || '').toLowerCase() === 'paid',
+    next_action: data.next_action || data.nextAction || null,
+    pix: extractPix(data),
+    qty: qtyN,
+    amount_cents: amountCents,
+    offer_name: productName,
+    ...(fallback ? { fallback } : {})
+  };
+}
+
+async function fallbackCardOneShot(req, oneShotArgs, extra) {
+  if (oneShotArgs.payMethod !== 'credit_card') return null;
+  const created = await createPagouTransaction(buildOneShotPayload(oneShotArgs));
+  return settleOneShot(req, {
+    created,
+    data: txPayload(created.body),
+    buyerEmail: extra.buyerEmail,
+    accountId: extra.accountId,
+    qtyN: extra.qtyN,
+    amountCents: extra.amountCents,
+    title: extra.title,
+    productName: extra.productName,
+    payMethod: 'credit_card',
+    fallback: 'card_sub_to_tx'
+  });
+}
+
 async function rememberIntent(row) {
   if (!sbConfigured()) return;
   try {
@@ -208,34 +334,35 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Token do cartão ausente' });
   }
 
-  if (oneShot) {
-    const payload = {
-      external_ref: title,
-      amount: amountCents,
-      currency: 'BRL',
-      method: payMethod,
-      buyer: {
-        name: buyerName,
-        email: buyerEmail,
-        document,
-        address,
-        ...(phoneFrom(buyer?.phone) ? { phone: phoneFrom(buyer.phone) } : {})
-      },
-      products: [{
-        name: productName,
-        price: amountCents,
-        quantity: 1
-      }]
-    };
-    if (payMethod === 'credit_card') {
-      payload.token = token;
-      payload.installments = 1;
-      if (ip) payload.ip_address = ip;
-    }
+  const oneShotArgs = {
+    title,
+    amountCents,
+    payMethod,
+    token,
+    ip,
+    buyerName,
+    buyerEmail,
+    document,
+    address,
+    phone: buyer?.phone,
+    productName
+  };
 
-    const created = await createPagouTransaction(payload);
+  if (oneShot) {
+    const created = await createPagouTransaction(buildOneShotPayload(oneShotArgs));
     const data = txPayload(created.body);
-    if (!created.ok || !data?.id) {
+    const json = await settleOneShot(req, {
+      created,
+      data,
+      buyerEmail,
+      accountId,
+      qtyN,
+      amountCents,
+      title,
+      productName,
+      payMethod
+    });
+    if (!json) {
       logAssinaturaEvent(req, {
         action: 'pagou_pay_error',
         provider: 'pagou',
@@ -251,41 +378,7 @@ export default async function handler(req, res) {
       });
       return res.status(created.status || 502).json({ error: pagouError(created.body) });
     }
-
-    await rememberIntent({
-      account_id: accountId,
-      email: buyerEmail || null,
-      qty: qtyN,
-      amount_cents: amountCents,
-      title,
-      checkout_url: null,
-      status: 'pending',
-      pagou_transaction_id: data.id,
-      details: { offer_name: productName, method: payMethod, kind: 'one_shot' }
-    });
-
-    logAssinaturaEvent(req, {
-      action: payMethod === 'pix' ? 'pagou_pix_created' : 'pagou_card_created',
-      provider: 'pagou',
-      email: buyerEmail,
-      account_id: accountId,
-      details: { qty: qtyN, amount_cents: amountCents, title, tx: data.id, status: data.status, kind: 'one_shot' }
-    });
-
-    return res.status(200).json({
-      success: true,
-      id: data.id,
-      subscription_id: null,
-      status: data.status || null,
-      method: payMethod,
-      kind: 'one_shot',
-      paid: String(data.status || '').toLowerCase() === 'paid',
-      next_action: data.next_action || null,
-      pix: extractPix(data),
-      qty: qtyN,
-      amount_cents: amountCents,
-      offer_name: productName
-    });
+    return res.status(200).json(json);
   }
 
   const customer = await upsertPagouCustomer({
@@ -405,6 +498,16 @@ export default async function handler(req, res) {
     }
   }
   if (!created.ok || !data?.id) {
+    const fallback = await fallbackCardOneShot(req, oneShotArgs, {
+      buyerEmail,
+      accountId,
+      qtyN,
+      amountCents,
+      title,
+      productName
+    });
+    if (fallback) return res.status(200).json(fallback);
+
     logAssinaturaEvent(req, {
       action: 'pagou_pay_error',
       provider: 'pagou',
@@ -436,8 +539,17 @@ export default async function handler(req, res) {
   }
 
   const firstStatus = String(firstTx?.status || data.status || '').toLowerCase();
-  const firstFailed = ['error', 'refused', 'failed', 'canceled', 'cancelled'].includes(firstStatus);
-  if (firstFailed && !nextAction) {
+  if (chargeFailed(firstStatus, nextAction)) {
+    const fallback = await fallbackCardOneShot(req, oneShotArgs, {
+      buyerEmail,
+      accountId,
+      qtyN,
+      amountCents,
+      title,
+      productName
+    });
+    if (fallback) return res.status(200).json(fallback);
+
     logAssinaturaEvent(req, {
       action: 'pagou_pay_error',
       provider: 'pagou',

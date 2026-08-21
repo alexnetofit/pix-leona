@@ -292,6 +292,10 @@
         if (result.status === 'error') throw new Error(result.error || 'Cartão recusado');
         await waitPaid(state.subId || state.txId);
       } catch (err) {
+        if (await checkPaid(state.subId || state.txId)) {
+          showOk();
+          return;
+        }
         showErr(err.message);
         btn.disabled = false;
         btn.textContent = payLabel(state.method, kind());
