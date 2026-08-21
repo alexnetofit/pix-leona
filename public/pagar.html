@@ -58,11 +58,6 @@
             padding: 10px 18px 12px;
         }
         .field + .field { border-top: 1px solid #d2d2d7; }
-        .split {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-        }
-        .split .field + .field { border-top: 0; border-left: 1px solid #d2d2d7; }
         .field label {
             display: block;
             font-size: 12px;
@@ -167,8 +162,7 @@
         }
         a { color: #0071e3; text-decoration: none; }
         @media (max-width: 420px) {
-            .split { grid-template-columns: 1fr; }
-            .split .field + .field { border-left: 0; border-top: 1px solid #d2d2d7; }
+            .wrap { width: calc(100% - 32px); }
         }
     </style>
 </head>
@@ -198,15 +192,13 @@
                     <label>Nome</label>
                     <input id="name" type="text" autocomplete="name" placeholder="Como no documento">
                 </div>
-                <div class="split">
-                    <div class="field">
-                        <label>CPF ou CNPJ</label>
-                        <input id="document" type="text" inputmode="numeric" placeholder="000.000.000-00">
-                    </div>
-                    <div class="field">
-                        <label>Celular</label>
-                        <input id="phone" type="tel" placeholder="(11) 99999-9999">
-                    </div>
+                <div class="field">
+                    <label>CPF ou CNPJ</label>
+                    <input id="document" type="text" inputmode="numeric" placeholder="000.000.000-00">
+                </div>
+                <div class="field">
+                    <label>Celular</label>
+                    <input id="phone" type="tel" placeholder="(11) 99999-9999">
                 </div>
             </div>
 
