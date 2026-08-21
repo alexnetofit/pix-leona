@@ -85,6 +85,7 @@ function pagouError(body) {
 
 function pixAutomaticUnsupported(body) {
   const text = JSON.stringify(body || {}).toLowerCase();
+  if (text.includes('unrecognized keys') && (text.includes('document') || text.includes('buyer'))) return true;
   return text.includes('pix_automatic') && (text.includes('not supported') || text.includes('não suport'));
 }
 
@@ -461,8 +462,7 @@ export default async function handler(req, res) {
         comment: title.slice(0, 140),
         products,
         metadata,
-        idempotency_key: title,
-        ...documentFields
+        idempotency_key: title
       };
 
   let created = await createPagouSubscription(subPayload);
