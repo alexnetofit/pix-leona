@@ -217,7 +217,9 @@ export default async function handler(req, res) {
 
   const periodEnd = extra.current_period_end || extra.currentPeriodEnd;
   const metaKind = String(extra.metadata?.kind || intent?.details?.kind || '').toLowerCase();
+  const qtyChanged = Number(qty) !== Number(profile.starter_instances || 0);
   const keepCycle = metaKind === 'one_shot'
+    && qtyChanged
     && profile.current_period_end
     && new Date(profile.current_period_end) > new Date();
   const dueDate = periodEnd
