@@ -424,17 +424,6 @@ export default async function handler(req, res) {
     price: amountCents,
     quantity: 1
   }];
-  const buyerPayload = {
-    name: buyerName,
-    email: buyerEmail,
-    document,
-    address,
-    ...(phoneFrom(buyer?.phone) ? { phone: phoneFrom(buyer.phone) } : {})
-  };
-  const documentFields = {
-    document,
-    buyer: buyerPayload
-  };
 
   const subPayload = payMethod === 'credit_card'
     ? {
@@ -448,9 +437,8 @@ export default async function handler(req, res) {
         payment_method: 'credit_card',
         products,
         metadata,
-        idempotency_key: title,
-        ...documentFields,
-        ...(ip ? { ip_address: ip } : {})
+        external_ref: title,
+        idempotency_key: title
       }
     : {
         customer_id: customer.data.id,
