@@ -14,18 +14,32 @@ import { sbConfigured, sbInsert, sbSelect, sbUpdate } from '../lib/supabase.js';
 const PAID_EVENTS = new Set([
   'transaction.paid',
   'subscription.started',
-  'subscription.renewed',
-  'subscription.created'
+  'subscription.renewed'
 ]);
 
 const FAIL_EVENTS = new Set([
   'transaction.cancelled',
+  'transaction.canceled',
+  'transaction.refused',
   'transaction.refunded',
   'transaction.chargedback',
   'subscription.payment_failed',
   'subscription.past_due',
   'subscription.canceled',
   'subscription.chargeback_received'
+]);
+
+const PAID_STATUSES = new Set(['paid']);
+const FAIL_STATUSES = new Set([
+  'refused',
+  'cancelled',
+  'canceled',
+  'failed',
+  'chargedback',
+  'chargeback',
+  'refunded',
+  'waiting_payment',
+  'pending'
 ]);
 
 function pick(obj, ...keys) {
@@ -147,20 +161,24 @@ export default async function handler(req, res) {
     details: { event_id: eventId, resource_id: resourceId, status: payload?.data?.status || null }
   });
 
-  if (FAIL_EVENTS.has(name)) {
-    return res.status(200).json({ received: true, ignored: false, event: name });
-  }
-  if (!PAID_EVENTS.has(name) && name !== 'transaction') {
-    return res.status(200).json({ received: true, ignored: true, event: name || 'unknown' });
-  }
-
   let extra = {};
-  if (resourceId && (family === 'transaction' || name.startsWith('transaction.'))) {
+  if (resourceId && (family === 'transaction' || name.startsWith('transaction'))) {
     const tx = await getPagouTransaction(resourceId);
     extra = tx.body?.data || tx.body || {};
-  } else if (resourceId && (family === 'subscription' || name.startsWith('subscription.'))) {
+  } else if (resourceId && (family === 'subscription' || name.startsWith('subscription'))) {
     const sub = await getPagouSubscription(resourceId);
     extra = sub.body?.data || sub.body || {};
+  }
+
+  const status = String(extra.status || payload?.data?.status || '').toLowerCase();
+  const paidByStatus = PAID_STATUSES.has(status);
+  const paidByEvent = PAID_EVENTS.has(name) && (paidByStatus || status === 'active');
+
+  if (FAIL_EVENTS.has(name) || FAIL_STATUSES.has(status)) {
+    return res.status(200).json({ received: true, ignored: true, event: name, status });
+  }
+  if (!paidByStatus && !paidByEvent) {
+    return res.status(200).json({ received: true, ignored: true, event: name || 'unknown', status });
   }
 
   const email = extra.buyer?.email || extra.customer_email || extra.customer?.email || payload?.data?.customer_email || null;
