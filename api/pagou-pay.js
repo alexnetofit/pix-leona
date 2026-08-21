@@ -327,7 +327,8 @@ export default async function handler(req, res) {
         payment_method: 'credit_card',
         products,
         metadata,
-        idempotency_key: title
+        idempotency_key: title,
+        ...(ip ? { ip_address: ip } : {})
       }
     : {
         customer_id: customer.data.id,
@@ -375,6 +376,30 @@ export default async function handler(req, res) {
     pix = extractPix(txData);
   } else if (!pix.qr_code) {
     pix = await hydratePixFromTx(data.latest_transaction_id || data.latestTransactionId, data);
+  }
+
+  const firstStatus = String(firstTx?.status || data.status || '').toLowerCase();
+  const firstFailed = ['error', 'refused', 'failed', 'canceled', 'cancelled'].includes(firstStatus);
+  if (firstFailed && !nextAction) {
+    logAssinaturaEvent(req, {
+      action: 'pagou_pay_error',
+      provider: 'pagou',
+      email: buyerEmail,
+      account_id: accountId,
+      details: {
+        qty: qtyN,
+        method: payMethod,
+        kind: 'subscription',
+        subscription_id: data.id,
+        tx: firstTx?.id || null,
+        status: firstStatus
+      }
+    });
+    return res.status(402).json({
+      error: 'Cartão recusado. Tente outro cartão ou pague com PIX.',
+      subscription_id: data.id,
+      status: firstStatus
+    });
   }
 
   await rememberIntent({

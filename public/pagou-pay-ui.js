@@ -281,6 +281,10 @@
             });
             state.txId = created.id;
             state.subId = created.subscription_id || null;
+            const st = String(created.status || '').toLowerCase();
+            if (['error', 'refused', 'failed'].includes(st) && !created.next_action) {
+              throw new Error(created.error || 'Cartão recusado. Tente outro cartão ou pague com PIX.');
+            }
             return { id: created.id, status: created.status, next_action: created.next_action };
           }
         });
