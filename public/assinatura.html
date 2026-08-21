@@ -1105,7 +1105,8 @@
                         email: state.email || _email,
                         qty,
                         amount: offer?.value,
-                        offer_name: offer?.name
+                        offer_name: offer?.name,
+                        kind: 'subscription'
                     })
                 });
                 const data = await r.json();
@@ -1234,7 +1235,7 @@
                 const r = await fetch('/api/pagou-checkout', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ account_id: state.accountId, qty, email: _email })
+                    body: JSON.stringify({ account_id: state.accountId, qty, email: _email, kind: 'one_shot' })
                 });
                 const data = await r.json();
 

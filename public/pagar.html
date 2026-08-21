@@ -234,7 +234,7 @@
 
             <button class="pay" id="payBtn" type="button" onclick="submitPay()">Pagar agora</button>
             <div class="err" id="err"></div>
-            <p class="hint">PIX libera na hora. Cartão pode pedir confirmação do banco.</p>
+            <p class="hint" id="payHint">PIX automático ou cartão recorrente. A cobrança se repete todo mês.</p>
         </div>
 
         <div class="card pix-box" id="pixCard">
@@ -261,11 +261,15 @@
             qty: Math.max(1, Number(params.get('qty')) || 1),
             amount: Number(params.get('amount')) || 0,
             offer: params.get('offer') || '',
+            kind: ['one_shot', 'oneshot', 'avulso', 'upgrade'].includes(String(params.get('kind') || '').toLowerCase())
+                ? 'one_shot'
+                : 'subscription',
             method: 'pix',
             elements: null,
             card: null,
             cardValid: false,
             txId: null,
+            subId: null,
             pixCode: ''
         };
 
@@ -281,8 +285,13 @@
 
         document.getElementById('email').value = state.email;
         document.getElementById('offerName').textContent = state.offer || `Leona Flow — ${state.qty} conex${state.qty === 1 ? 'ão' : 'ões'}`;
-        document.getElementById('offerQty').textContent = `${state.qty} conex${state.qty === 1 ? 'ão' : 'ões'} · mensal`;
+        document.getElementById('offerQty').textContent = state.kind === 'one_shot'
+            ? `${state.qty} conex${state.qty === 1 ? 'ão' : 'ões'} · ajuste avulso`
+            : `${state.qty} conex${state.qty === 1 ? 'ão' : 'ões'} · assinatura mensal`;
         document.getElementById('offerPrice').textContent = state.amount ? money(state.amount) : '—';
+        document.getElementById('payHint').textContent = state.kind === 'one_shot'
+            ? 'Pagamento único do upgrade no ciclo atual. Não cria nova recorrência.'
+            : 'PIX automático ou cartão recorrente. A cobrança se repete todo mês.';
         document.getElementById('backLink').href = `/assinatura?account_id=${encodeURIComponent(state.accountId)}&email=${encodeURIComponent(state.email)}`;
 
         async function setMethod(method) {
@@ -290,7 +299,9 @@
             document.getElementById('tabPix').classList.toggle('active', method === 'pix');
             document.getElementById('tabCard').classList.toggle('active', method === 'card');
             document.getElementById('cardFields').style.display = method === 'card' ? 'block' : 'none';
-            document.getElementById('payBtn').textContent = method === 'pix' ? 'Gerar PIX' : 'Pagar no cartão';
+            document.getElementById('payBtn').textContent = method === 'pix'
+                ? (state.kind === 'one_shot' ? 'Gerar PIX' : 'Assinar com PIX')
+                : (state.kind === 'one_shot' ? 'Pagar no cartão' : 'Assinar no cartão');
             if (method === 'card') await ensureCard();
         }
 
@@ -373,6 +384,7 @@
                     qty: state.qty,
                     amount: state.amount,
                     offer_name: state.offer,
+                    kind: state.kind,
                     buyer: buyer(),
                     ...extra
                 })
@@ -401,6 +413,7 @@
                     throw new Error('Preencha os dados do cartão');
                 }
                 const result = await state.elements.submit({
+                    mode: state.kind === 'subscription' ? 'subscription' : 'payment',
                     createTransaction: async (tokenData) => {
                         const created = await createTx({
                             method: 'credit_card',
@@ -408,48 +421,66 @@
                             installments: 1
                         });
                         state.txId = created.id;
+                        state.subId = created.subscription_id || null;
                         return { id: created.id, status: created.status, next_action: created.next_action };
                     }
                 });
                 if (result.status === 'error') throw new Error(result.error || 'Cartão recusado');
-                await waitPaid(state.txId);
+                await waitPaid(state.subId || state.txId);
             } catch (err) {
-                showErr(err.message + ' Tentando o checkout alternativo...');
-                try {
-                    const r = await fetch('/api/pagou-checkout', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            account_id: state.accountId,
-                            email: state.email,
-                            qty: state.qty,
-                            amount: state.amount,
-                            offer_name: state.offer,
-                            hosted: true
-                        })
-                    });
-                    const data = await r.json();
-                    if (r.ok && data.url) {
-                        location.href = data.url;
-                        return;
+                if (state.kind === 'one_shot') {
+                    showErr(err.message + ' Tentando o checkout alternativo...');
+                    try {
+                        const r = await fetch('/api/pagou-checkout', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                account_id: state.accountId,
+                                email: state.email,
+                                qty: state.qty,
+                                amount: state.amount,
+                                offer_name: state.offer,
+                                kind: 'one_shot',
+                                hosted: true
+                            })
+                        });
+                        const data = await r.json();
+                        if (r.ok && data.url) {
+                            location.href = data.url;
+                            return;
+                        }
+                        showErr(err.message);
+                    } catch (_) {
+                        showErr(err.message);
                     }
-                    showErr(err.message);
-                } catch (_) {
+                } else {
                     showErr(err.message);
                 }
                 btn.disabled = false;
-                btn.textContent = state.method === 'pix' ? 'Gerar PIX' : 'Pagar no cartão';
+                btn.textContent = state.method === 'pix'
+                    ? (state.kind === 'one_shot' ? 'Gerar PIX' : 'Assinar com PIX')
+                    : (state.kind === 'one_shot' ? 'Pagar no cartão' : 'Assinar no cartão');
             }
         }
 
         function showPix(data) {
             state.txId = data.id;
+            state.subId = data.subscription_id || null;
             state.pixCode = data.pix?.qr_code || '';
             document.getElementById('formCard').style.display = 'none';
             document.getElementById('pixCard').style.display = 'block';
-            document.getElementById('pixCopy').textContent = state.pixCode || 'Código indisponível';
+            document.getElementById('pixCopy').textContent = state.pixCode || (
+                state.kind === 'subscription'
+                    ? 'Abra o app do banco e autorize o PIX automático da Leona.'
+                    : 'Código indisponível'
+            );
             if (state.pixCode) {
                 document.getElementById('pixQr').src = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' + encodeURIComponent(state.pixCode);
+            } else {
+                document.getElementById('pixQr').style.display = 'none';
+                document.getElementById('pixWait').textContent = state.kind === 'subscription'
+                    ? 'Aguardando autorização do PIX automático...'
+                    : 'Aguardando pagamento...';
             }
             pollPaid();
         }
@@ -472,7 +503,7 @@
 
         function pollPaid() {
             const timer = setInterval(async () => {
-                if (await checkPaid(state.txId)) {
+                if (await checkPaid(state.subId || state.txId)) {
                     clearInterval(timer);
                     showOk();
                 }
@@ -482,6 +513,7 @@
         async function checkPaid(id) {
             if (!id) return false;
             const q = new URLSearchParams({ id, account_id: state.accountId, email: state.email });
+            if (state.subId && id === state.subId) q.set('type', 'subscription');
             const r = await fetch('/api/pagou-pay?' + q.toString());
             const data = await r.json();
             return !!(r.ok && data.paid);

@@ -61,11 +61,18 @@ function eventName(payload) {
 }
 
 function extractRef(payload, extra = {}) {
+  const meta = extra.metadata || payload?.data?.metadata || {};
+  if (meta.account_id && meta.qty) {
+    return { accountId: String(meta.account_id), qty: Number(meta.qty) };
+  }
   const candidates = [
     extra.title,
     extra.external_ref,
+    extra.externalRef,
     extra.correlation_id,
     extra.description,
+    extra.comment,
+    meta.leona_ref,
     pick(payload, 'data.correlation_id', 'data.external_ref', 'data.title', 'correlation_id', 'external_ref'),
     extra.products?.[0]?.external_id,
     extra.products?.[0]?.title,
@@ -208,9 +215,16 @@ export default async function handler(req, res) {
     return res.status(200).json({ received: true, processed: false, error: `conta ${accountId} não encontrada` });
   }
 
-  const dueDate = extra.current_period_end
-    ? String(extra.current_period_end).slice(0, 10)
-    : dueDatePlusDays(30);
+  const periodEnd = extra.current_period_end || extra.currentPeriodEnd;
+  const metaKind = String(extra.metadata?.kind || intent?.details?.kind || '').toLowerCase();
+  const keepCycle = metaKind === 'one_shot'
+    && profile.current_period_end
+    && new Date(profile.current_period_end) > new Date();
+  const dueDate = periodEnd
+    ? String(periodEnd).slice(0, 10)
+    : keepCycle
+      ? String(profile.current_period_end).slice(0, 10)
+      : dueDatePlusDays(30);
 
   const update = await updateLeonaBillingProfile(accountId, {
     starter_instances: Number(qty),

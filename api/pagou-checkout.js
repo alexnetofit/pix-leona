@@ -17,7 +17,7 @@ export default async function handler(req, res) {
   if (!leonaToken) return res.status(500).json({ error: 'LEONA_BILLING_TOKEN não configurado' });
   if (!pagouConfigured()) return res.status(500).json({ error: 'PAGOU_SECRET_KEY não configurado' });
 
-  const { account_id, email, qty, amount, offer_name, hosted } = req.body || {};
+  const { account_id, email, qty, amount, offer_name, hosted, kind } = req.body || {};
   const accountId = account_id != null ? String(account_id).trim() : '';
   const qtyN = Math.max(1, Number(qty) || 0);
   if (!accountId) return res.status(400).json({ error: 'account_id obrigatório' });
@@ -37,16 +37,20 @@ export default async function handler(req, res) {
 
   const host = String(req.headers['x-forwarded-host'] || req.headers.host || 'client.leonaflow.com').split(',')[0].trim();
   const proto = String(req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim();
+  const checkoutKind = ['one_shot', 'oneshot', 'avulso', 'upgrade'].includes(String(kind || '').toLowerCase())
+    ? 'one_shot'
+    : 'subscription';
   const params = new URLSearchParams({
     account_id: accountId,
     qty: String(qtyN),
-    amount: String(amountCents / 100)
+    amount: String(amountCents / 100),
+    kind: checkoutKind
   });
   if (access.profileEmail || email) params.set('email', access.profileEmail || email);
   if (productName) params.set('offer', productName);
   let url = `${proto}://${host}/pagar?${params.toString()}`;
 
-  if (hosted) {
+  if (hosted && checkoutKind === 'one_shot') {
     const created = await createPagouCheckoutLink({
       currency: 'BRL',
       title,
@@ -78,7 +82,7 @@ export default async function handler(req, res) {
         title,
         checkout_url: url,
         status: 'pending',
-        details: { offer_name: productName }
+        details: { offer_name: productName, kind: checkoutKind }
       });
     } catch (err) {
       console.error('pagou-checkout: falha ao gravar intent', err.message);
@@ -90,7 +94,7 @@ export default async function handler(req, res) {
     provider: 'pagou',
     email: access.profileEmail || email,
     account_id: accountId,
-    details: { qty: qtyN, amount_cents: amountCents, title, url: String(url).slice(0, 220) }
+    details: { qty: qtyN, amount_cents: amountCents, title, kind: checkoutKind, url: String(url).slice(0, 220) }
   });
 
   return res.status(200).json({
@@ -98,6 +102,7 @@ export default async function handler(req, res) {
     url,
     qty: qtyN,
     amount_cents: amountCents,
-    offer_name: productName
+    offer_name: productName,
+    kind: checkoutKind
   });
 }
