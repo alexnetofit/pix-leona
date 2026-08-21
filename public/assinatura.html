@@ -689,10 +689,30 @@
         function getOfferForQty(offers, qty) {
             if (!offers) return null;
             for (const o of offers) {
-                const m = o.name.match(/(\d+)\s*conex/i);
+                const m = (o.name || '').match(/(\d+)\s*conex/i);
                 if (m && parseInt(m[1]) === qty) return o;
             }
             return null;
+        }
+
+        function leonaAmountReais(qty) {
+            const n = Math.max(1, Number(qty) || 1);
+            if (n <= 1) return 127;
+            if (n <= 3) return 99 * n;
+            return 79 * n;
+        }
+
+        function resolvePlan(offers, qty) {
+            const n = Math.max(0, parseInt(qty, 10) || 0);
+            if (!n) return null;
+            const guru = getOfferForQty(offers, n);
+            if (guru) return { ...guru, source: 'guru' };
+            return {
+                id: null,
+                name: `Leona Flow — ${n} conex${n === 1 ? 'ão' : 'ões'}`,
+                value: leonaAmountReais(n),
+                source: 'leona'
+            };
         }
 
         function calcProRata(currentValue, newValue, periodEndStr) {
@@ -1053,10 +1073,11 @@
         const _qtySelStates = {};
 
         function renderQtySelInfo(offer, qty) {
-            if (!offer) {
-                return `<span class="label">Sem plano para ${qty} conex${qty !== 1 ? 'ões' : 'ão'}</span><span class="value">—</span>`;
+            const plan = offer || resolvePlan(null, qty);
+            if (!plan) {
+                return `<span class="label">Conexões</span><span class="value">—</span>`;
             }
-            return `<span class="label" id="offerName-${qty}">${offer.name}</span><span class="value">${fmtCurrency(offer.value)}</span>`;
+            return `<span class="label">${plan.name}</span><span class="value">${fmtCurrency(plan.value)}</span>`;
         }
 
         function mountPayForm(slotId, kind) {
@@ -1071,13 +1092,13 @@
                     const qty = input
                         ? Math.max(1, parseInt(input.value) || 1)
                         : Math.max(1, Number(state.qty) || 1);
-                    const offer = getOfferForQty(state.offers || _data?.offers, qty);
+                    const offer = resolvePlan(state.offers || _data?.offers, qty);
                     return {
                         accountId: state.accountId,
                         email: state.email || _email,
                         qty,
-                        amount: offer?.value || 0,
-                        offer: offer?.name || '',
+                        amount: offer?.value || leonaAmountReais(qty),
+                        offer: offer?.name || `Leona Flow — ${qty} conex${qty === 1 ? 'ão' : 'ões'}`,
                         kind
                     };
                 },
@@ -1096,23 +1117,13 @@
         }
 
         function renderQtySelector(offers, email, slot, accountId, defaultQty, kind) {
-            if (!offers || offers.length === 0) return '';
-            const qtys = [];
-            for (const o of offers) {
-                const m = (o.name || '').match(/(\d+)\s*conex/i);
-                if (m) {
-                    const q = parseInt(m[1]);
-                    if (q > 0 && !qtys.includes(q)) qtys.push(q);
-                }
-            }
-            qtys.sort((a, b) => a - b);
-            if (qtys.length === 0) return '';
+            const list = Array.isArray(offers) ? offers : [];
             const slotId = slot || 'g';
             const payKind = kind === 'one_shot' ? 'one_shot' : 'subscription';
-            const initialQty = (Number.isFinite(defaultQty) && defaultQty > 0) ? defaultQty : qtys[0];
-            const initialOffer = getOfferForQty(offers, initialQty);
+            const initialQty = (Number.isFinite(defaultQty) && defaultQty > 0) ? defaultQty : 1;
+            const initialOffer = resolvePlan(list, initialQty);
 
-            _qtySelStates[slotId] = { offers, email, accountId: accountId || null, kind: payKind };
+            _qtySelStates[slotId] = { offers: list, email, accountId: accountId || null, kind: payKind };
 
             return `
                 <div id="payChrome-${slotId}">
@@ -1124,7 +1135,7 @@
                         </div>
                         <div class="row" id="qtySelInfo-${slotId}">${renderQtySelInfo(initialOffer, initialQty)}</div>
                     </div>
-                    <p class="hint" id="qtySelLede-${slotId}" style="margin-top:10px;margin-bottom:0;">${initialOffer ? `${initialQty} conex${initialQty === 1 ? 'ão' : 'ões'} · ${payKind === 'one_shot' ? 'ajuste avulso' : 'assinatura mensal'}` : 'Ajuste as conexões para um plano disponível.'}</p>
+                    <p class="hint" id="qtySelLede-${slotId}" style="margin-top:10px;margin-bottom:0;">${initialQty} conex${initialQty === 1 ? 'ão' : 'ões'} · ${payKind === 'one_shot' ? 'ajuste avulso' : 'assinatura mensal'}</p>
                 </div>
                 <div id="payMount-${slotId}"></div>
             `;
@@ -1147,18 +1158,16 @@
             const btn = document.getElementById(`payBtn-${slot}`);
             if (!input || !info) return;
             const qty = parseInt(input.value) || 0;
-            const offer = getOfferForQty(state.offers, qty);
+            const offer = resolvePlan(state.offers, qty);
             info.innerHTML = renderQtySelInfo(offer, qty);
             if (lede) {
-                lede.textContent = offer
-                    ? `${qty} conex${qty === 1 ? 'ão' : 'ões'} · ${state.kind === 'one_shot' ? 'ajuste avulso' : 'assinatura mensal'}`
-                    : 'Ajuste as conexões para um plano disponível.';
+                lede.textContent = `${qty} conex${qty === 1 ? 'ão' : 'ões'} · ${state.kind === 'one_shot' ? 'ajuste avulso' : 'assinatura mensal'}`;
             }
             if (btn) {
                 btn.disabled = !offer;
-                btn.textContent = offer
-                    ? (window.PagouPay ? PagouPay.payLabel('pix', state.kind || 'subscription') : 'Assinar com PIX')
-                    : 'Plano indisponível';
+                btn.textContent = window.PagouPay
+                    ? PagouPay.payLabel('pix', state.kind || 'subscription')
+                    : 'Assinar com PIX';
             }
         }
 
@@ -1256,7 +1265,7 @@
             const input = document.getElementById(`replaceQty-${slot}`);
             const panel = document.getElementById(`replacePanel-${slot}`);
             const qty = Math.max(1, parseInt(input.value) || 1);
-            const offer = getOfferForQty(_data?.offers, qty);
+            const offer = resolvePlan(_data?.offers, qty);
             const payId = `rep-${slot}`;
 
             logAssinatura('click_buy', {
@@ -1558,17 +1567,18 @@
             }
 
             const offers = data.offers || [];
-            const currentOffer = getOfferForQty(offers, currentQty);
-            const newOffer = getOfferForQty(offers, newQty);
+            const currentOffer = resolvePlan(offers, currentQty);
+            const newOffer = resolvePlan(offers, newQty);
 
             if (!newOffer) {
                 resultDiv.style.display = 'block';
-                resultDiv.innerHTML = `<div class="alert alert-warning">Não existe plano configurado para ${newQty} conex${newQty !== 1 ? 'ões' : 'ão'}.</div>`;
+                resultDiv.innerHTML = `<div class="alert alert-warning">Informe uma quantidade válida.</div>`;
                 return;
             }
 
-            const currentValue = currentOffer ? currentOffer.value : 0;
+            const currentValue = currentOffer ? currentOffer.value : leonaAmountReais(currentQty);
             const newValue = newOffer.value;
+            const canGuruChange = Boolean(newOffer.id);
             const isUpgrade = newQty > currentQty;
             const diff = Math.abs(newQty - currentQty);
             const allProfiles = data.leona?.billing_profiles || (data.leona?.billing_profile ? [data.leona.billing_profile] : profiles);
@@ -1581,7 +1591,7 @@
             if (!isUpgrade) {
                 const activeSub = hasGuru ? (accountGuru.subscriptions.find(s => s.status === 'active') || accountGuru.subscriptions[0]) : null;
                 const subId = activeSub?.id;
-                const canExecute = hasGuru && subId && bp.account_id;
+                const canExecute = hasGuru && canGuruChange && subId && bp.account_id;
 
                 // Quando ja existe uma fatura cycle/upgrade em aberto na Guru
                 // (ex.: renovacao PIX ja emitida), o PUT /subscriptions/:id/plans
@@ -1646,10 +1656,15 @@
                             <button class="btn-orange" id="downBtn-${bpIdx}" style="width: 100%; padding: 14px;" onclick="askDowngradeConfirm('${subId}', '${newOffer.id}', '${String(bp.account_id).replace(/'/g, "\\'")}', ${currentQty}, ${newQty}, ${bpIdx})">
                                 Confirmar downgrade para ${newQty} conex${newQty !== 1 ? 'ões' : 'ão'}
                             </button>
+                        ` : bp.account_id ? `
+                            <input type="hidden" id="replaceQty-down-${bp.account_id}-${bpIdx}" value="${newQty}">
+                            <button class="pay" id="replaceGoBtn-down-${bp.account_id}-${bpIdx}" type="button"
+                                onclick="(_replaceStates['down-${bp.account_id}-${bpIdx}']={accountId:'${String(bp.account_id).replace(/'/g, "\\'")}',qty:${currentQty}},replaceGenerate('down-${bp.account_id}-${bpIdx}'))">
+                                Pagar ${fmtCurrency(newValue)} na Pagou
+                            </button>
+                            <div id="replacePanel-down-${bp.account_id}-${bpIdx}"></div>
                         ` : `
-                            <div style="background: var(--orange-soft); padding: 12px; border-radius: 10px; color: var(--orange); font-size: 0.85rem; text-align: center;">
-                                ${!hasGuru ? 'Não há assinatura Guru ativa. O downgrade não pode ser executado por aqui.' : 'Não foi possível identificar sua conta. Entre em contato com o suporte.'}
-                            </div>
+                            <p class="hint">Não foi possível identificar sua conta. Fale com o suporte.</p>
                         `}
                     </div>
                 `;
@@ -1663,7 +1678,7 @@
 
             const { proRata, diasRestantes, diasNoCiclo } = calcProRata(currentValue, newValue, periodEnd);
 
-            if (hasGuru) {
+            if (hasGuru && canGuruChange) {
                 const activeSub = accountGuru.subscriptions.find(s => s.status === 'active') || accountGuru.subscriptions[0];
                 const subId = activeSub?.id;
                 // Quando ja existe uma fatura cycle/upgrade em aberto na Guru,
@@ -1738,80 +1753,20 @@
                     `;
                 }
             } else {
-                const discountPct = newValue > 0 ? (1 - proRata / newValue) * 100 : 0;
-                let couponPct = Math.round(discountPct / 5) * 5;
-                couponPct = Math.max(5, Math.min(95, couponPct));
-                const couponCode = `up-leona-${couponPct}`;
-                const couponDiscount = newValue * couponPct / 100;
-
+                const replaceSlot = `up-${bp.account_id || 'x'}-${bpIdx}`;
+                _replaceStates[replaceSlot] = { accountId: bp.account_id, qty: currentQty };
                 resultDiv.innerHTML = `
-                    <div style="background: var(--bg-card); padding: 18px; border-radius: 10px; border: 1px solid var(--success);">
-                        <div style="text-align: center; padding: 12px; color: var(--text-secondary);">
-                            <div class="spinner"></div>
-                            <div style="margin-top: 8px;">Preparando cupom...</div>
-                        </div>
+                    <div class="group">
+                        <div class="row"><span class="label">Alteração</span><span class="value">${currentQty} → ${newQty}</span></div>
+                        <div class="row"><span class="label">Novo valor mensal</span><span class="value">${fmtCurrency(newValue)}</span></div>
+                        <div class="row"><span class="label">Pro rata estimado</span><span class="value">${fmtCurrency(proRata)}</span></div>
                     </div>
-                `;
-
-                let couponOk = false;
-                try {
-                    const addRes = await fetch('/api/guru-coupons', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'add_email', coupon_code: couponCode, email })
-                    });
-                    const addData = await addRes.json();
-                    couponOk = addData.success;
-                } catch (_) {}
-
-                const baseUrl = newOffer.checkout_url || '';
-                const checkoutUrl = baseUrl ? baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'coupon=' + couponCode + '&email=' + email : '';
-
-                resultDiv.innerHTML = `
-                    <div style="background: var(--bg-card); padding: 20px; border-radius: 14px; border: 1px solid rgba(16,185,129,0.3);">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-                            <span style="color: var(--text-secondary);">Alteração:</span>
-                            <span style="color: var(--success); font-weight: 700;">⬆️ UPGRADE (+${diff})</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                            <span style="color: var(--text-secondary);">Conexões:</span>
-                            <span style="font-weight: 600;">${currentQty} → ${newQty}</span>
-                        </div>
-                        <div style="background: var(--bg-secondary); padding: 14px; border-radius: 10px; margin-bottom: 14px;">
-                            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">Cálculo pro rata:</div>
-                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; padding: 6px 0; border-bottom: 1px solid var(--border);">
-                                <span style="color: var(--text-secondary);">Crédito (${currentQty}x, ${diasRestantes}d)</span>
-                                <span style="color: var(--error);">-${fmtCurrency(currentValue * diasRestantes / diasNoCiclo)}</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; padding: 6px 0; border-bottom: 1px solid var(--border);">
-                                <span style="color: var(--text-secondary);">Cobrança (${newQty}x, ${diasRestantes}d)</span>
-                                <span style="color: var(--success);">+${fmtCurrency(newValue * diasRestantes / diasNoCiclo)}</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; font-size: 1rem; padding-top: 8px;">
-                                <span style="font-weight: 600;">Pro rata:</span>
-                                <span style="color: var(--orange); font-weight: 700;">${fmtCurrency(proRata)}</span>
-                            </div>
-                        </div>
-                        <div style="background: var(--accent-soft); padding: 14px; border-radius: 10px; margin-bottom: 14px;">
-                            <div style="display: flex; justify-content: space-between;">
-                                <span style="color: var(--accent);">Cupom: <strong>${couponCode}</strong> (${couponPct}% off)</span>
-                                <span style="color: var(--accent); font-weight: 600;">${fmtCurrency(couponDiscount)}</span>
-                            </div>
-                            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px;">
-                                Pagará ${fmtCurrency(newValue - couponDiscount)} na 1ª fatura, depois ${fmtCurrency(newValue)}/mês
-                            </div>
-                        </div>
-                        ${checkoutUrl ? `
-                            <div style="background: var(--orange-soft); padding: 16px; border-radius: 10px;">
-                                <div style="color: var(--orange); font-weight: 600; margin-bottom: 10px;">Link de checkout com desconto</div>
-                                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                                    <button class="btn-orange" id="copy-up-${bpIdx}" onclick="copyLink('${checkoutUrl}', 'copy-up-${bpIdx}')" style="width: auto; padding: 10px 16px; font-size: 0.85rem;">Copiar Link</button>
-                                    <span style="font-size: 0.7rem; color: var(--text-muted); font-family: monospace; word-break: break-all;">${checkoutUrl}</span>
-                                </div>
-                            </div>
-                        ` : ''}
-                        ${!couponOk ? `<div style="margin-top: 8px; font-size: 0.8rem; color: var(--orange);">⚠️ Não foi possível adicionar o email ao cupom automaticamente.</div>` : ''}
-                    </div>
+                    <p class="hint">Pagamento avulso na Pagou do plano de ${newQty} conexões. A Guru não precisa ter essa oferta.</p>
+                    <input type="hidden" id="replaceQty-${replaceSlot}" value="${newQty}">
+                    <button class="pay" id="replaceGoBtn-${replaceSlot}" type="button" onclick="replaceGenerate('${replaceSlot}')">
+                        Pagar ${fmtCurrency(newValue)}
+                    </button>
+                    <div id="replacePanel-${replaceSlot}"></div>
                 `;
             }
         }
