@@ -5,183 +5,202 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pagar — Leona Flow</title>
     <link rel="icon" type="image/png" href="/logo-leona.png">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
     <style>
         :root {
-            --purple-0: #2a1454;
-            --purple-1: #4c1d95;
-            --purple-2: #6d28d9;
+            --bg-primary: #0c0a12;
+            --bg-secondary: #151120;
+            --bg-card: #1e1830;
+            --bg-elevated: #261f3a;
             --accent: #8b5cf6;
-            --accent-2: #a78bfa;
-            --text: #f5f3ff;
-            --muted: #d4c8f0;
-            --card: #ffffff;
-            --ink: #1e1233;
-            --ink-2: #5b4d72;
-            --line: #e8e0f4;
-            --error: #dc2626;
-            --ok: #059669;
+            --accent-hover: #7c3aed;
+            --accent-soft: rgba(139, 92, 246, 0.12);
+            --text-primary: #f0ecf7;
+            --text-secondary: #9589ad;
+            --text-muted: #6b5f82;
+            --error: #ef4444;
+            --success: #10b981;
+            --border: #2a2240;
+            --border-light: #352d50;
+            --glow-purple: rgba(139, 92, 246, 0.25);
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         html, body { min-height: 100%; }
         body {
-            font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
-            color: var(--ink);
-            background:
-                radial-gradient(ellipse 900px 520px at 50% -8%, rgba(196, 181, 253, 0.28), transparent 58%),
-                radial-gradient(ellipse 700px 480px at 100% 100%, rgba(109, 40, 217, 0.45), transparent 55%),
-                linear-gradient(165deg, #3b1769 0%, #5b21b6 42%, #6d28d9 72%, #4c1d95 100%);
-            background-attachment: fixed;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+            color: var(--text-primary);
+            background: var(--bg-primary);
+            line-height: 1.5;
             -webkit-font-smoothing: antialiased;
         }
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0 auto auto 0;
+            width: 100%;
+            height: 400px;
+            background: radial-gradient(ellipse at 50% -20%, rgba(139, 92, 246, 0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
         .wrap {
-            width: min(520px, calc(100% - 32px));
+            width: min(480px, calc(100% - 32px));
             margin: 0 auto;
-            padding: 36px 0 48px;
+            padding: 40px 0 56px;
+            position: relative;
+            z-index: 1;
         }
-        .brand {
-            text-align: center;
-            margin-bottom: 28px;
-        }
+        .brand { text-align: center; margin-bottom: 28px; }
         .brand img {
-            height: 72px;
+            height: 56px;
             width: auto;
-            filter: drop-shadow(0 10px 28px rgba(0, 0, 0, 0.28));
+            filter: drop-shadow(0 4px 20px var(--glow-purple));
         }
         .brand p {
-            margin-top: 12px;
-            color: var(--muted);
-            font-size: 0.86rem;
+            margin-top: 10px;
+            color: var(--text-secondary);
+            font-size: 0.78rem;
             font-weight: 500;
-            letter-spacing: 0.04em;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
         }
         .card {
-            background: var(--card);
-            border-radius: 24px;
-            padding: 28px 26px 24px;
-            box-shadow: 0 30px 70px -28px rgba(24, 8, 56, 0.55);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
         }
         .product {
             display: flex;
             align-items: center;
-            gap: 14px;
+            gap: 12px;
             padding-bottom: 18px;
-            margin-bottom: 18px;
-            border-bottom: 1px solid var(--line);
+            margin-bottom: 8px;
+            border-bottom: 1px solid var(--border);
         }
         .product img {
-            width: 52px;
-            height: 52px;
-            border-radius: 14px;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: var(--bg-elevated);
         }
         .product h1 {
-            font-size: 1.02rem;
-            letter-spacing: -0.02em;
+            font-size: 0.98rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
         }
-        .product span { color: var(--ink-2); font-size: 0.82rem; }
+        .product span { color: var(--text-secondary); font-size: 0.8rem; }
         .price {
             margin-left: auto;
             text-align: right;
-            font-weight: 800;
-            font-size: 1.2rem;
-            color: var(--purple-1);
+            font-weight: 700;
+            font-size: 1.15rem;
+            color: var(--accent);
             white-space: nowrap;
         }
         label {
             display: block;
             font-size: 0.78rem;
             font-weight: 600;
-            color: var(--ink-2);
-            margin: 12px 0 6px;
+            color: var(--text-secondary);
+            margin: 14px 0 6px;
         }
-        input, select {
+        input {
             width: 100%;
-            border: 1px solid var(--line);
+            border: 1px solid var(--border);
             border-radius: 12px;
-            padding: 12px 13px;
+            padding: 13px 14px;
             font: inherit;
-            color: var(--ink);
-            background: #fff;
+            color: var(--text-primary);
+            background: var(--bg-card);
             outline: none;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
-        input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.14); }
+        input::placeholder { color: var(--text-muted); }
+        input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--glow-purple);
+        }
+        input[readonly] { color: var(--text-secondary); }
         .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .methods {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 8px;
-            margin: 18px 0 14px;
+            margin: 20px 0 4px;
         }
         .methods button {
-            border: 1.5px solid var(--line);
-            background: #fff;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
             border-radius: 12px;
             padding: 12px 10px;
-            font-weight: 700;
+            font-weight: 600;
             cursor: pointer;
-            color: var(--ink-2);
+            color: var(--text-secondary);
+            transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
         }
         .methods button.active {
             border-color: var(--accent);
-            color: var(--purple-1);
-            background: #f5f0ff;
+            color: var(--text-primary);
+            background: var(--accent-soft);
         }
         .pay {
             width: 100%;
-            margin-top: 16px;
+            margin-top: 18px;
             border: 0;
-            border-radius: 14px;
+            border-radius: 12px;
             padding: 14px 16px;
-            font-weight: 800;
+            font-weight: 700;
             font-size: 1rem;
             color: #fff;
             cursor: pointer;
-            background: linear-gradient(135deg, #7c3aed, #8b5cf6 55%, #6d28d9);
+            background: linear-gradient(135deg, var(--accent), #a78bfa);
+            box-shadow: 0 2px 12px var(--glow-purple);
         }
-        .pay:disabled { opacity: 0.55; cursor: default; }
+        .pay:hover { background: linear-gradient(135deg, var(--accent-hover), var(--accent)); }
+        .pay:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
         .err {
             display: none;
             margin-top: 12px;
-            background: #fef2f2;
+            background: rgba(239, 68, 68, 0.12);
             color: var(--error);
+            border: 1px solid rgba(239, 68, 68, 0.25);
             border-radius: 12px;
             padding: 10px 12px;
             font-size: 0.86rem;
         }
         .pix-box, .ok-box { display: none; text-align: center; }
+        .pix-box h2, .ok-box h2 { font-size: 1.05rem; margin-bottom: 6px; }
+        .ok-box h2 { color: var(--success); }
         .pix-box img {
             width: 220px;
             height: 220px;
             border-radius: 16px;
-            border: 1px solid var(--line);
-            margin: 8px 0 14px;
+            border: 1px solid var(--border);
+            background: #fff;
+            margin: 12px 0 14px;
         }
         .copy {
             width: 100%;
-            border: 1px dashed #c4b5fd;
-            background: #f5f3ff;
+            border: 1px dashed var(--border-light);
+            background: var(--bg-card);
             border-radius: 12px;
             padding: 12px;
             font-size: 0.78rem;
             word-break: break-all;
             cursor: pointer;
-            color: var(--purple-1);
+            color: var(--text-secondary);
         }
-        .ok-box { color: var(--ok); }
-        .ok-box h2 { margin: 8px 0 6px; }
         #card-element {
-            border: 1px solid var(--line);
+            border: 1px solid var(--border);
             border-radius: 12px;
             padding: 12px;
             min-height: 48px;
+            background: var(--bg-card);
         }
-        .hint { color: var(--ink-2); font-size: 0.78rem; margin-top: 10px; text-align: center; }
-        a { color: var(--purple-2); }
+        .hint { color: var(--text-muted); font-size: 0.78rem; margin-top: 12px; text-align: center; }
+        a { color: var(--accent); }
         @media (max-width: 520px) {
-            .brand img { height: 56px; }
-            .card { padding: 22px 18px; }
+            .brand img { height: 44px; }
+            .card { padding: 20px 16px; }
             .row { grid-template-columns: 1fr; }
         }
     </style>
@@ -189,8 +208,8 @@
 <body>
     <div class="wrap">
         <div class="brand">
-            <img src="/logo-leona-branca.png" alt="Leona">
-            <p>Pagamento seguro · Leona Flow</p>
+            <img src="/logo-leona.png" alt="Leona">
+            <p>Pagamento seguro</p>
         </div>
 
         <div class="card" id="formCard">
@@ -219,8 +238,6 @@
                     <input id="phone" type="tel" placeholder="(12) 99999-9999">
                 </div>
             </div>
-            <label>CEP</label>
-            <input id="cep" type="text" inputmode="numeric" placeholder="00000-000" maxlength="9">
 
             <div class="methods">
                 <button type="button" id="tabPix" class="active" onclick="setMethod('pix')">PIX</button>
@@ -232,7 +249,7 @@
                 <div id="card-element"></div>
             </div>
 
-            <button class="pay" id="payBtn" type="button" onclick="submitPay()">Pagar agora</button>
+            <button class="pay" id="payBtn" type="button" onclick="submitPay()">Assinar com PIX</button>
             <div class="err" id="err"></div>
             <p class="hint" id="payHint">PIX automático ou cartão recorrente. A cobrança se repete todo mês.</p>
         </div>
@@ -282,6 +299,10 @@
             el.style.display = msg ? 'block' : 'none';
         }
         function digits(v) { return String(v || '').replace(/\D/g, ''); }
+        function payLabel() {
+            if (state.method === 'pix') return state.kind === 'one_shot' ? 'Gerar PIX' : 'Assinar com PIX';
+            return state.kind === 'one_shot' ? 'Pagar no cartão' : 'Assinar no cartão';
+        }
 
         document.getElementById('email').value = state.email;
         document.getElementById('offerName').textContent = state.offer || `Leona Flow — ${state.qty} conex${state.qty === 1 ? 'ão' : 'ões'}`;
@@ -292,6 +313,7 @@
         document.getElementById('payHint').textContent = state.kind === 'one_shot'
             ? 'Pagamento único do upgrade no ciclo atual. Não cria nova recorrência.'
             : 'PIX automático ou cartão recorrente. A cobrança se repete todo mês.';
+        document.getElementById('payBtn').textContent = payLabel();
         document.getElementById('backLink').href = `/assinatura?account_id=${encodeURIComponent(state.accountId)}&email=${encodeURIComponent(state.email)}`;
 
         async function setMethod(method) {
@@ -299,9 +321,7 @@
             document.getElementById('tabPix').classList.toggle('active', method === 'pix');
             document.getElementById('tabCard').classList.toggle('active', method === 'card');
             document.getElementById('cardFields').style.display = method === 'card' ? 'block' : 'none';
-            document.getElementById('payBtn').textContent = method === 'pix'
-                ? (state.kind === 'one_shot' ? 'Gerar PIX' : 'Assinar com PIX')
-                : (state.kind === 'one_shot' ? 'Pagar no cartão' : 'Assinar no cartão');
+            document.getElementById('payBtn').textContent = payLabel();
             if (method === 'card') await ensureCard();
         }
 
@@ -319,58 +339,28 @@
                 origin: location.origin
             });
             state.card = state.elements.create('card', {
-                theme: 'default',
+                theme: 'night',
                 style: {
                     base: {
-                        color: '#1e1233',
+                        color: '#f0ecf7',
                         fontFamily: 'Inter, system-ui, sans-serif',
                         fontSize: '16px',
                         borderRadius: '8px',
-                        backgroundColor: '#ffffff'
+                        backgroundColor: '#1e1830'
                     },
                     focus: { borderColor: '#8b5cf6' },
-                    invalid: { color: '#dc2626' }
+                    invalid: { color: '#ef4444' }
                 }
             });
             state.card.mount('#card-element');
             state.card.on('change', ({ valid }) => { state.cardValid = !!valid; });
         }
 
-        const addressState = {
-            zip: '',
-            street: '',
-            number: 's/n',
-            neighborhood: '',
-            city: '',
-            state: ''
-        };
-
-        document.getElementById('cep').addEventListener('blur', async () => {
-            const cep = digits(document.getElementById('cep').value);
-            addressState.zip = cep;
-            if (cep.length !== 8) return;
-            try {
-                const r = await fetch('https://viacep.com.br/ws/' + cep + '/json/');
-                const d = await r.json();
-                if (d.erro) return;
-                addressState.street = d.logradouro || addressState.street;
-                addressState.neighborhood = d.bairro || addressState.neighborhood;
-                addressState.city = d.localidade || addressState.city;
-                addressState.state = d.uf || addressState.state;
-            } catch (_) {}
-        });
-
         function buyer() {
             return {
                 name: document.getElementById('name').value.trim(),
                 document: digits(document.getElementById('document').value),
-                phone: digits(document.getElementById('phone').value),
-                zip: digits(document.getElementById('cep').value) || addressState.zip,
-                street: addressState.street,
-                number: addressState.number,
-                neighborhood: addressState.neighborhood,
-                city: addressState.city,
-                state: addressState.state
+                phone: digits(document.getElementById('phone').value)
             };
         }
 
@@ -457,9 +447,7 @@
                     showErr(err.message);
                 }
                 btn.disabled = false;
-                btn.textContent = state.method === 'pix'
-                    ? (state.kind === 'one_shot' ? 'Gerar PIX' : 'Assinar com PIX')
-                    : (state.kind === 'one_shot' ? 'Pagar no cartão' : 'Assinar no cartão');
+                btn.textContent = payLabel();
             }
         }
 
