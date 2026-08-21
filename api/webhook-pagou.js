@@ -5,7 +5,7 @@
  * Cadastrar no painel Pagou: https://client.leonaflow.com/api/webhook-pagou
  */
 import { logAssinaturaEvent } from '../lib/assinatura-log.js';
-import { getLeonaBillingProfile, updateLeonaBillingProfile } from '../lib/leona.js';
+import { findLeonaAccountByEmail, getLeonaBillingProfile, updateLeonaBillingProfile } from '../lib/leona.js';
 import { cancelGuruSubscription } from '../lib/guru.js';
 import { dueDatePlusDays, parseLeonaRef } from '../lib/leona-pricing.js';
 import { getPagouSubscription, getPagouTransaction } from '../lib/pagou.js';
@@ -188,8 +188,8 @@ export default async function handler(req, res) {
     return res.status(200).json({ received: true, ignored: true, event: name || 'unknown', status });
   }
 
-  const email = extra.buyer?.email || extra.customer_email || extra.customer?.email || payload?.data?.customer_email || null;
-  const amountCents = extra.paid_amount || extra.payment?.amount || extra.amount || extra.base_price || null;
+  const email = extra.buyer?.email || extra.customer_email || extra.customer?.email || extra.customerEmail || payload?.data?.customer_email || null;
+  const amountCents = extra.paid_amount || extra.paidAmount || extra.payment?.amount || extra.amount || extra.base_price || null;
   const ref = extractRef(payload, extra);
   const intent = await resolveIntent({
     accountId: ref?.accountId,
@@ -199,8 +199,15 @@ export default async function handler(req, res) {
     checkoutUrl: extra.attribution?.checkout_url || extra.checkout_url || null
   });
 
-  const accountId = ref?.accountId || intent?.account_id || null;
-  const qty = ref?.qty || intent?.qty || null;
+  let accountId = ref?.accountId || intent?.account_id || null;
+  let qty = ref?.qty || intent?.qty || null;
+  if (!accountId && email) {
+    const found = await findLeonaAccountByEmail(email, leonaToken);
+    if (found?.account_id) accountId = String(found.account_id);
+  }
+  if (!qty && Number(amountCents) > 0) {
+    if (Number(amountCents) === 12700 || Number(amountCents) === 2446 || Number(amountCents) === 2447) qty = 1;
+  }
 
   if (!accountId || !qty) {
     console.error('webhook-pagou: sem account/qty', { eventId, name, email, ref, intent: intent?.id });
