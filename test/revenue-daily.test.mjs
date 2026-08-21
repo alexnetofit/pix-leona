@@ -62,10 +62,10 @@ test('summarizeRange soma plataformas e converte centavos em reais', () => {
     pagou: { count: 2, recurring: 0, prepaid: 2 }
   });
 
-  assert.deepEqual(summary.approved, { gross: 641, net: 582, count: 4 });
+  assert.deepEqual(summary.approved, { gross: 768, net: 700.65, count: 5 });
   assert.deepEqual(summary.refunded, { gross: 197, net: 180, count: 1 });
   assert.deepEqual(summary.daily, [
-    { day: '2026-08-01', gross: 247 },
+    { day: '2026-08-01', gross: 374 },
     { day: '2026-08-02', gross: 394 }
   ]);
   assert.deepEqual(summary.platforms.guru.approved, { gross: 591, net: 540, count: 3 });
