@@ -233,15 +233,11 @@ export default async function handler(req, res) {
   }, leonaToken);
 
   if (update.ok && profile.guru_account_id && process.env.GURU_TOKEN) {
-    const expired = profile.subscription_status !== 'active'
-      || (profile.current_period_end && new Date(profile.current_period_end) <= new Date());
-    if (expired) {
-      const cancel = await cancelGuruSubscription(profile.guru_account_id, process.env.GURU_TOKEN, {
-        cancel_at_cycle_end: false,
-        comment: 'Migrada para Pagou após pagamento na /assinatura'
-      });
-      console.log('webhook-pagou: cancel Guru', profile.guru_account_id, cancel.ok);
-    }
+    const cancel = await cancelGuruSubscription(profile.guru_account_id, process.env.GURU_TOKEN, {
+      cancel_at_cycle_end: false,
+      comment: 'Migrada para Pagou após pagamento na /assinatura'
+    });
+    console.log('webhook-pagou: cancel Guru', profile.guru_account_id, cancel.ok);
   }
 
   await markIntentPaid(intent, resourceId);
