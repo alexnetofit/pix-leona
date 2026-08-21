@@ -6,266 +6,236 @@
     <title>Pagar — Leona Flow</title>
     <link rel="icon" type="image/png" href="/logo-leona.png">
     <style>
-        :root {
-            --bg-primary: #0c0a12;
-            --bg-secondary: #151120;
-            --bg-card: #1e1830;
-            --bg-elevated: #261f3a;
-            --accent: #8b5cf6;
-            --accent-hover: #7c3aed;
-            --accent-soft: rgba(139, 92, 246, 0.12);
-            --text-primary: #f0ecf7;
-            --text-secondary: #9589ad;
-            --text-muted: #6b5f82;
-            --error: #ef4444;
-            --success: #10b981;
-            --border: #2a2240;
-            --border-light: #352d50;
-            --glow-purple: rgba(139, 92, 246, 0.25);
-        }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         html, body { min-height: 100%; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
-            color: var(--text-primary);
-            background: var(--bg-primary);
-            line-height: 1.5;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            background: #f5f5f7;
+            color: #1d1d1f;
             -webkit-font-smoothing: antialiased;
         }
-        body::before {
-            content: '';
-            position: fixed;
-            inset: 0 auto auto 0;
-            width: 100%;
-            height: 400px;
-            background: radial-gradient(ellipse at 50% -20%, rgba(139, 92, 246, 0.1) 0%, transparent 70%);
-            pointer-events: none;
-        }
         .wrap {
-            width: min(480px, calc(100% - 32px));
+            width: min(420px, calc(100% - 40px));
             margin: 0 auto;
-            padding: 40px 0 56px;
-            position: relative;
-            z-index: 1;
+            padding: 48px 0 72px;
         }
-        .brand { text-align: center; margin-bottom: 28px; }
-        .brand img {
-            height: 56px;
-            width: auto;
-            filter: drop-shadow(0 4px 20px var(--glow-purple));
-        }
-        .brand p {
-            margin-top: 10px;
-            color: var(--text-secondary);
-            font-size: 0.78rem;
-            font-weight: 500;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-        }
-        .card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 24px;
-        }
-        .product {
+        header {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding-bottom: 18px;
+            justify-content: center;
+            margin-bottom: 36px;
+        }
+        header img { height: 28px; width: auto; }
+        h1.page {
+            font-size: 32px;
+            font-weight: 600;
+            letter-spacing: -0.03em;
+            line-height: 1.15;
             margin-bottom: 8px;
-            border-bottom: 1px solid var(--border);
         }
-        .product img {
-            width: 44px;
-            height: 44px;
+        .lede {
+            color: #6e6e73;
+            font-size: 15px;
+            line-height: 1.4;
+            margin-bottom: 28px;
+        }
+        .group {
+            background: #fff;
             border-radius: 12px;
-            background: var(--bg-elevated);
+            overflow: hidden;
         }
-        .product h1 {
-            font-size: 0.98rem;
-            font-weight: 600;
-            letter-spacing: -0.01em;
+        .row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 16px 18px;
         }
-        .product span { color: var(--text-secondary); font-size: 0.8rem; }
-        .price {
-            margin-left: auto;
-            text-align: right;
-            font-weight: 700;
-            font-size: 1.15rem;
-            color: var(--accent);
-            white-space: nowrap;
+        .row + .row { border-top: 1px solid #d2d2d7; }
+        .row .label { color: #6e6e73; font-size: 15px; }
+        .row .value { font-size: 15px; font-weight: 500; text-align: right; }
+        .field {
+            padding: 10px 18px 12px;
         }
-        label {
-            display: block;
-            font-size: 0.78rem;
-            font-weight: 600;
-            color: var(--text-secondary);
-            margin: 14px 0 6px;
-        }
-        input {
-            width: 100%;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 13px 14px;
-            font: inherit;
-            color: var(--text-primary);
-            background: var(--bg-card);
-            outline: none;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease;
-        }
-        input::placeholder { color: var(--text-muted); }
-        input:focus {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px var(--glow-purple);
-        }
-        input[readonly] { color: var(--text-secondary); }
-        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .methods {
+        .field + .field { border-top: 1px solid #d2d2d7; }
+        .split {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin: 20px 0 4px;
         }
-        .methods button {
-            border: 1px solid var(--border);
-            background: var(--bg-card);
-            border-radius: 12px;
-            padding: 12px 10px;
-            font-weight: 600;
+        .split .field + .field { border-top: 0; border-left: 1px solid #d2d2d7; }
+        .field label {
+            display: block;
+            font-size: 12px;
+            color: #6e6e73;
+            margin-bottom: 2px;
+        }
+        .field input {
+            width: 100%;
+            border: 0;
+            background: transparent;
+            font: inherit;
+            font-size: 17px;
+            color: #1d1d1f;
+            outline: none;
+            padding: 2px 0 4px;
+        }
+        .field input::placeholder { color: #86868b; }
+        .field input[readonly] { color: #6e6e73; }
+        .seg {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            background: #e8e8ed;
+            border-radius: 9px;
+            padding: 2px;
+            margin: 22px 0 18px;
+        }
+        .seg button {
+            border: 0;
+            background: transparent;
+            border-radius: 7px;
+            padding: 8px 0;
+            font: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            color: #1d1d1f;
             cursor: pointer;
-            color: var(--text-secondary);
-            transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
         }
-        .methods button.active {
-            border-color: var(--accent);
-            color: var(--text-primary);
-            background: var(--accent-soft);
+        .seg button.active {
+            background: #fff;
+            box-shadow: 0 0 0 0.5px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.08);
+        }
+        #cardFields { margin-bottom: 8px; }
+        #card-element {
+            background: #fff;
+            border-radius: 12px;
+            padding: 14px 16px;
+            min-height: 48px;
         }
         .pay {
             width: 100%;
-            margin-top: 18px;
             border: 0;
-            border-radius: 12px;
-            padding: 14px 16px;
-            font-weight: 700;
-            font-size: 1rem;
+            border-radius: 980px;
+            padding: 14px 18px;
+            margin-top: 8px;
+            font: inherit;
+            font-size: 17px;
+            font-weight: 500;
             color: #fff;
+            background: #0071e3;
             cursor: pointer;
-            background: linear-gradient(135deg, var(--accent), #a78bfa);
-            box-shadow: 0 2px 12px var(--glow-purple);
         }
-        .pay:hover { background: linear-gradient(135deg, var(--accent-hover), var(--accent)); }
-        .pay:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
+        .pay:hover { background: #0077ed; }
+        .pay:disabled { opacity: 0.4; cursor: default; }
         .err {
             display: none;
-            margin-top: 12px;
-            background: rgba(239, 68, 68, 0.12);
-            color: var(--error);
-            border: 1px solid rgba(239, 68, 68, 0.25);
-            border-radius: 12px;
-            padding: 10px 12px;
-            font-size: 0.86rem;
+            margin-top: 14px;
+            color: #d70015;
+            font-size: 13px;
+            text-align: center;
         }
-        .pix-box, .ok-box { display: none; text-align: center; }
-        .pix-box h2, .ok-box h2 { font-size: 1.05rem; margin-bottom: 6px; }
-        .ok-box h2 { color: var(--success); }
+        .hint {
+            margin-top: 14px;
+            color: #86868b;
+            font-size: 12px;
+            line-height: 1.45;
+            text-align: center;
+        }
+        .panel { display: none; text-align: center; padding: 8px 4px 4px; }
+        .panel h2 {
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: -0.03em;
+            margin-bottom: 8px;
+        }
+        .ok-box h2 { color: #1d1d1f; }
         .pix-box img {
-            width: 220px;
-            height: 220px;
-            border-radius: 16px;
-            border: 1px solid var(--border);
+            width: 200px;
+            height: 200px;
+            border-radius: 8px;
+            margin: 20px 0 16px;
             background: #fff;
-            margin: 12px 0 14px;
         }
         .copy {
-            width: 100%;
-            border: 1px dashed var(--border-light);
-            background: var(--bg-card);
+            background: #fff;
             border-radius: 12px;
-            padding: 12px;
-            font-size: 0.78rem;
+            padding: 14px 16px;
+            font-size: 13px;
+            color: #6e6e73;
             word-break: break-all;
             cursor: pointer;
-            color: var(--text-secondary);
+            text-align: left;
         }
-        #card-element {
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 12px;
-            min-height: 48px;
-            background: var(--bg-card);
-        }
-        .hint { color: var(--text-muted); font-size: 0.78rem; margin-top: 12px; text-align: center; }
-        a { color: var(--accent); }
-        @media (max-width: 520px) {
-            .brand img { height: 44px; }
-            .card { padding: 20px 16px; }
-            .row { grid-template-columns: 1fr; }
+        a { color: #0071e3; text-decoration: none; }
+        @media (max-width: 420px) {
+            .split { grid-template-columns: 1fr; }
+            .split .field + .field { border-left: 0; border-top: 1px solid #d2d2d7; }
         }
     </style>
 </head>
 <body>
     <div class="wrap">
-        <div class="brand">
+        <header>
             <img src="/logo-leona.png" alt="Leona">
-            <p>Pagamento seguro</p>
-        </div>
+        </header>
 
-        <div class="card" id="formCard">
-            <div class="product">
-                <img src="/leona-finance-192.png" alt="">
-                <div>
-                    <h1 id="offerName">Leona Flow</h1>
-                    <span id="offerQty">1 conexão · mensal</span>
-                </div>
-                <div class="price" id="offerPrice">—</div>
-            </div>
+        <div id="formCard">
+            <h1 class="page">Assinar</h1>
+            <p class="lede" id="offerQty">1 conexão · assinatura mensal</p>
 
-            <label>E-mail</label>
-            <input id="email" type="email" autocomplete="email" readonly>
-
-            <label>Nome completo</label>
-            <input id="name" type="text" autocomplete="name" placeholder="Como no documento">
-
-            <div class="row">
-                <div>
-                    <label>CPF / CNPJ</label>
-                    <input id="document" type="text" inputmode="numeric" placeholder="000.000.000-00">
-                </div>
-                <div>
-                    <label>Celular</label>
-                    <input id="phone" type="tel" placeholder="(12) 99999-9999">
+            <div class="group">
+                <div class="row">
+                    <span class="label" id="offerName">Leona Flow</span>
+                    <span class="value" id="offerPrice">—</span>
                 </div>
             </div>
 
-            <div class="methods">
+            <div class="group" style="margin-top:16px;">
+                <div class="field">
+                    <label>E-mail</label>
+                    <input id="email" type="email" autocomplete="email" readonly>
+                </div>
+                <div class="field">
+                    <label>Nome</label>
+                    <input id="name" type="text" autocomplete="name" placeholder="Como no documento">
+                </div>
+                <div class="split">
+                    <div class="field">
+                        <label>CPF ou CNPJ</label>
+                        <input id="document" type="text" inputmode="numeric" placeholder="000.000.000-00">
+                    </div>
+                    <div class="field">
+                        <label>Celular</label>
+                        <input id="phone" type="tel" placeholder="(11) 99999-9999">
+                    </div>
+                </div>
+            </div>
+
+            <div class="seg">
                 <button type="button" id="tabPix" class="active" onclick="setMethod('pix')">PIX</button>
                 <button type="button" id="tabCard" onclick="setMethod('card')">Cartão</button>
             </div>
 
             <div id="cardFields" style="display:none;">
-                <label>Cartão</label>
                 <div id="card-element"></div>
             </div>
 
             <button class="pay" id="payBtn" type="button" onclick="submitPay()">Assinar com PIX</button>
             <div class="err" id="err"></div>
-            <p class="hint" id="payHint">PIX automático ou cartão recorrente. A cobrança se repete todo mês.</p>
+            <p class="hint" id="payHint">A cobrança se repete todo mês. Cancele quando quiser.</p>
         </div>
 
-        <div class="card pix-box" id="pixCard">
+        <div class="panel pix-box" id="pixCard">
             <h2>Pague com PIX</h2>
-            <p class="hint" style="margin-bottom:8px;">Escaneie o QR ou toque no código para copiar.</p>
+            <p class="hint">Escaneie o QR ou toque no código para copiar.</p>
             <img id="pixQr" alt="QR Code PIX">
             <div class="copy" id="pixCopy" onclick="copyPix()"></div>
-            <p class="hint" id="pixWait">Aguardando pagamento...</p>
+            <p class="hint" id="pixWait">Aguardando pagamento…</p>
         </div>
 
-        <div class="card ok-box" id="okCard">
-            <h2>Pagamento confirmado</h2>
-            <p>Sua Leona já está sendo liberada.</p>
-            <p class="hint" style="margin-top:16px;"><a id="backLink" href="/assinatura">Voltar para a assinatura</a></p>
+        <div class="panel ok-box" id="okCard">
+            <h2>Pronto</h2>
+            <p class="lede" style="margin-bottom:0;">Sua Leona já está sendo liberada.</p>
+            <p class="hint" style="margin-top:20px;"><a id="backLink" href="/assinatura">Voltar para a assinatura</a></p>
         </div>
     </div>
 
@@ -312,7 +282,7 @@
         document.getElementById('offerPrice').textContent = state.amount ? money(state.amount) : '—';
         document.getElementById('payHint').textContent = state.kind === 'one_shot'
             ? 'Pagamento único do upgrade no ciclo atual. Não cria nova recorrência.'
-            : 'PIX automático ou cartão recorrente. A cobrança se repete todo mês.';
+            : 'A cobrança se repete todo mês. Cancele quando quiser.';
         document.getElementById('payBtn').textContent = payLabel();
         document.getElementById('backLink').href = `/assinatura?account_id=${encodeURIComponent(state.accountId)}&email=${encodeURIComponent(state.email)}`;
 
@@ -339,17 +309,17 @@
                 origin: location.origin
             });
             state.card = state.elements.create('card', {
-                theme: 'night',
+                theme: 'default',
                 style: {
                     base: {
-                        color: '#f0ecf7',
-                        fontFamily: 'Inter, system-ui, sans-serif',
-                        fontSize: '16px',
+                        color: '#1d1d1f',
+                        fontFamily: '-apple-system, BlinkMacSystemFont, Helvetica Neue, sans-serif',
+                        fontSize: '17px',
                         borderRadius: '8px',
-                        backgroundColor: '#1e1830'
+                        backgroundColor: '#ffffff'
                     },
-                    focus: { borderColor: '#8b5cf6' },
-                    invalid: { color: '#ef4444' }
+                    focus: { borderColor: '#0071e3' },
+                    invalid: { color: '#d70015' }
                 }
             });
             state.card.mount('#card-element');
