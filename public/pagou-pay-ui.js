@@ -156,6 +156,7 @@
 
     async function setMethod(method) {
       state.method = method;
+      showErr('');
       el(id, 'tabPix')?.classList.toggle('active', method === 'pix');
       el(id, 'tabCard')?.classList.toggle('active', method === 'card');
       const fields = el(id, 'cardFields');

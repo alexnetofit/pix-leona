@@ -1165,9 +1165,10 @@
             }
             if (btn) {
                 btn.disabled = !offer;
+                const cardOn = document.getElementById(`tabCard-${slot}`)?.classList.contains('active');
                 btn.textContent = window.PagouPay
-                    ? PagouPay.payLabel('pix', state.kind || 'subscription')
-                    : 'Assinar com PIX';
+                    ? PagouPay.payLabel(cardOn ? 'card' : 'pix', state.kind || 'subscription')
+                    : (cardOn ? 'Assinar no cartão' : 'Assinar com PIX');
             }
         }
 

@@ -81,6 +81,11 @@ function pagouError(body) {
   return body?.detail || body?.message || body?.error || 'Pagou não gerou o pagamento';
 }
 
+function pixAutomaticUnsupported(body) {
+  const text = JSON.stringify(body || {}).toLowerCase();
+  return text.includes('pix_automatic') && (text.includes('not supported') || text.includes('não suport'));
+}
+
 function isOneShotKind(value) {
   const kind = String(value || '').trim().toLowerCase();
   return kind === 'one_shot' || kind === 'oneshot' || kind === 'avulso' || kind === 'upgrade';
@@ -345,8 +350,60 @@ export default async function handler(req, res) {
         idempotency_key: title
       };
 
-  const created = await createPagouSubscription(subPayload);
-  const data = txPayload(created.body);
+  let created = await createPagouSubscription(subPayload);
+  let data = txPayload(created.body);
+  if ((!created.ok || !data?.id) && payMethod === 'pix' && pixAutomaticUnsupported(created.body)) {
+    const pixTx = await createPagouTransaction({
+      external_ref: title,
+      amount: amountCents,
+      currency: 'BRL',
+      method: 'pix',
+      buyer: {
+        name: buyerName,
+        email: buyerEmail,
+        document,
+        address,
+        ...(phoneFrom(buyer?.phone) ? { phone: phoneFrom(buyer.phone) } : {})
+      },
+      products: [{ name: productName, price: amountCents, quantity: 1 }]
+    });
+    created = pixTx;
+    data = txPayload(pixTx.body);
+    if (created.ok && data?.id) {
+      await rememberIntent({
+        account_id: accountId,
+        email: buyerEmail || null,
+        qty: qtyN,
+        amount_cents: amountCents,
+        title,
+        checkout_url: null,
+        status: 'pending',
+        pagou_transaction_id: data.id,
+        details: { offer_name: productName, method: 'pix', kind: 'subscription', fallback: 'pix_tx' }
+      });
+      logAssinaturaEvent(req, {
+        action: 'pagou_pix_created',
+        provider: 'pagou',
+        email: buyerEmail,
+        account_id: accountId,
+        details: { qty: qtyN, amount_cents: amountCents, title, tx: data.id, status: data.status, kind: 'subscription', fallback: 'pix_tx' }
+      });
+      return res.status(200).json({
+        success: true,
+        id: data.id,
+        subscription_id: null,
+        status: data.status || null,
+        method: 'pix',
+        kind: 'subscription',
+        paid: String(data.status || '').toLowerCase() === 'paid',
+        next_action: data.next_action || null,
+        pix: extractPix(data),
+        qty: qtyN,
+        amount_cents: amountCents,
+        offer_name: productName
+      });
+    }
+  }
   if (!created.ok || !data?.id) {
     logAssinaturaEvent(req, {
       action: 'pagou_pay_error',
