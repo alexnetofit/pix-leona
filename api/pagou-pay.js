@@ -15,6 +15,7 @@ import {
   pagouConfigured,
   subscriptionPaid,
   customerDocumentOf,
+  toPagouDocument,
   upsertPagouCustomer
 } from '../lib/pagou.js';
 import { leonaAmountCents, makeLeonaRef, reaisToCents } from '../lib/leona-pricing.js';
@@ -324,7 +325,7 @@ export default async function handler(req, res) {
   const productName = offer_name || `Leona Flow — ${qtyN} conex${qtyN === 1 ? 'ão' : 'ões'}`;
   const buyerEmail = access.profileEmail || email;
   const buyerName = String(buyer?.name || '').trim();
-  const document = documentFrom(buyer?.document || buyer?.cpf || buyer?.cnpj);
+  const document = toPagouDocument(buyer?.document || buyer?.cpf || buyer?.cnpj) || documentFrom(buyer?.document || buyer?.cpf || buyer?.cnpj);
   const address = addressFrom(buyer?.address || buyer);
   const ip = clientIp(req);
   if (!buyerName || buyerName.split(/\s+/).length < 2) {
@@ -429,9 +430,6 @@ export default async function handler(req, res) {
   };
   const documentFields = {
     document,
-    document_type: document.type,
-    document_number: document.number,
-    address,
     buyer: buyerPayload
   };
 
@@ -463,7 +461,8 @@ export default async function handler(req, res) {
         comment: title.slice(0, 140),
         products,
         metadata,
-        idempotency_key: title
+        idempotency_key: title,
+        ...documentFields
       };
 
   let created = await createPagouSubscription(subPayload);
