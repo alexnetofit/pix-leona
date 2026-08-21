@@ -94,9 +94,11 @@ function isOneShotKind(value) {
   return kind === 'one_shot' || kind === 'oneshot' || kind === 'avulso' || kind === 'upgrade';
 }
 
-function chargeFailed(status, nextAction) {
+function chargeFailed(status, nextAction, extra = {}) {
+  if (nextAction || extra.pix?.qr_code) return false;
+  if (extra.method === 'pix' && String(status || '').toLowerCase() === 'incomplete') return false;
   const st = String(status || '').toLowerCase();
-  return ['error', 'refused', 'failed', 'canceled', 'cancelled', 'incomplete'].includes(st) && !nextAction;
+  return ['error', 'refused', 'failed', 'canceled', 'cancelled', 'incomplete'].includes(st);
 }
 
 function documentRequiredError(body) {
@@ -556,19 +558,20 @@ export default async function handler(req, res) {
   }
 
   const firstTx = firstSubscriptionTransaction(data);
-  let nextAction = data.next_action || data.nextAction || null;
+  let nextAction = data.next_action || data.nextAction || data.authorization || null;
   let pix = extractPix(data);
   if (firstTx?.id) {
     const tx = await getPagouTransaction(firstTx.id);
     const txData = txPayload(tx.body);
     nextAction = txData.next_action || txData.nextAction || nextAction;
-    pix = extractPix(txData);
+    pix = extractPix({ ...txData, authorization: txData.authorization || data.authorization });
   } else if (!pix.qr_code) {
     pix = await hydratePixFromTx(data.latest_transaction_id || data.latestTransactionId, data);
   }
+  if (!nextAction && pix.qr_code) nextAction = { type: 'pix_qr', qr_code: pix.qr_code };
 
   const firstStatus = String(firstTx?.status || data.status || '').toLowerCase();
-  if (chargeFailed(firstStatus, nextAction)) {
+  if (chargeFailed(firstStatus, nextAction, { method: payMethod, pix })) {
     const fallback = await fallbackCardOneShot(req, oneShotArgs, {
       buyerEmail,
       accountId,
@@ -594,7 +597,9 @@ export default async function handler(req, res) {
       }
     });
     return res.status(402).json({
-      error: 'Cartão recusado. Tente outro cartão ou pague com PIX.',
+      error: payMethod === 'pix'
+        ? 'Não deu para gerar o PIX agora. Atualize a página e tente de novo.'
+        : 'Cartão recusado. Tente outro cartão ou pague com PIX.',
       subscription_id: data.id,
       status: firstStatus
     });

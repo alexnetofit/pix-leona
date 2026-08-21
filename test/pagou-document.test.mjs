@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { customerDocumentOf, toPagouDocument } from '../lib/pagou.js';
+import { customerDocumentOf, extractPix, toPagouDocument } from '../lib/pagou.js';
 
 test('lê o documento no formato que a Pagou grava', () => {
   assert.deepEqual(customerDocumentOf({
@@ -23,4 +23,15 @@ test('aceita type/number e infere CPF pelo tamanho', () => {
 test('rejeita documento incompleto', () => {
   assert.equal(customerDocumentOf({ document: { document_type: 'CPF' } }), null);
   assert.equal(toPagouDocument('123'), null);
+});
+
+test('lê QR do PIX automático em authorization', () => {
+  assert.equal(extractPix({
+    authorization: {
+      type: 'pix_qr',
+      qr_code: '00020101021226810014br.gov.bcb.pix',
+      payment_link_url: 'https://woovi.com/pay/x',
+      expires_at: null
+    }
+  }).qr_code, '00020101021226810014br.gov.bcb.pix');
 });
