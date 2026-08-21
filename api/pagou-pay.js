@@ -14,6 +14,7 @@ import {
   getPagouTransaction,
   pagouConfigured,
   subscriptionPaid,
+  customerDocumentOf,
   upsertPagouCustomer
 } from '../lib/pagou.js';
 import { leonaAmountCents, makeLeonaRef, reaisToCents } from '../lib/leona-pricing.js';
@@ -391,9 +392,11 @@ export default async function handler(req, res) {
     email: buyerEmail,
     document,
     phone: customerPhone(buyer?.phone),
+    address,
+    ip,
     externalRef: `leona:${accountId}`
   });
-  if (!customer.ok || !customer.data?.id) {
+  if (!customer.ok || !customer.data?.id || !customerDocumentOf(customer.data)) {
     logAssinaturaEvent(req, {
       action: 'pagou_pay_error',
       provider: 'pagou',
@@ -401,7 +404,9 @@ export default async function handler(req, res) {
       account_id: accountId,
       details: { qty: qtyN, method: payMethod, kind: 'subscription', error: customer.body, step: 'customer' }
     });
-    return res.status(customer.status || 502).json({ error: pagouError(customer.body) });
+    return res.status(customer.status || 502).json({
+      error: pagouError(customer.body) || 'Informe um CPF ou CNPJ válido para assinar'
+    });
   }
 
   const metadata = {
@@ -415,6 +420,20 @@ export default async function handler(req, res) {
     price: amountCents,
     quantity: 1
   }];
+  const buyerPayload = {
+    name: buyerName,
+    email: buyerEmail,
+    document,
+    address,
+    ...(phoneFrom(buyer?.phone) ? { phone: phoneFrom(buyer.phone) } : {})
+  };
+  const documentFields = {
+    document,
+    document_type: document.type,
+    document_number: document.number,
+    address,
+    buyer: buyerPayload
+  };
 
   const subPayload = payMethod === 'credit_card'
     ? {
@@ -429,6 +448,7 @@ export default async function handler(req, res) {
         products,
         metadata,
         idempotency_key: title,
+        ...documentFields,
         ...(ip ? { ip_address: ip } : {})
       }
     : {
