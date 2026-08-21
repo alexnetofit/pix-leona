@@ -5,8 +5,8 @@
   "start_url": "/guru",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f3f6fb",
-  "theme_color": "#f3f6fb",
+  "background_color": "#f5f5f7",
+  "theme_color": "#f5f5f7",
   "icons": [
     {
       "src": "/leona-finance-192.png",
