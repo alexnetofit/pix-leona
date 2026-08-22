@@ -1763,13 +1763,20 @@
                     `;
                 }
             } else {
+                const replaceSlot = `up-${bp.account_id || 'x'}-${bpIdx}`;
+                _replaceStates[replaceSlot] = { accountId: bp.account_id, qty: currentQty, payAmount: proRata };
                 resultDiv.innerHTML = `
                     <div class="group">
                         <div class="row"><span class="label">Alteração</span><span class="value">${currentQty} → ${newQty}</span></div>
                         <div class="row"><span class="label">Novo valor mensal</span><span class="value">${fmtCurrency(newValue)}</span></div>
                         <div class="row"><span class="label">Pro rata estimado</span><span class="value">${fmtCurrency(proRata)}</span></div>
                     </div>
-                    <p class="hint">O upgrade proporcional só é gerado na Guru. Não encontramos assinatura Guru desta conta. Fale com o suporte.</p>
+                    <p class="hint">Hoje você paga o proporcional na Guru. O mensal passa a ser ${fmtCurrency(newValue)} no plano de ${newQty} conexões.</p>
+                    <input type="hidden" id="replaceQty-${replaceSlot}" value="${newQty}">
+                    <button class="pay" id="replaceGoBtn-${replaceSlot}" type="button" onclick="replaceGenerate('${replaceSlot}')">
+                        Pagar ${fmtCurrency(proRata)}
+                    </button>
+                    <div id="replacePanel-${replaceSlot}"></div>
                 `;
             }
         }

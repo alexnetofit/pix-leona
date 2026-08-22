@@ -25,6 +25,7 @@ import { LEONA_BASE, leonaHeaders, assertAccountAccess } from '../lib/leona.js';
 import { GURU_BASE, LEONA_GURU_PRODUCT_ID, guruHeaders } from '../lib/guru.js';
 import { applyCors } from '../lib/auth.js';
 import { logAssinaturaEvent } from '../lib/assinatura-log.js';
+import { ensureProrataCoupon } from '../lib/guru-coupon.js';
 
 function pickOfferByQty(offers, qty) {
   if (!Array.isArray(offers)) return null;
@@ -74,7 +75,7 @@ export default async function handler(req, res) {
   if (!guruToken) return res.status(500).json({ error: 'GURU_TOKEN não configurado' });
   if (!leonaToken) return res.status(500).json({ error: 'LEONA_BILLING_TOKEN não configurado' });
 
-  const { account_id, qty, email } = req.body || {};
+  const { account_id, qty, email, amount } = req.body || {};
 
   // account_id aceita int (legado) ou UUID. Tratamos como string opaca.
   const accountId = account_id != null ? String(account_id).trim() : '';
@@ -130,14 +131,27 @@ export default async function handler(req, res) {
       });
     }
 
+    let coupon = null;
+    const payAmount = Number(amount);
+    if (Number.isFinite(payAmount) && payAmount > 0) {
+      coupon = await ensureProrataCoupon({
+        email: checkoutEmail,
+        offerValue: offer.value,
+        payAmount,
+        guruToken
+      });
+    }
+
     const checkoutUrl = appendParams(offer.checkout_url, {
       src: String(accountId),
-      email: checkoutEmail
+      email: checkoutEmail,
+      ...(coupon?.code ? { coupon: coupon.code } : {})
     });
 
     console.log(
       `guru-replace-subscription: account=${accountId}, qty=${qtyNum}, ` +
       `offer=${offer.id} (${offer.name}), email=${checkoutEmail || '(nenhum)'}, ` +
+      `coupon=${coupon?.code || '(nenhum)'}, pay=${coupon?.pay ?? payAmount || offer.value}, ` +
       `current_guru_id=${profile.guru_account_id || '(nenhum)'}`
     );
 
@@ -151,6 +165,8 @@ export default async function handler(req, res) {
         offer_id: offer.id,
         offer_name: offer.name,
         value: offer.value,
+        coupon: coupon?.code || null,
+        pay_amount: coupon?.pay || null,
         previous_guru_account_id: profile.guru_account_id || null
       }
     });
@@ -163,6 +179,8 @@ export default async function handler(req, res) {
       value: offer.value,
       qty: qtyNum,
       account_id: accountId,
+      coupon: coupon?.code || null,
+      pay_amount: coupon?.pay || null,
       previous_guru_account_id: profile.guru_account_id || null
     });
   } catch (error) {

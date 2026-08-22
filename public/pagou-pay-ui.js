@@ -111,7 +111,8 @@
         body: JSON.stringify({
           account_id: c.accountId,
           email: c.email,
-          qty: c.qty
+          qty: c.qty,
+          ...(Number(c.amount) > 0 ? { amount: c.amount } : {})
         })
       });
       const data = await r.json();
