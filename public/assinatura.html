@@ -574,7 +574,6 @@
         </div>
     </div>
 
-    <script src="https://js.pagou.ai/payments/v3.js"></script>
     <script src="/pagou-pay-ui.js"></script>
     <script>
         let _data = null;
@@ -614,6 +613,8 @@
             }
             if (
                 href.includes('go.leonaflow.com') ||
+                href.includes('digitalmanager.guru') ||
+                href.includes('clkdmg.site') ||
                 href.includes('checkout.pagou.ai') ||
                 href.includes('/pay/') ||
                 href.includes('/subscribe/') ||
@@ -1104,7 +1105,7 @@
                 },
                 onSubmit: (c) => {
                     logAssinatura('click_buy', {
-                        provider: c.region === 'international' ? 'paddle' : 'pagou',
+                        provider: c.region === 'international' ? 'paddle' : 'guru',
                         account_id: c.accountId,
                         email: c.email,
                         details: { qty: c.qty, offer: c.offer || null, value: c.amount || null, kind, region: c.region || 'br' }
@@ -1165,10 +1166,9 @@
             }
             if (btn) {
                 const region = btn.dataset.region || 'br';
-                const cardOn = document.getElementById(`tabCard-${slot}`)?.classList.contains('active');
                 btn.textContent = window.PagouPay
-                    ? PagouPay.payLabel(cardOn ? 'card' : 'pix', state.kind || 'subscription', region)
-                    : (cardOn ? 'Assinar no cartão' : 'Assinar com PIX');
+                    ? PagouPay.payLabel('guru', state.kind || 'subscription', region)
+                    : (region === 'international' ? 'Pagar com cartão' : 'Assinar agora');
                 if (region !== 'international') btn.disabled = !offer;
             }
         }
@@ -1271,7 +1271,7 @@
             const payId = `rep-${slot}`;
 
             logAssinatura('click_buy', {
-                provider: 'pagou',
+                provider: 'guru',
                 account_id: state.accountId,
                 details: { qty, via: 'replace' }
             });
@@ -1501,7 +1501,7 @@
                         html += renderProcessingState(processingGuruSub);
                     } else if (hasGuruAny) {
                         // Cenário 2: Leona vencida + Guru vencida/cancelada.
-                        // Renovação nova vai pra Pagou (não gera outra Guru).
+                        // Renovação: checkout Guru (replace) ou Paddle se Exterior.
                         html += renderQtySelector(offers, email, `exp${i}`, bp.account_id);
                     } else {
                         // Cenário 1: Leona inativa/vencida + sem Guru desta conta
@@ -1662,7 +1662,7 @@
                             <input type="hidden" id="replaceQty-down-${bp.account_id}-${bpIdx}" value="${newQty}">
                             <button class="pay" id="replaceGoBtn-down-${bp.account_id}-${bpIdx}" type="button"
                                 onclick="(_replaceStates['down-${bp.account_id}-${bpIdx}']={accountId:'${String(bp.account_id).replace(/'/g, "\\'")}',qty:${currentQty}},replaceGenerate('down-${bp.account_id}-${bpIdx}'))">
-                                Pagar ${fmtCurrency(newValue)} na Pagou
+                                Gerar link de pagamento para ${newQty} conex${newQty !== 1 ? 'ões' : 'ão'}
                             </button>
                             <div id="replacePanel-down-${bp.account_id}-${bpIdx}"></div>
                         ` : `
@@ -1763,7 +1763,7 @@
                         <div class="row"><span class="label">Novo valor mensal</span><span class="value">${fmtCurrency(newValue)}</span></div>
                         <div class="row"><span class="label">Pro rata estimado</span><span class="value">${fmtCurrency(proRata)}</span></div>
                     </div>
-                    <p class="hint">Pagamento avulso na Pagou do plano de ${newQty} conexões. A Guru não precisa ter essa oferta.</p>
+                    <p class="hint">Vamos gerar o checkout da Guru no plano de ${newQty} conexões. Ao pagar, a assinatura é atualizada.</p>
                     <input type="hidden" id="replaceQty-${replaceSlot}" value="${newQty}">
                     <button class="pay" id="replaceGoBtn-${replaceSlot}" type="button" onclick="replaceGenerate('${replaceSlot}')">
                         Pagar ${fmtCurrency(newValue)}
