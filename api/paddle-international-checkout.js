@@ -5,8 +5,17 @@
 import { applyCors } from '../lib/auth.js';
 import { assertAccountAccess } from '../lib/leona.js';
 import { logAssinaturaEvent } from '../lib/assinatura-log.js';
-import { buildPaddleInternationalTransaction, paddleInternationalReady } from '../lib/geo-billing.js';
-import { createCustomer, createTransaction, listCustomersByEmail } from '../lib/paddle-client.js';
+import {
+  buildPaddleInternationalTransaction,
+  findStarterPriceId,
+  paddleInternationalReady
+} from '../lib/geo-billing.js';
+import {
+  createCustomer,
+  createTransaction,
+  listCustomersByEmail,
+  listProducts
+} from '../lib/paddle-client.js';
 
 function ensurePaddleEnv() {
   if (!process.env.PADDLE_ENVIRONMENT) process.env.PADDLE_ENVIRONMENT = 'production';
@@ -45,6 +54,15 @@ export default async function handler(req, res) {
 
   try {
     ensurePaddleEnv();
+    const products = await listProducts();
+    const priceId = findStarterPriceId(products, process.env.PADDLE_STARTER_PRICE_ID);
+    if (!priceId) {
+      return res.status(503).json({
+        error: 'Plano Starter não encontrado na Paddle.',
+        code: 'STARTER_PRICE_MISSING'
+      });
+    }
+
     const existing = await listCustomersByEmail(buyerEmail);
     const customer = existing[0] || await createCustomer({
       email: buyerEmail,
@@ -52,18 +70,20 @@ export default async function handler(req, res) {
       customData: { leona_account_id: accountId }
     });
 
-    const origin = String(req.headers?.origin || '').replace(/\/+$/, '');
-    const checkoutUrl = origin
-      ? `${origin}/assinatura`
-      : (process.env.PADDLE_CHECKOUT_BASE_URL || 'https://client.leonaflow.com/assinatura');
-
+    const origin = String(req.headers?.origin || 'https://client.leonaflow.com').replace(/\/+$/, '');
     const transaction = await createTransaction(buildPaddleInternationalTransaction({
       accountId,
       qty: qtyN,
       customerId: customer.id,
-      priceId: process.env.PADDLE_STARTER_PRICE_ID,
-      checkoutUrl
+      priceId,
+      checkoutUrl: `${origin}/checkout`
     }));
+
+    const qs = new URLSearchParams();
+    qs.set('_ptxn', transaction.id);
+    qs.set('aid', accountId);
+    if (customer.id) qs.set('cid', customer.id);
+    const checkoutUrl = `${origin}/checkout?${qs.toString()}`;
 
     logAssinaturaEvent(req, {
       action: 'paddle_international_checkout',
@@ -73,13 +93,13 @@ export default async function handler(req, res) {
       details: {
         qty: qtyN,
         customer_id: customer.id,
-        transaction_id: transaction.id
+        transaction_id: transaction.id,
+        price_id: priceId
       }
     });
 
     return res.status(200).json({
-      client_token: process.env.PADDLE_CLIENT_TOKEN,
-      environment: process.env.PADDLE_ENVIRONMENT || 'production',
+      checkout_url: checkoutUrl,
       transaction_id: transaction.id,
       customer_id: customer.id,
       account_id: accountId,

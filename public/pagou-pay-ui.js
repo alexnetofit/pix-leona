@@ -14,7 +14,6 @@
   }
 
   let _payConfig = null;
-  let _paddleBooted = false;
   function loadPayConfig() {
     if (_payConfig) return _payConfig;
     _payConfig = fetch('/api/pagou-config').then((r) => r.json()).catch(() => ({}));
@@ -89,7 +88,6 @@
       method: 'pix',
       region: 'br',
       paddleReady: false,
-      paddleInited: false,
       elements: null,
       card: null,
       cardValid: false,
@@ -175,41 +173,9 @@
       }
     }
 
-    async function ensurePaddle() {
-      if (state.paddleInited && global.Paddle) return;
-      if (!global.Paddle) {
-        await new Promise((resolve, reject) => {
-          const existing = document.querySelector('script[src*="cdn.paddle.com/paddle/v2/paddle.js"]');
-          if (existing && global.Paddle) return resolve();
-          const s = document.createElement('script');
-          s.src = 'https://cdn.paddle.com/paddle/v2/paddle.js';
-          s.onload = resolve;
-          s.onerror = () => reject(new Error('Não foi possível carregar a Paddle'));
-          document.head.appendChild(s);
-        });
-      }
-      if (!global.Paddle) throw new Error('Paddle.js não carregou');
-    }
-
-    async function openPaddleCheckout(data) {
-      await ensurePaddle();
-      if (data.environment === 'sandbox') Paddle.Environment.set('sandbox');
-      if (!_paddleBooted) {
-        Paddle.Initialize({ token: data.client_token });
-        _paddleBooted = true;
-      }
-      Paddle.Checkout.open({
-        transactionId: data.transaction_id,
-        customer: { id: data.customer_id },
-        settings: {
-          displayMode: 'overlay',
-          theme: 'light',
-          locale: 'en',
-          successUrl: location.href,
-          showAddDiscounts: false,
-          allowLogout: false
-        }
-      });
+    function openPaddleCheckout(data) {
+      if (!data?.checkout_url) throw new Error('Checkout Paddle indisponível');
+      location.href = data.checkout_url;
     }
 
     async function ensureCard() {

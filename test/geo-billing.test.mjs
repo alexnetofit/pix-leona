@@ -5,6 +5,7 @@ import {
   buildPaddleInternationalTransaction,
   countryFromAcceptLanguage,
   countryFromHeaders,
+  findStarterPriceId,
   paddleInternationalReady,
   suggestInternational
 } from '../lib/geo-billing.js';
@@ -27,13 +28,22 @@ test('sugere Paddle só fora do Brasil', () => {
   assert.equal(suggestInternational(null), false);
 });
 
-test('paddle_ready exige as três envs', () => {
+test('paddle_ready só precisa da API key (preço vem do catálogo)', () => {
   assert.equal(paddleInternationalReady({}), false);
-  assert.equal(paddleInternationalReady({
-    PADDLE_API_KEY: 'x',
-    PADDLE_CLIENT_TOKEN: 'y',
-    PADDLE_STARTER_PRICE_ID: 'pri_1'
-  }), true);
+  assert.equal(paddleInternationalReady({ PADDLE_API_KEY: 'x' }), true);
+});
+
+test('acha o preço Starter no catálogo se a env estiver vazia', () => {
+  assert.equal(findStarterPriceId([], null), null);
+  assert.equal(findStarterPriceId([], 'pri_env'), 'pri_env');
+  assert.equal(findStarterPriceId([
+    {
+      name: 'Leona Flow',
+      prices: [
+        { id: 'pri_month', status: 'active', billing_cycle: { interval: 'month' } }
+      ]
+    }
+  ], ''), 'pri_month');
 });
 
 test('transaction internacional leva account e qty sem CPF', () => {
