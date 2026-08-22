@@ -1094,11 +1094,14 @@
                         ? Math.max(1, parseInt(input.value) || 1)
                         : Math.max(1, Number(state.qty) || 1);
                     const offer = resolvePlan(state.offers || _data?.offers, qty);
+                    const amount = Number(state.amount);
                     return {
                         accountId: state.accountId,
                         email: state.email || _email,
                         qty,
-                        amount: offer?.value || leonaAmountReais(qty),
+                        amount: Number.isFinite(amount) && amount > 0
+                            ? amount
+                            : (offer?.value || leonaAmountReais(qty)),
                         offer: offer?.name || `Leona Flow — ${qty} conex${qty === 1 ? 'ão' : 'ões'}`,
                         kind
                     };
@@ -1268,12 +1271,16 @@
             const panel = document.getElementById(`replacePanel-${slot}`);
             const qty = Math.max(1, parseInt(input.value) || 1);
             const offer = resolvePlan(_data?.offers, qty);
+            const payAmount = Number(state.payAmount);
+            const charge = Number.isFinite(payAmount) && payAmount > 0
+                ? payAmount
+                : (offer?.value || leonaAmountReais(qty));
             const payId = `rep-${slot}`;
 
             logAssinatura('click_buy', {
                 provider: 'guru',
                 account_id: state.accountId,
-                details: { qty, via: 'replace' }
+                details: { qty, via: 'replace', amount: charge }
             });
 
             _qtySelStates[payId] = {
@@ -1281,17 +1288,18 @@
                 email: _email,
                 accountId: state.accountId,
                 kind: 'one_shot',
-                qty
+                qty,
+                amount: charge
             };
 
             panel.innerHTML = `
                 <div id="payChrome-${payId}">
                     <h1 class="page">Ajuste</h1>
-                    <p class="lede">${qty} conex${qty === 1 ? 'ão' : 'ões'} · ajuste avulso</p>
+                    <p class="lede">${qty} conex${qty === 1 ? 'ão' : 'ões'} · proporcional de hoje</p>
                     <div class="group">
                         <div class="row">
                             <span class="label">${offer?.name || `${qty} conex${qty === 1 ? 'ão' : 'ões'}`}</span>
-                            <span class="value">${offer ? fmtCurrency(offer.value) : '—'}</span>
+                            <span class="value">${fmtCurrency(charge)}</span>
                         </div>
                     </div>
                 </div>
@@ -1756,17 +1764,17 @@
                 }
             } else {
                 const replaceSlot = `up-${bp.account_id || 'x'}-${bpIdx}`;
-                _replaceStates[replaceSlot] = { accountId: bp.account_id, qty: currentQty };
+                _replaceStates[replaceSlot] = { accountId: bp.account_id, qty: currentQty, payAmount: proRata };
                 resultDiv.innerHTML = `
                     <div class="group">
                         <div class="row"><span class="label">Alteração</span><span class="value">${currentQty} → ${newQty}</span></div>
                         <div class="row"><span class="label">Novo valor mensal</span><span class="value">${fmtCurrency(newValue)}</span></div>
                         <div class="row"><span class="label">Pro rata estimado</span><span class="value">${fmtCurrency(proRata)}</span></div>
                     </div>
-                    <p class="hint">Vamos gerar o checkout da Guru no plano de ${newQty} conexões. Ao pagar, a assinatura é atualizada.</p>
+                    <p class="hint">Hoje você paga o proporcional. O mensal passa a ser ${fmtCurrency(newValue)} no plano de ${newQty} conexões.</p>
                     <input type="hidden" id="replaceQty-${replaceSlot}" value="${newQty}">
                     <button class="pay" id="replaceGoBtn-${replaceSlot}" type="button" onclick="replaceGenerate('${replaceSlot}')">
-                        Pagar ${fmtCurrency(newValue)}
+                        Pagar ${fmtCurrency(proRata)}
                     </button>
                     <div id="replacePanel-${replaceSlot}"></div>
                 `;
