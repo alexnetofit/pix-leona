@@ -218,11 +218,13 @@ export default async function handler(req, res) {
       ...(coupon?.code ? { coupon: coupon.code } : {})
     });
 
+    const payShown = coupon && coupon.pay != null ? coupon.pay : (payAmount || offer.value);
     console.log(
-      `guru-replace-subscription: account=${accountId}, qty=${qtyNum}, ` +
-      `offer=${offer.id} (${offer.name}), email=${checkoutEmail || '(nenhum)'}, ` +
-      `coupon=${coupon?.code || '(nenhum)'}, pay=${coupon?.pay ?? payAmount || offer.value}, ` +
-      `current_guru_id=${profile.guru_account_id || '(nenhum)'}`
+      'guru-replace-subscription account=' + accountId +
+      ' qty=' + qtyNum +
+      ' offer=' + offer.id +
+      ' coupon=' + (coupon && coupon.code ? coupon.code : 'none') +
+      ' pay=' + payShown
     );
 
     logAssinaturaEvent(req, {
