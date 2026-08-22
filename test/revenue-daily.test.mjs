@@ -72,8 +72,8 @@ test('summarizeRange soma plataformas e converte centavos em reais', () => {
   assert.deepEqual(summary.platforms.paddle.approved, { gross: 50, net: 42, count: 1 });
   assert.equal(summary.active_subscribers.count, 54);
   assert.equal(summary.platforms.paddle.active_subscribers.recurring, 9);
-  assert.equal(summary.platforms.pagou.currency, 'USD');
-  assert.deepEqual(summary.platforms.pagou.approved, { gross: 24.49, net: 22.88, count: 1, brl: 127 });
+  assert.equal(summary.platforms.pagou.currency, 'BRL');
+  assert.deepEqual(summary.platforms.pagou.approved, { gross: 127, net: 118.65, count: 1, brl: 127 });
   assert.equal(summary.days_missing, 0);
 });
 

@@ -95,6 +95,10 @@ mes anterior e mais curto, a data gruda no ultimo dia dele: 31/mar compara com
   o reembolso aconteceu. E por isso que a rodada noturna precisa refazer a
   janela recente inteira.
 - Valores ficam em centavos (`bigint`) na tabela e viram reais na resposta.
+- **Pagou** entra em BRL (o que o cliente pagou). `amount` da API às vezes é
+  settlement e não pode ser somado com Guru/Paddle. Assinante recorrente =
+  PIX automático com mandato aprovado; avulso dos últimos 32 dias entra
+  separado, sem somar o mesmo e-mail duas vezes.
 - `active_subscribers` e snapshot do momento da sincronizacao, nao fluxo do dia.
   Fica gravado no dia em que foi coletado e a tela usa o mais recente; dias de
   carga historica ficam com `null`.

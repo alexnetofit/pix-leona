@@ -957,7 +957,7 @@
                 <div class="platform-card pagou-platform">
                     <h3>
                         <span class="platform-title"><span class="platform-logo">$</span> Pagou</span>
-                        <span class="platform-badge">USD</span>
+                        <span class="platform-badge">BRL</span>
                     </h3>
                     <div class="platform-metrics">
                         <div class="platform-metric">
@@ -1222,13 +1222,6 @@
             return new Intl.NumberFormat('pt-BR', {
                 style: 'currency',
                 currency: 'BRL'
-            }).format(Number(v) || 0).replace(/\s/g, '\u00a0');
-        }
-
-        function formatUSD(v) {
-            return new Intl.NumberFormat('pt-BR', {
-                style: 'currency',
-                currency: 'USD'
             }).format(Number(v) || 0).replace(/\s/g, '\u00a0');
         }
 
@@ -1510,8 +1503,7 @@
 
             const guruGrossV = Number(guruApproved.gross) || 0;
             const paddleGrossV = Number(paddleApproved.gross) || 0;
-            const pagouGrossUsd = Number(pagouApproved.gross) || 0;
-            const pagouGrossBrl = Number(pagouApproved.brl) || 0;
+            const pagouGrossBrl = Number(pagouApproved.brl || pagouApproved.gross) || 0;
             const totalGross = guruGrossV + paddleGrossV + pagouGrossBrl;
             const guruPct = totalGross > 0 ? (guruGrossV / totalGross * 100) : 40;
             const paddlePct = totalGross > 0 ? (paddleGrossV / totalGross * 100) : 40;
@@ -1525,7 +1517,7 @@
             document.getElementById('sharePagouPct').textContent = fmtPct(pagouPct);
             document.getElementById('shareGuruVal').textContent = formatBRL(guruGrossV);
             document.getElementById('sharePaddleVal').textContent = formatBRL(paddleGrossV);
-            document.getElementById('sharePagouVal').textContent = formatUSD(pagouGrossUsd);
+            document.getElementById('sharePagouVal').textContent = formatBRL(pagouGrossBrl);
 
             renderSparkline(body.daily);
 
@@ -1544,13 +1536,13 @@
                 `${paddleApproved.count || 0} venda(s) · ${paddleSubscribers.recurring || 0} recorrente(s) · ` +
                 `${paddleSubscribers.pix_prepaid || 0} PIX ativo(s) em ${paddleSubscribers.pix_active_window_days || 32} dias`;
 
-            document.getElementById('pagouGross').textContent = formatUSD(pagouApproved.gross);
-            document.getElementById('pagouNet').textContent = formatUSD(pagouApproved.net);
+            document.getElementById('pagouGross').textContent = formatBRL(pagouApproved.brl || pagouApproved.gross);
+            document.getElementById('pagouNet').textContent = formatBRL(pagouApproved.net);
             document.getElementById('pagouSubscribers').textContent =
                 String(pagouSubscribers.count ?? '—');
             document.getElementById('pagouNote').textContent =
                 `${pagouApproved.count || 0} venda(s) · ${pagouSubscribers.recurring || 0} recorrente(s) · ` +
-                `${pagouSubscribers.prepaid || 0} pagante(s) em 32 dias`;
+                `${pagouSubscribers.prepaid || 0} avulso(s) em 32 dias`;
 
             document.getElementById('approvedCount').textContent = String(a.count || 0);
             document.getElementById('refundedCount').textContent = String(ref.count || 0);
