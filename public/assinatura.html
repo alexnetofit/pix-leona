@@ -818,10 +818,10 @@
             return guru.subscriptions.filter(sub => {
                 if (subMatchesGuruId(sub, ownId)) return true;
                 if (siblingIds.some(id => subMatchesGuruId(sub, id))) return false;
-                // Conta ainda sem vinculo: so pega sub recem-criada (webhook
-                // desta empresa ainda nao ligou). Nao herda a sub paga de
-                // outra empresa do mesmo e-mail.
+                // Conta ainda sem vinculo: sub recem-criada ou ativa do e-mail,
+                // se nenhuma outra empresa do mesmo e-mail a reivindica.
                 if (!ownId && isGuruSubFresh(sub)) return true;
+                if (!ownId && String(sub.status || '').toLowerCase() === 'active') return true;
                 return false;
             });
         }
@@ -1103,16 +1103,15 @@
                             ? amount
                             : (offer?.value || leonaAmountReais(qty)),
                         offer: offer?.name || `Leona Flow — ${qty} conex${qty === 1 ? 'ão' : 'ões'}`,
-                        kind,
-                        prorata: !!state.prorata
+                        kind
                     };
                 },
                 onSubmit: (c) => {
                     logAssinatura('click_buy', {
-                        provider: c.region === 'international' ? 'paddle' : (c.prorata ? 'pagou' : 'guru'),
+                        provider: c.region === 'international' ? 'paddle' : 'guru',
                         account_id: c.accountId,
                         email: c.email,
-                        details: { qty: c.qty, offer: c.offer || null, value: c.amount || null, kind, region: c.region || 'br', prorata: !!c.prorata }
+                        details: { qty: c.qty, offer: c.offer || null, value: c.amount || null, kind, region: c.region || 'br' }
                     });
                 },
                 onPaid: () => {
@@ -1171,7 +1170,7 @@
             if (btn) {
                 const region = btn.dataset.region || 'br';
                 btn.textContent = window.PagouPay
-                    ? PagouPay.payLabel('guru', state.kind || 'subscription', region, state.amount)
+                    ? PagouPay.payLabel('guru', state.kind || 'subscription', region)
                     : (region === 'international' ? 'Pagar com cartão' : 'Assinar agora');
                 if (region !== 'international') btn.disabled = !offer;
             }
@@ -1278,11 +1277,10 @@
                 : (offer?.value || leonaAmountReais(qty));
             const payId = `rep-${slot}`;
 
-            const isProrata = Number.isFinite(payAmount) && payAmount > 0;
             logAssinatura('click_buy', {
-                provider: isProrata ? 'pagou' : 'guru',
+                provider: 'guru',
                 account_id: state.accountId,
-                details: { qty, via: 'replace', amount: charge, prorata: isProrata }
+                details: { qty, via: 'replace', amount: charge }
             });
 
             _qtySelStates[payId] = {
@@ -1291,8 +1289,7 @@
                 accountId: state.accountId,
                 kind: 'one_shot',
                 qty,
-                amount: charge,
-                prorata: isProrata
+                amount: charge
             };
 
             panel.innerHTML = `
@@ -1766,20 +1763,13 @@
                     `;
                 }
             } else {
-                const replaceSlot = `up-${bp.account_id || 'x'}-${bpIdx}`;
-                _replaceStates[replaceSlot] = { accountId: bp.account_id, qty: currentQty, payAmount: proRata };
                 resultDiv.innerHTML = `
                     <div class="group">
                         <div class="row"><span class="label">Alteração</span><span class="value">${currentQty} → ${newQty}</span></div>
                         <div class="row"><span class="label">Novo valor mensal</span><span class="value">${fmtCurrency(newValue)}</span></div>
                         <div class="row"><span class="label">Pro rata estimado</span><span class="value">${fmtCurrency(proRata)}</span></div>
                     </div>
-                    <p class="hint">Hoje você paga o proporcional. O mensal passa a ser ${fmtCurrency(newValue)} no plano de ${newQty} conexões.</p>
-                    <input type="hidden" id="replaceQty-${replaceSlot}" value="${newQty}">
-                    <button class="pay" id="replaceGoBtn-${replaceSlot}" type="button" onclick="replaceGenerate('${replaceSlot}')">
-                        Pagar ${fmtCurrency(proRata)}
-                    </button>
-                    <div id="replacePanel-${replaceSlot}"></div>
+                    <p class="hint">O upgrade proporcional só é gerado na Guru. Não encontramos assinatura Guru desta conta. Fale com o suporte.</p>
                 `;
             }
         }

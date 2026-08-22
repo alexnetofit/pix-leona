@@ -31,8 +31,10 @@ function subscriptionOwnedByAccount(sub, linkedGuruId, siblingGuruIds) {
   for (const sib of siblingGuruIds) {
     if (subMatchesGuruId(sub, sib)) return false;
   }
-  // Conta ainda sem vinculo: so herda sub recem-criada (webhook ainda nao ligou).
+  // Conta ainda sem vinculo: sub recem-criada (webhook nao ligou) ou
+  // ativa do mesmo e-mail, se nenhuma outra empresa a reivindica.
   if (!linkedGuruId && isGuruSubFresh(sub)) return true;
+  if (!linkedGuruId && String(sub.status || '').toLowerCase() === 'active') return true;
   return false;
 }
 

@@ -104,30 +104,6 @@
       }
     }
 
-    async function openPagouOneShot(c) {
-      if (!(Number(c.amount) > 0)) {
-        throw new Error('Valor do ajuste ausente. Recalcule o upgrade.');
-      }
-      const r = await fetch('/api/pagou-checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          account_id: c.accountId,
-          email: c.email,
-          qty: c.qty,
-          amount: c.amount,
-          offer_name: c.offer,
-          kind: 'one_shot',
-          hosted: true
-        })
-      });
-      const data = await r.json();
-      if (!r.ok || !data.url) {
-        throw new Error(data.error || 'Não foi possível gerar o pagamento do ajuste');
-      }
-      location.href = data.url;
-    }
-
     async function openGuruCheckout(c) {
       const r = await fetch('/api/guru-replace-subscription', {
         method: 'POST',
@@ -181,7 +157,6 @@
       btn.textContent = 'Processando...';
       try {
         if (state.region === 'international') await openPaddleCheckout(c);
-        else if (kind() === 'one_shot' && c.prorata) await openPagouOneShot(c);
         else await openGuruCheckout(c);
       } catch (err) {
         showErr(err.message);
