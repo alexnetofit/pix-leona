@@ -1104,10 +1104,10 @@
                 },
                 onSubmit: (c) => {
                     logAssinatura('click_buy', {
-                        provider: 'pagou',
+                        provider: c.region === 'international' ? 'paddle' : 'pagou',
                         account_id: c.accountId,
                         email: c.email,
-                        details: { qty: c.qty, offer: c.offer || null, value: c.amount || null, kind }
+                        details: { qty: c.qty, offer: c.offer || null, value: c.amount || null, kind, region: c.region || 'br' }
                     });
                 },
                 onPaid: () => {
@@ -1164,11 +1164,12 @@
                 lede.textContent = `${qty} conex${qty === 1 ? 'ão' : 'ões'} · ${state.kind === 'one_shot' ? 'ajuste avulso' : 'assinatura mensal'}`;
             }
             if (btn) {
-                btn.disabled = !offer;
+                const region = btn.dataset.region || 'br';
                 const cardOn = document.getElementById(`tabCard-${slot}`)?.classList.contains('active');
                 btn.textContent = window.PagouPay
-                    ? PagouPay.payLabel(cardOn ? 'card' : 'pix', state.kind || 'subscription')
+                    ? PagouPay.payLabel(cardOn ? 'card' : 'pix', state.kind || 'subscription', region)
                     : (cardOn ? 'Assinar no cartão' : 'Assinar com PIX');
+                if (region !== 'international') btn.disabled = !offer;
             }
         }
 

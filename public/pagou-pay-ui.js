@@ -7,9 +7,18 @@
     return String(v || '').replace(/\D/g, '');
   }
 
-  function payLabel(method, kind) {
+  function payLabel(method, kind, region) {
+    if (region === 'international') return 'Pagar com cartão';
     if (method === 'pix') return kind === 'one_shot' ? 'Gerar PIX' : 'Assinar com PIX';
     return kind === 'one_shot' ? 'Pagar no cartão' : 'Assinar no cartão';
+  }
+
+  let _payConfig = null;
+  let _paddleBooted = false;
+  function loadPayConfig() {
+    if (_payConfig) return _payConfig;
+    _payConfig = fetch('/api/pagou-config').then((r) => r.json()).catch(() => ({}));
+    return _payConfig;
   }
 
   function el(id, name) {
@@ -34,15 +43,22 @@
             <input id="name-${id}" type="text" autocomplete="name" placeholder="Como no documento">
           </div>
           <div class="field">
+            <label>País</label>
+            <div class="seg" style="margin:8px 0 0;">
+              <button type="button" id="tabBr-${id}" class="active">Brasil</button>
+              <button type="button" id="tabIntl-${id}">Exterior</button>
+            </div>
+          </div>
+          <div class="field" id="documentField-${id}">
             <label>CPF ou CNPJ</label>
             <input id="document-${id}" type="text" inputmode="numeric" placeholder="000.000.000-00">
           </div>
-          <div class="field">
+          <div class="field" id="phoneField-${id}">
             <label>Celular</label>
             <input id="phone-${id}" type="tel" placeholder="(11) 99999-9999">
           </div>
         </div>
-        <div class="seg">
+        <div class="seg" id="methodTabs-${id}">
           <button type="button" id="tabPix-${id}" class="active">PIX</button>
           <button type="button" id="tabCard-${id}">Cartão</button>
         </div>
@@ -71,6 +87,9 @@
   function attach(id, ctx) {
     const state = {
       method: 'pix',
+      region: 'br',
+      paddleReady: false,
+      paddleInited: false,
       elements: null,
       card: null,
       cardValid: false,
@@ -123,9 +142,79 @@
       return data;
     }
 
+    function applyRegion(region) {
+      state.region = region === 'international' ? 'international' : 'br';
+      const intl = state.region === 'international';
+      el(id, 'tabBr')?.classList.toggle('active', !intl);
+      el(id, 'tabIntl')?.classList.toggle('active', intl);
+      const docField = document.getElementById(`documentField-${id}`);
+      const phoneField = document.getElementById(`phoneField-${id}`);
+      const methodTabs = document.getElementById(`methodTabs-${id}`);
+      const cardFields = el(id, 'cardFields');
+      if (docField) docField.style.display = intl ? 'none' : '';
+      if (phoneField) phoneField.style.display = intl ? 'none' : '';
+      if (methodTabs) methodTabs.style.display = intl ? 'none' : '';
+      if (cardFields) cardFields.style.display = intl ? 'none' : (state.method === 'card' ? 'block' : 'none');
+      const hint = el(id, 'payHint');
+      if (hint) {
+        if (intl) {
+          hint.textContent = state.paddleReady
+            ? 'Pagamento internacional pela Paddle. Sem CPF. Cartão na sua moeda.'
+            : 'Pagamento internacional temporariamente indisponível. Fale com o suporte.';
+        } else {
+          hint.textContent = kind() === 'one_shot'
+            ? 'Pagamento único do upgrade no ciclo atual. Não cria nova recorrência.'
+            : 'A cobrança se repete todo mês. Cancele quando quiser.';
+        }
+      }
+      const btn = el(id, 'payBtn');
+      if (btn) {
+        btn.dataset.region = state.region;
+        btn.disabled = intl && !state.paddleReady;
+        if (!btn.disabled || intl) btn.textContent = payLabel(state.method, kind(), state.region);
+      }
+    }
+
+    async function ensurePaddle() {
+      if (state.paddleInited && global.Paddle) return;
+      if (!global.Paddle) {
+        await new Promise((resolve, reject) => {
+          const existing = document.querySelector('script[src*="cdn.paddle.com/paddle/v2/paddle.js"]');
+          if (existing && global.Paddle) return resolve();
+          const s = document.createElement('script');
+          s.src = 'https://cdn.paddle.com/paddle/v2/paddle.js';
+          s.onload = resolve;
+          s.onerror = () => reject(new Error('Não foi possível carregar a Paddle'));
+          document.head.appendChild(s);
+        });
+      }
+      if (!global.Paddle) throw new Error('Paddle.js não carregou');
+    }
+
+    async function openPaddleCheckout(data) {
+      await ensurePaddle();
+      if (data.environment === 'sandbox') Paddle.Environment.set('sandbox');
+      if (!_paddleBooted) {
+        Paddle.Initialize({ token: data.client_token });
+        _paddleBooted = true;
+      }
+      Paddle.Checkout.open({
+        transactionId: data.transaction_id,
+        customer: { id: data.customer_id },
+        settings: {
+          displayMode: 'overlay',
+          theme: 'light',
+          locale: 'en',
+          successUrl: location.href,
+          showAddDiscounts: false,
+          allowLogout: false
+        }
+      });
+    }
+
     async function ensureCard() {
       if (state.card || !global.Pagou) return;
-      const cfg = await fetch('/api/pagou-config').then((r) => r.json());
+      const cfg = await loadPayConfig();
       if (!cfg.public_key) {
         showErr('Cartão indisponível no momento. Use PIX.');
         setMethod('pix');
@@ -162,8 +251,8 @@
       const fields = el(id, 'cardFields');
       if (fields) fields.style.display = method === 'card' ? 'block' : 'none';
       const btn = el(id, 'payBtn');
-      if (btn && !btn.disabled) btn.textContent = payLabel(method, kind());
-      if (method === 'card') await ensureCard();
+      if (btn && !btn.disabled) btn.textContent = payLabel(method, kind(), state.region);
+      if (method === 'card' && state.region !== 'international') await ensureCard();
     }
 
     async function checkPaid(payId) {
@@ -260,10 +349,29 @@
         showErr('Escolha um plano disponível.');
         return;
       }
-      if (typeof ctx.onSubmit === 'function') ctx.onSubmit(c);
+      if (typeof ctx.onSubmit === 'function') ctx.onSubmit({ ...c, region: state.region });
       btn.disabled = true;
       btn.textContent = 'Processando...';
       try {
+        if (state.region === 'international') {
+          if (!state.paddleReady) throw new Error('Pagamento internacional indisponível. Fale com o suporte.');
+          const r = await fetch('/api/paddle-international-checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              account_id: c.accountId,
+              email: c.email,
+              qty: c.qty,
+              name: buyer().name
+            })
+          });
+          const data = await r.json();
+          if (!r.ok) throw new Error(data.error || 'Falha ao abrir o checkout internacional');
+          await openPaddleCheckout(data);
+          btn.disabled = false;
+          btn.textContent = payLabel(state.method, kind(), state.region);
+          return;
+        }
         if (state.method === 'pix') {
           const data = await createTx({ method: 'pix' });
           showPix(data);
@@ -311,12 +419,14 @@
         }
         showErr(err.message);
         btn.disabled = false;
-        btn.textContent = payLabel(state.method, kind());
+        btn.textContent = payLabel(state.method, kind(), state.region);
       }
     }
 
     el(id, 'tabPix')?.addEventListener('click', () => setMethod('pix'));
     el(id, 'tabCard')?.addEventListener('click', () => setMethod('card'));
+    el(id, 'tabBr')?.addEventListener('click', () => applyRegion('br'));
+    el(id, 'tabIntl')?.addEventListener('click', () => applyRegion('international'));
     el(id, 'payBtn')?.addEventListener('click', () => submitPay());
     el(id, 'pixCopy')?.addEventListener('click', () => copyPix());
 
@@ -329,7 +439,12 @@
         : 'A cobrança se repete todo mês. Cancele quando quiser.';
     }
     const btn = el(id, 'payBtn');
-    if (btn) btn.textContent = payLabel(state.method, kind());
+    if (btn) btn.textContent = payLabel(state.method, kind(), state.region);
+
+    loadPayConfig().then((cfg) => {
+      state.paddleReady = !!cfg.paddle_ready;
+      applyRegion(cfg.suggest_international ? 'international' : 'br');
+    });
   }
 
   global.PagouPay = { money, formHtml, attach, payLabel };
