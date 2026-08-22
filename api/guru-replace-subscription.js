@@ -27,8 +27,6 @@ import { applyCors } from '../lib/auth.js';
 import { logAssinaturaEvent } from '../lib/assinatura-log.js';
 import { ensureProrataCoupon } from '../lib/guru-coupon.js';
 
-export const config = { maxDuration: 30 };
-
 function pickOfferByQty(offers, qty) {
   if (!Array.isArray(offers)) return null;
   for (const o of offers) {
@@ -90,17 +88,16 @@ export default async function handler(req, res) {
   }
 
   // Anti-IDOR: ID numerico legado exige email + match. UUID passa direto.
-  const access = await assertAccountAccess({
-    accountId,
-    queryEmail: email,
-    leonaToken,
-    route: '/api/guru-replace-subscription'
-  });
-  if (!access.ok) return res.status(access.status).json(access.body);
-
-  const { profile, profileEmail } = access;
-
   try {
+    const access = await assertAccountAccess({
+      accountId,
+      queryEmail: email,
+      leonaToken,
+      route: '/api/guru-replace-subscription'
+    });
+    if (!access.ok) return res.status(access.status).json(access.body);
+
+    const { profile, profileEmail } = access;
     const checkoutEmail = (typeof email === 'string' && email.trim())
       ? email.trim().toLowerCase()
       : profileEmail;

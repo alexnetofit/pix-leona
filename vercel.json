@@ -37,9 +37,6 @@
     },
     "api/webhook-guru.js": {
       "maxDuration": 60
-    },
-    "api/guru-replace-subscription.js": {
-      "maxDuration": 30
     }
   },
   "routes": [
