@@ -1541,8 +1541,7 @@
             document.getElementById('pagouSubscribers').textContent =
                 String(pagouSubscribers.count ?? '—');
             document.getElementById('pagouNote').textContent =
-                `${pagouApproved.count || 0} venda(s) · ${pagouSubscribers.recurring || 0} recorrente(s) · ` +
-                `${pagouSubscribers.prepaid || 0} avulso(s) em 32 dias`;
+                `${pagouApproved.count || 0} venda(s) · ${pagouSubscribers.count || 0} pagante(s) em 32 dias`;
 
             document.getElementById('approvedCount').textContent = String(a.count || 0);
             document.getElementById('refundedCount').textContent = String(ref.count || 0);

@@ -4,8 +4,7 @@ import test from 'node:test';
 import {
   buildPagouSubscriberSnapshot,
   pagouGrossBrlCents,
-  pagouNetBrlCents,
-  pagouSubscriptionIsRecurring
+  pagouNetBrlCents
 } from '../lib/revenue-source.js';
 
 test('pagouGrossBrlCents usa o que o cliente pagou, nao o settlement', () => {
@@ -37,58 +36,15 @@ test('pagouNetBrlCents escala settlement e mantem PIX em real', () => {
   }), 12369);
 });
 
-test('pagouSubscriptionIsRecurring so conta PIX automatico com mandato aprovado', () => {
-  assert.equal(pagouSubscriptionIsRecurring({
-    status: 'active',
-    paymentMethod: 'pix_automatic',
-    interval: 'month',
-    metadata: { kind: 'subscription', provider_recurring: { mandate_status: 'approved' } }
-  }), true);
-  assert.equal(pagouSubscriptionIsRecurring({
-    status: 'active',
-    paymentMethod: 'pix_automatic',
-    interval: 'month',
-    metadata: { kind: 'subscription', provider_recurring: { mandate_status: 'pending' } }
-  }), false);
-  assert.equal(pagouSubscriptionIsRecurring({
-    status: 'incomplete',
-    paymentMethod: 'credit_card',
-    interval: 'month',
-    metadata: { kind: 'subscription' }
-  }), false);
-  assert.equal(pagouSubscriptionIsRecurring({
-    status: 'active',
-    paymentMethod: 'credit_card',
-    interval: 'month',
-    metadata: { kind: 'one_shot' }
-  }), false);
-});
-
-test('buildPagouSubscriberSnapshot nao soma recorrente com o avulso do mesmo e-mail', () => {
+test('buildPagouSubscriberSnapshot conta e-mail unico pago, sem olhar assinatura', () => {
   const snapshot = buildPagouSubscriberSnapshot({
-    subscriptions: [
-      {
-        status: 'active',
-        customerEmail: 'recorrente@x.com',
-        paymentMethod: 'pix_automatic',
-        interval: 'month',
-        metadata: { kind: 'subscription', provider_recurring: { mandate_status: 'approved' } }
-      },
-      {
-        status: 'active',
-        customerEmail: 'pendente@x.com',
-        paymentMethod: 'pix_automatic',
-        interval: 'month',
-        metadata: { kind: 'subscription', provider_recurring: { mandate_status: 'pending' } }
-      }
-    ],
     transactions: [
       { buyer: { email: 'recorrente@x.com' } },
-      { buyer: { email: 'pendente@x.com' } },
       { buyer: { email: 'avulso@x.com' } },
-      { buyer: { email: 'AVULSO@x.com' } }
+      { buyer: { email: 'AVULSO@x.com' } },
+      { buyer: { email: '' } }
     ]
   });
 
-  assert.deepEqual(snapshot, { count: 3, recurring: 1, prepaid: 2 });
+  assert.deepEqual(snapshot, { count: 2, recurring: null, prepaid: 2 });
 });
