@@ -27,6 +27,8 @@ import { applyCors } from '../lib/auth.js';
 import { logAssinaturaEvent } from '../lib/assinatura-log.js';
 import { ensureProrataCoupon } from '../lib/guru-coupon.js';
 
+export const config = { maxDuration: 30 };
+
 function pickOfferByQty(offers, qty) {
   if (!Array.isArray(offers)) return null;
   for (const o of offers) {

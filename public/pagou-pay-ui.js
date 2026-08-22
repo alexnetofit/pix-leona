@@ -104,6 +104,19 @@
       }
     }
 
+    async function readJson(r) {
+      const raw = await r.text();
+      try {
+        return JSON.parse(raw);
+      } catch {
+        throw new Error(
+          r.status >= 500
+            ? 'Servidor falhou ao gerar o checkout. Tente de novo.'
+            : (raw.slice(0, 140) || 'Resposta inválida do servidor')
+        );
+      }
+    }
+
     async function openGuruCheckout(c) {
       const r = await fetch('/api/guru-replace-subscription', {
         method: 'POST',
@@ -115,7 +128,7 @@
           ...(Number(c.amount) > 0 ? { amount: c.amount } : {})
         })
       });
-      const data = await r.json();
+      const data = await readJson(r);
       if (!r.ok || !data.checkout_url) {
         throw new Error(data.error || 'Não foi possível gerar o checkout da Guru');
       }
