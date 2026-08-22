@@ -8,6 +8,7 @@ import { logAssinaturaEvent } from '../lib/assinatura-log.js';
 import { findLeonaAccountByEmail, getLeonaBillingProfile, updateLeonaBillingProfile } from '../lib/leona.js';
 import { cancelGuruSubscription } from '../lib/guru.js';
 import { dueDatePlusDays, parseLeonaRef } from '../lib/leona-pricing.js';
+import { isAffiliateReversal, notifyAffiliatesPagou } from '../lib/notify-affiliates.js';
 import { getPagouSubscription, getPagouTransaction } from '../lib/pagou.js';
 import { sbConfigured, sbInsert, sbSelect, sbUpdate } from '../lib/supabase.js';
 
@@ -180,16 +181,28 @@ export default async function handler(req, res) {
   const status = String(extra.status || payload?.data?.status || '').toLowerCase();
   const paidByStatus = PAID_STATUSES.has(status);
   const paidByEvent = PAID_EVENTS.has(name) && (paidByStatus || status === 'active');
+  const email = extra.buyer?.email || extra.customer_email || extra.customer?.email || extra.customerEmail || payload?.data?.customer_email || null;
+  const amountCents = extra.paid_amount || extra.paidAmount || extra.payment?.amount || extra.amount || extra.base_price || null;
+  const buyerName = extra.buyer?.name || extra.customer?.name || extra.customer_name || null;
+  const paidAt = extra.paid_at || extra.paidAt || extra.payment?.paid_at || null;
 
   if (FAIL_EVENTS.has(name) || FAIL_STATUSES.has(status)) {
+    const reversal = isAffiliateReversal(name, status);
+    if (reversal && resourceId) {
+      await notifyAffiliatesPagou({
+        txId: resourceId,
+        email,
+        name: buyerName,
+        amountCents,
+        paidAt,
+        status: reversal
+      });
+    }
     return res.status(200).json({ received: true, ignored: true, event: name, status });
   }
   if (!paidByStatus && !paidByEvent) {
     return res.status(200).json({ received: true, ignored: true, event: name || 'unknown', status });
   }
-
-  const email = extra.buyer?.email || extra.customer_email || extra.customer?.email || extra.customerEmail || payload?.data?.customer_email || null;
-  const amountCents = extra.paid_amount || extra.paidAmount || extra.payment?.amount || extra.amount || extra.base_price || null;
   const ref = extractRef(payload, extra);
   const intent = await resolveIntent({
     accountId: ref?.accountId,
@@ -215,7 +228,19 @@ export default async function handler(req, res) {
   }
 
   const already = await rememberEvent(eventId, accountId, name, { qty, resourceId });
-  if (already) return res.status(200).json({ received: true, duplicate: true });
+  if (already) {
+    if (resourceId && email) {
+      await notifyAffiliatesPagou({
+        txId: resourceId,
+        email,
+        name: buyerName,
+        amountCents,
+        paidAt,
+        status: 'approved'
+      });
+    }
+    return res.status(200).json({ received: true, duplicate: true });
+  }
 
   const profile = await getLeonaBillingProfile(accountId, leonaToken);
   if (!profile) {
@@ -250,6 +275,17 @@ export default async function handler(req, res) {
   }
 
   await markIntentPaid(intent, resourceId);
+
+  if (update.ok && resourceId && email) {
+    await notifyAffiliatesPagou({
+      txId: resourceId,
+      email,
+      name: buyerName || profile.user?.name || null,
+      amountCents,
+      paidAt,
+      status: 'approved'
+    });
+  }
 
   logAssinaturaEvent(req, {
     action: update.ok ? 'pagou_webhook_paid' : 'pagou_webhook_failed',
