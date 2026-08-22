@@ -34,6 +34,9 @@
   "functions": {
     "api/cron/revenue-sync.js": {
       "maxDuration": 300
+    },
+    "api/webhook-guru.js": {
+      "maxDuration": 60
     }
   },
   "routes": [

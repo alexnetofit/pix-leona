@@ -1,5 +1,12 @@
 import { updateGuruContact, cancelGuruSubscription } from '../lib/guru.js';
 import { logAssinaturaEvent } from '../lib/assinatura-log.js';
+import {
+  extractContactPhones,
+  extractInstances,
+  extractProductId,
+  extractSrc,
+  summarizeGuruWebhook
+} from '../lib/guru-webhook-payload.js';
 
 const LEONA_PRODUCT_ID = 'a1869b83-b28d-4257-a986-1df94558a152';
 const LEONA_BASE = 'https://apiaws.leonasolutions.io/api/v1/integration';
@@ -16,13 +23,6 @@ const REFUND_LIKE_STATUSES = new Set([
   'waiting_refund',
   'refunding'
 ]);
-
-function extractProductId(payload) {
-  const p = payload?.product;
-  if (p == null) return null;
-  if (typeof p === 'string') return p.trim() || null;
-  return p.internal_id || p.id || null;
-}
 
 function isRefundLikeStatus(status) {
   return REFUND_LIKE_STATUSES.has(String(status || '').toLowerCase());
@@ -59,43 +59,6 @@ function dueDateFromEventTimestamp(eventTs) {
   return eventDate.toISOString().slice(0, 10);
 }
 
-/**
- * Procura o `src` do tracking no payload da Guru.
- *
- * O `src` e enviado como query param do checkout (?src=<account_id>) e
- * a Guru o repassa no webhook em algum desses lugares (depende do tipo
- * de transacao). Pegamos a primeira ocorrencia nao-vazia.
- *
- * Convencao do projeto: usar `src` para carregar o `account_id` Leona,
- * permitindo que o webhook saiba qual conta atualizar mesmo quando o
- * cliente compra com email diferente do cadastrado.
- */
-function extractSrc(payload) {
-  const candidates = [
-    payload?.src,
-    payload?.subscription?.src,
-    payload?.transaction?.src,
-    payload?.tracking?.src,
-    payload?.tracking?.source,
-    payload?.transaction?.tracking?.source,
-    payload?.transaction?.tracking?.src,
-    payload?.metadata?.src,
-    payload?.checkout?.src,
-    // A Guru hoje (2026) entrega o tracking do checkout dentro de
-    // `payload.source` como objeto: { source, utm_source, utm_campaign, ... }.
-    // O `source.source` carrega o valor da query ?src=<account_id>.
-    payload?.source?.source,
-    payload?.source?.src,
-    payload?.source?.utm_source,
-    payload?.contact?.tracking?.source,
-    payload?.contact?.tracking_source
-  ];
-  for (const c of candidates) {
-    if (c != null && String(c).trim() !== '') return String(c).trim();
-  }
-  return null;
-}
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido' });
@@ -111,7 +74,7 @@ export default async function handler(req, res) {
 
   try {
     const payload = req.body;
-    console.log('webhook-guru recebido:', JSON.stringify(payload));
+    console.log('webhook-guru recebido:', JSON.stringify(summarizeGuruWebhook(payload)));
 
     if (guruApiKey && payload.api_token !== guruApiKey) {
       console.error('webhook-guru: api_token inválido');
@@ -200,8 +163,9 @@ export default async function handler(req, res) {
 
     console.log(`webhook-guru: email=${email}, plano="${planName}", instances=${instances}, invoice.type=${invoiceType}, upgrade/downgrade=${isUpgradeOrDowngrade}, sub=${guruSubId}`);
 
+    const receivedAction = isUpgradeOrDowngrade ? `webhook_${invoiceType}` : 'webhook_payment';
     logAssinaturaEvent(req, {
-      action: isUpgradeOrDowngrade ? `webhook_${invoiceType}` : 'webhook_payment',
+      action: receivedAction,
       provider: 'guru',
       email,
       account_id: extractSrc(payload) || null,
@@ -210,7 +174,8 @@ export default async function handler(req, res) {
         plan: planName,
         instances,
         invoice_type: invoiceType || null,
-        subscription_id: guruSubId
+        subscription_id: guruSubId,
+        phase: 'received'
       }
     });
 
@@ -250,12 +215,25 @@ export default async function handler(req, res) {
       }
     }
 
-    // Fallback: se nao achou via src, faz lookup tradicional por email.
+    // Fallback: se nao achou via src, busca por e-mail e, se o contato Guru
+    // usar outro e-mail, pelo telefone (upgrade/renovação sem ?src=).
     if (!match) {
-      profiles = await fetchLeonaProfiles(email, leonaHeaders);
+      profiles = await fetchLeonaProfiles(email, leonaHeaders, payload);
 
       if (profiles.length === 0) {
-        console.error('webhook-guru: nenhuma conta Leona encontrada para:', email);
+        const phones = extractContactPhones(payload);
+        console.error('webhook-guru: nenhuma conta Leona encontrada para:', email, 'phones=', phones.join(',') || '-');
+        logAssinaturaEvent(req, {
+          action: 'webhook_failed',
+          provider: 'guru',
+          email,
+          account_id: srcAccountId || null,
+          details: {
+            error: `nenhuma conta Leona encontrada para ${email}`,
+            subscription_id: guruSubId,
+            phones_tried: phones
+          }
+        });
         return res.status(200).json({
           received: true,
           processed: false,
@@ -390,21 +368,11 @@ export default async function handler(req, res) {
     if (preserveStripeCycle) {
       console.log(`webhook-guru: cupom ${couponCode} (upgrade vindo do Stripe), preservando current_period_end Leona ${existingPeriodEnd} e ajustando ciclo na Guru`);
     } else {
-      // Fonte de verdade do vencimento: a data da PROXIMA cobranca da
-      // assinatura na Guru (next_cycle_at). Assim o Leona vence exatamente
-      // no dia em que a Guru vai cobrar de novo, sem ficar adiantado nem
-      // atrasado em relacao ao ciclo real.
-      const nextChargeDate = await fetchGuruNextChargeDate(guruSubId);
-      if (nextChargeDate) {
-        updateData.due_date = nextChargeDate;
-        console.log(`webhook-guru: due_date = next_cycle_at da Guru (${nextChargeDate})`);
-      } else {
-        const calculatedDueDate = calculateDueDate(payload);
-        if (calculatedDueDate) {
-          updateData.due_date = calculatedDueDate;
-          console.log(`webhook-guru: next_cycle_at indisponivel, usando due_date calculado (${calculatedDueDate})`);
-        }
-      }
+      // Libera a Leona na hora com due_date do payload. next_cycle_at da Guru
+      // e ajuste fino depois — se a API da Guru atrasar, o cliente nao fica
+      // sem acesso.
+      const calculatedDueDate = calculateDueDate(payload);
+      if (calculatedDueDate) updateData.due_date = calculatedDueDate;
     }
 
     console.log(`webhook-guru: atualizando conta ${accountId}:`, JSON.stringify(updateData));
@@ -422,6 +390,34 @@ export default async function handler(req, res) {
 
     if (leonaPostRes.ok) {
       console.log(`webhook-guru: conta ${accountId} atualizada com sucesso`);
+
+      if (!preserveStripeCycle) {
+        const nextChargeDate = await fetchGuruNextChargeDate(guruSubId);
+        if (nextChargeDate && nextChargeDate !== updateData.due_date) {
+          updateData.due_date = nextChargeDate;
+          console.log(`webhook-guru: due_date ajustado para next_cycle_at da Guru (${nextChargeDate})`);
+          await fetch(`${LEONA_BASE}/accounts/${accountId}/billing_profile`, {
+            method: 'POST',
+            headers: leonaHeaders,
+            body: JSON.stringify({ due_date: nextChargeDate })
+          }).catch((e) => console.error('webhook-guru: erro ao ajustar due_date:', e.message));
+        }
+      }
+
+      logAssinaturaEvent(req, {
+        action: 'webhook_applied',
+        provider: 'guru',
+        email,
+        account_id: String(accountId),
+        details: {
+          plan: planName,
+          instances,
+          invoice_type: invoiceType || null,
+          subscription_id: guruSubId,
+          due_date: updateData.due_date || null,
+          first_link: firstLink
+        }
+      });
 
       if (preserveStripeCycle) {
         await syncGuruCycleDate(guruSubId, existingPeriodEnd, accountId, leonaHeaders);
@@ -485,6 +481,16 @@ export default async function handler(req, res) {
     }
 
     console.error(`webhook-guru: erro ao atualizar conta ${accountId}:`, JSON.stringify(leonaResult));
+    logAssinaturaEvent(req, {
+      action: 'webhook_failed',
+      provider: 'guru',
+      email,
+      account_id: String(accountId),
+      details: {
+        error: leonaResult.error || 'Erro ao atualizar conta Leona',
+        subscription_id: guruSubId
+      }
+    });
     return res.status(200).json({
       received: true,
       processed: false,
@@ -580,7 +586,7 @@ async function resolveLeonaMatchForGuruEvent(payload, email, guruSubId, guruSubC
     }
   }
 
-  const profiles = await fetchLeonaProfiles(email, leonaHeaders);
+  const profiles = await fetchLeonaProfiles(email, leonaHeaders, payload);
   if (profiles.length === 0) return null;
 
   if (guruSubId || guruSubCode) {
@@ -661,7 +667,7 @@ async function handleSubscriptionLapse(payload, leonaToken, res, reason) {
     'Content-Type': 'application/json'
   };
 
-  const profiles = await fetchLeonaProfiles(email, leonaHeaders);
+  const profiles = await fetchLeonaProfiles(email, leonaHeaders, payload);
   const match = profiles.find(p =>
     p.guru_account_id &&
     (p.guru_account_id === guruSubId || p.guru_account_id === guruSubCode)
@@ -733,9 +739,9 @@ async function handleSubscriptionLapse(payload, leonaToken, res, reason) {
   });
 }
 
-async function fetchLeonaProfiles(email, headers) {
+async function fetchLeonaProfilesByQuery(query, headers) {
   const res = await fetch(
-    `${LEONA_BASE}/accounts/billing_profile?email=${encodeURIComponent(email.trim().toLowerCase())}`,
+    `${LEONA_BASE}/accounts/billing_profile?${query}`,
     { headers }
   );
 
@@ -766,11 +772,27 @@ async function fetchLeonaProfiles(email, headers) {
   return [];
 }
 
-function extractInstances(planName) {
-  if (!planName) return null;
-  const match = planName.match(/(\d+)\s*conex/i);
-  if (match) return parseInt(match[1], 10);
-  return null;
+async function fetchLeonaProfiles(email, headers, payload = null) {
+  if (email) {
+    const byEmail = await fetchLeonaProfilesByQuery(
+      `email=${encodeURIComponent(String(email).trim().toLowerCase())}`,
+      headers
+    );
+    if (byEmail.length > 0) return byEmail;
+  }
+
+  for (const phone of extractContactPhones(payload)) {
+    const byPhone = await fetchLeonaProfilesByQuery(
+      `phone=${encodeURIComponent(phone)}`,
+      headers
+    );
+    if (byPhone.length > 0) {
+      console.log(`webhook-guru: conta ${byPhone.map((p) => p.account_id).join(',')} encontrada pelo telefone (email Guru ${email || '-'} não bateu)`);
+      return byPhone;
+    }
+  }
+
+  return [];
 }
 
 async function syncGuruCycleDate(subscriptionId, leonaPeriodEnd, accountId, leonaHeaders) {
