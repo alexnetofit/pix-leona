@@ -3,9 +3,13 @@
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
   }
 
-  function payLabel(method, kind, region) {
+  function payLabel(method, kind, region, amount) {
     if (region === 'international') return 'Pagar com cartão';
-    return kind === 'one_shot' ? 'Pagar agora' : 'Assinar agora';
+    if (kind === 'one_shot') {
+      const n = Number(amount);
+      return Number.isFinite(n) && n > 0 ? `Pagar ${money(n)}` : 'Pagar agora';
+    }
+    return 'Assinar agora';
   }
 
   let _payConfig = null;
@@ -23,7 +27,7 @@
     const email = opts.email || '';
     const kind = opts.kind === 'one_shot' ? 'one_shot' : 'subscription';
     const hint = kind === 'one_shot'
-      ? 'Link de pagamento do ajuste. Ao pagar, o plano é atualizado.'
+      ? 'Você paga só o proporcional. Ao pagar, o plano é atualizado.'
       : 'Você será redirecionado ao checkout. A cobrança se repete todo mês.';
     return `
       <div id="payForm-${id}">
@@ -88,7 +92,7 @@
             : 'Pagamento internacional temporariamente indisponível. Fale com o suporte.';
         } else {
           hint.textContent = kind() === 'one_shot'
-            ? 'Link de pagamento do ajuste. Ao pagar, o plano é atualizado.'
+            ? 'Você paga só o proporcional. Ao pagar, o plano é atualizado.'
             : 'Você será redirecionado ao checkout da Guru. A cobrança se repete todo mês.';
         }
       }
@@ -96,8 +100,32 @@
       if (btn) {
         btn.dataset.region = state.region;
         btn.disabled = intl && !state.paddleReady;
-        if (!btn.disabled || intl) btn.textContent = payLabel(state.method, kind(), state.region);
+        if (!btn.disabled || intl) btn.textContent = payLabel(state.method, kind(), state.region, checkout().amount);
       }
+    }
+
+    async function openPagouOneShot(c) {
+      if (!(Number(c.amount) > 0)) {
+        throw new Error('Valor do ajuste ausente. Recalcule o upgrade.');
+      }
+      const r = await fetch('/api/pagou-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account_id: c.accountId,
+          email: c.email,
+          qty: c.qty,
+          amount: c.amount,
+          offer_name: c.offer,
+          kind: 'one_shot',
+          hosted: true
+        })
+      });
+      const data = await r.json();
+      if (!r.ok || !data.url) {
+        throw new Error(data.error || 'Não foi possível gerar o pagamento do ajuste');
+      }
+      location.href = data.url;
     }
 
     async function openGuruCheckout(c) {
@@ -153,11 +181,12 @@
       btn.textContent = 'Processando...';
       try {
         if (state.region === 'international') await openPaddleCheckout(c);
+        else if (kind() === 'one_shot' && c.prorata) await openPagouOneShot(c);
         else await openGuruCheckout(c);
       } catch (err) {
         showErr(err.message);
         btn.disabled = false;
-        btn.textContent = payLabel(state.method, kind(), state.region);
+        btn.textContent = payLabel(state.method, kind(), state.region, c.amount);
       }
     }
 
@@ -170,11 +199,11 @@
     const hint = el(id, 'payHint');
     if (hint) {
       hint.textContent = kind() === 'one_shot'
-        ? 'Link de pagamento do ajuste. Ao pagar, o plano é atualizado.'
+        ? 'Você paga só o proporcional. Ao pagar, o plano é atualizado.'
         : 'Você será redirecionado ao checkout da Guru. A cobrança se repete todo mês.';
     }
     const btn = el(id, 'payBtn');
-    if (btn) btn.textContent = payLabel(state.method, kind(), state.region);
+    if (btn) btn.textContent = payLabel(state.method, kind(), state.region, checkout().amount);
 
     loadPayConfig().then((cfg) => {
       state.paddleReady = !!cfg.paddle_ready;

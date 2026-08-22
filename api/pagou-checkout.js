@@ -31,15 +31,19 @@ export default async function handler(req, res) {
   });
   if (!access.ok) return res.status(access.status).json(access.body);
 
-  const amountCents = reaisToCents(amount) || leonaAmountCents(qtyN);
-  const title = makeLeonaRef(accountId, qtyN);
+  const checkoutKind = ['one_shot', 'oneshot', 'avulso', 'upgrade'].includes(String(kind || '').toLowerCase())
+    ? 'one_shot'
+    : 'subscription';
+  const customCents = reaisToCents(amount);
+  if (checkoutKind === 'one_shot' && !customCents) {
+    return res.status(400).json({ error: 'amount obrigatório no ajuste proporcional' });
+  }
+  const amountCents = customCents || leonaAmountCents(qtyN);
+  const title = `${makeLeonaRef(accountId, qtyN)}:${Date.now()}`;
   const productName = offer_name || `Leona Flow — ${qtyN} conex${qtyN === 1 ? 'ão' : 'ões'}`;
 
   const host = String(req.headers['x-forwarded-host'] || req.headers.host || 'client.leonaflow.com').split(',')[0].trim();
   const proto = String(req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim();
-  const checkoutKind = ['one_shot', 'oneshot', 'avulso', 'upgrade'].includes(String(kind || '').toLowerCase())
-    ? 'one_shot'
-    : 'subscription';
   const params = new URLSearchParams({
     account_id: accountId,
     qty: String(qtyN),
@@ -51,17 +55,12 @@ export default async function handler(req, res) {
   let url = `${proto}://${host}/pagar?${params.toString()}`;
 
   if (hosted && checkoutKind === 'one_shot') {
+    // Valor avulso: NÃO manda products[] com leona-starter-N, senão a Pagou
+    // regrava o preço do plano (ex.: 2 conexões) pro pró-rata.
     const created = await createPagouCheckoutLink({
       currency: 'BRL',
       title,
-      products: [{
-        external_id: `leona-starter-${qtyN}`,
-        name: productName,
-        price: amountCents,
-        quantity: 1,
-        type: 'digital',
-        image_url: 'https://client.leonaflow.com/leona-finance-192.png'
-      }]
+      amount: amountCents
     });
     const hostedUrl = created.body?.data?.url || created.body?.url || null;
     if (!created.ok || !hostedUrl) {

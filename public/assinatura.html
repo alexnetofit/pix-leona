@@ -1103,15 +1103,16 @@
                             ? amount
                             : (offer?.value || leonaAmountReais(qty)),
                         offer: offer?.name || `Leona Flow — ${qty} conex${qty === 1 ? 'ão' : 'ões'}`,
-                        kind
+                        kind,
+                        prorata: !!state.prorata
                     };
                 },
                 onSubmit: (c) => {
                     logAssinatura('click_buy', {
-                        provider: c.region === 'international' ? 'paddle' : 'guru',
+                        provider: c.region === 'international' ? 'paddle' : (c.prorata ? 'pagou' : 'guru'),
                         account_id: c.accountId,
                         email: c.email,
-                        details: { qty: c.qty, offer: c.offer || null, value: c.amount || null, kind, region: c.region || 'br' }
+                        details: { qty: c.qty, offer: c.offer || null, value: c.amount || null, kind, region: c.region || 'br', prorata: !!c.prorata }
                     });
                 },
                 onPaid: () => {
@@ -1170,7 +1171,7 @@
             if (btn) {
                 const region = btn.dataset.region || 'br';
                 btn.textContent = window.PagouPay
-                    ? PagouPay.payLabel('guru', state.kind || 'subscription', region)
+                    ? PagouPay.payLabel('guru', state.kind || 'subscription', region, state.amount)
                     : (region === 'international' ? 'Pagar com cartão' : 'Assinar agora');
                 if (region !== 'international') btn.disabled = !offer;
             }
@@ -1277,10 +1278,11 @@
                 : (offer?.value || leonaAmountReais(qty));
             const payId = `rep-${slot}`;
 
+            const isProrata = Number.isFinite(payAmount) && payAmount > 0;
             logAssinatura('click_buy', {
-                provider: 'guru',
+                provider: isProrata ? 'pagou' : 'guru',
                 account_id: state.accountId,
-                details: { qty, via: 'replace', amount: charge }
+                details: { qty, via: 'replace', amount: charge, prorata: isProrata }
             });
 
             _qtySelStates[payId] = {
@@ -1289,7 +1291,8 @@
                 accountId: state.accountId,
                 kind: 'one_shot',
                 qty,
-                amount: charge
+                amount: charge,
+                prorata: isProrata
             };
 
             panel.innerHTML = `
