@@ -25,6 +25,7 @@ import { LEONA_BASE, leonaHeaders, assertAccountAccess } from '../lib/leona.js';
 import { GURU_BASE, LEONA_GURU_PRODUCT_ID, guruHeaders } from '../lib/guru.js';
 import { applyCors } from '../lib/auth.js';
 import { logAssinaturaEvent } from '../lib/assinatura-log.js';
+import { ensureProrataCoupon } from '../lib/guru-coupon.js';
 
 function pickOfferByQty(offers, qty) {
   if (!Array.isArray(offers)) return null;
@@ -53,78 +54,6 @@ async function fetchAllOffers(productId, headers) {
     if (!body.has_more_pages || !cursor) break;
   }
   return { ok: true, offers: all };
-}
-
-async function attachProrataCoupon({ email, offerValue, payAmount, guruToken }) {
-  const offer = Number(offerValue);
-  const pay = Number(payAmount);
-  const emailLower = String(email || '').trim().toLowerCase();
-  if (!emailLower || !(offer > 0) || !(pay > 0)) return null;
-  const discount = Math.round((offer - pay) * 100) / 100;
-  if (discount < 0.5) return null;
-  const code = `up-leona-v${Math.round(discount * 100)}`;
-  const headers = guruHeaders(guruToken);
-
-  const listUrl = new URL(`${GURU_BASE}/coupons`);
-  listUrl.searchParams.set('limit', '5');
-  listUrl.searchParams.set('is_active', '1');
-  listUrl.searchParams.set('has_transactions', '0');
-  listUrl.searchParams.set('coupon_code', code);
-  const listed = await fetch(listUrl, { headers });
-  const listedBody = await listed.json().catch(() => ({}));
-  const existing = Array.isArray(listedBody.data)
-    ? listedBody.data.find((c) => c.coupon_code === code)
-    : null;
-  if (existing?.id) {
-    const detailRes = await fetch(`${GURU_BASE}/coupons/${existing.id}`, { headers });
-    const detail = (await detailRes.json().catch(() => ({}))).data || {};
-    const emails = Array.isArray(detail.emails) ? detail.emails : [];
-    if (!emails.includes(emailLower)) {
-      await fetch(`${GURU_BASE}/coupons/${existing.id}`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({
-          coupon_code: detail.coupon_code || code,
-          incidence_type: detail.incidence_type || 'value',
-          incidence_field: detail.incidence_field || 'total',
-          incidence_value: detail.incidence_value || discount,
-          date_ini: detail.date_ini,
-          date_end: detail.date_end,
-          usage_total: detail.usage_total || 0,
-          usage_contact: detail.usage_contact || 0,
-          maximum_subscription_cycles: detail.maximum_subscription_cycles || 1,
-          is_active: 1,
-          validate_by: 'email',
-          emails: [...emails, emailLower]
-        })
-      });
-    }
-    return { code, pay, discount, offer };
-  }
-
-  const created = await fetch(`${GURU_BASE}/coupons`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      coupon_code: code,
-      incidence_type: 'value',
-      incidence_field: 'total',
-      incidence_value: discount,
-      date_ini: Math.floor(Date.now() / 1000),
-      date_end: 1924905600,
-      usage_total: 0,
-      usage_contact: 0,
-      maximum_subscription_cycles: 1,
-      validate_by: 'email',
-      emails: [emailLower],
-      is_active: 1
-    })
-  });
-  const createdBody = await created.json().catch(() => ({}));
-  if (!created.ok && created.status !== 201) {
-    throw new Error(createdBody.message || createdBody.error || 'Guru não criou o cupom');
-  }
-  return { code, pay, discount, offer };
 }
 
 function appendParams(url, params) {
@@ -204,7 +133,7 @@ export default async function handler(req, res) {
     let coupon = null;
     const payAmount = Number(amount);
     if (Number.isFinite(payAmount) && payAmount > 0) {
-      coupon = await attachProrataCoupon({
+      coupon = await ensureProrataCoupon({
         email: checkoutEmail,
         offerValue: offer.value,
         payAmount,
