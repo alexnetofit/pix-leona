@@ -933,10 +933,10 @@
           <input name="phone" required autocomplete="tel" placeholder="(00) 00000-0000">
         </label>
         <label>CEP
-          <input name="cep" required inputmode="numeric" placeholder="00000-000">
+          <input name="cep" required inputmode="numeric" maxlength="9" placeholder="00000-000" autocomplete="postal-code">
         </label>
         <label>Endereço completo
-          <input name="address" required placeholder="Rua, número, bairro, cidade — UF">
+          <input name="address" required placeholder="Rua, número, bairro, cidade — UF" autocomplete="street-address">
         </label>
 
         <div class="pay-methods">
@@ -945,8 +945,8 @@
         </div>
 
         <p class="form-error" id="checkoutError" hidden></p>
-        <button class="btn btn-primary" type="submit" id="checkoutSubmit">Pagar na Pagar.me</button>
-        <p class="note">Pagamento seguro pela Pagar.me. PIX ou cartão — o endereço entra só pra envio da placa/prêmio.</p>
+        <button class="btn btn-primary" type="submit" id="checkoutSubmit">Finalizar Pedido</button>
+        <p class="note">Pagamento seguro. PIX ou cartão — o endereço entra só pra envio da placa/prêmio.</p>
       </form>
     </div>
   </div>
@@ -1277,6 +1277,40 @@
       document.querySelectorAll('.help-wrap.open').forEach((w) => w.classList.remove('open'));
     });
 
+    function digitsOnly(value) {
+      return String(value || '').replace(/\D/g, '');
+    }
+
+    function formatCep(value) {
+      const d = digitsOnly(value).slice(0, 8);
+      return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
+    }
+
+    async function fillAddressFromCep() {
+      const cep = digitsOnly(checkoutForm.cep.value);
+      if (cep.length !== 8) return;
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        const data = await res.json();
+        if (!res.ok || data.erro) return;
+        const parts = [data.logradouro, data.bairro, data.localidade && data.uf ? `${data.localidade} — ${data.uf}` : data.localidade]
+          .filter(Boolean);
+        if (!parts.length) return;
+        const current = checkoutForm.address.value.trim();
+        const hasNumber = /\d/.test(current);
+        checkoutForm.address.value = hasNumber && current
+          ? current
+          : `${parts.join(', ')}${data.logradouro ? ', nº ' : ''}`;
+        if (data.logradouro) checkoutForm.address.focus();
+      } catch (_) {}
+    }
+
+    checkoutForm.cep.addEventListener('input', () => {
+      checkoutForm.cep.value = formatCep(checkoutForm.cep.value);
+      if (digitsOnly(checkoutForm.cep.value).length === 8) fillAddressFromCep();
+    });
+    checkoutForm.cep.addEventListener('blur', fillAddressFromCep);
+
     document.querySelectorAll('[data-pay]').forEach((btn) => {
       btn.addEventListener('click', () => {
         selectedPay = btn.dataset.pay;
@@ -1327,7 +1361,7 @@
         errorEl.textContent = err.message;
         errorEl.hidden = false;
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Pagar na Pagar.me';
+        submitBtn.textContent = 'Finalizar Pedido';
       }
     });
 
