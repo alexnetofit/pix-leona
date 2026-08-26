@@ -1264,11 +1264,32 @@
             }
         }
 
+        function openDlocalProrataUpgrade(resultDiv, {
+            accountId, currentQty, newQty, currentValue, newValue, proRata, diasRestantes, diasNoCiclo
+        }) {
+            const slot = `up-${accountId || 'x'}-${newQty}`;
+            _replaceStates[slot] = { accountId, qty: currentQty, payAmount: proRata };
+            resultDiv.innerHTML = `
+                <div class="group">
+                    <div class="row"><span class="label">Alteração</span><span class="value">${currentQty} → ${newQty}</span></div>
+                    <div class="row"><span class="label">Novo valor mensal</span><span class="value">${fmtCurrency(newValue)}</span></div>
+                    <div class="row"><span class="label">Crédito (${currentQty}x, ${diasRestantes}d)</span><span class="value">-${fmtCurrency(currentValue * diasRestantes / diasNoCiclo)}</span></div>
+                    <div class="row"><span class="label">Cobrança (${newQty}x, ${diasRestantes}d)</span><span class="value">+${fmtCurrency(newValue * diasRestantes / diasNoCiclo)}</span></div>
+                    <div class="row"><span class="label">Pro rata</span><span class="value">${fmtCurrency(proRata)}</span></div>
+                </div>
+                <p class="hint">PIX ou cartão à vista (1x) na dLocal. O vencimento atual não muda. Depois a renovação fica ${fmtCurrency(newValue)}/mês com ${newQty} conexões.</p>
+                <input type="hidden" id="replaceQty-${slot}" value="${newQty}">
+                <div id="replacePanel-${slot}"></div>
+            `;
+            replaceGenerate(slot);
+        }
+
         async function replaceGenerate(slot) {
             const state = _replaceStates[slot];
             if (!state) return;
             const input = document.getElementById(`replaceQty-${slot}`);
             const panel = document.getElementById(`replacePanel-${slot}`);
+            if (!panel) return;
             const qty = Math.max(1, parseInt(input.value) || 1);
             const offer = resolvePlan(_data?.offers, qty);
             const payAmount = Number(state.payAmount);
@@ -1278,9 +1299,9 @@
             const payId = `rep-${slot}`;
 
             logAssinatura('click_buy', {
-                provider: 'guru',
+                provider: 'dlocal',
                 account_id: state.accountId,
-                details: { qty, via: 'replace', amount: charge }
+                details: { qty, via: 'prorata', amount: charge, kind: 'one_shot' }
             });
 
             _qtySelStates[payId] = {
@@ -1687,98 +1708,16 @@
             }
 
             const { proRata, diasRestantes, diasNoCiclo } = calcProRata(currentValue, newValue, periodEnd);
-
-            if (hasGuru && canGuruChange) {
-                const activeSub = accountGuru.subscriptions.find(s => s.status === 'active') || accountGuru.subscriptions[0];
-                const subId = activeSub?.id;
-                // Quando ja existe uma fatura cycle/upgrade em aberto na Guru,
-                // a rota PUT /subscriptions/:id/plans (upgrade tradicional)
-                // retorna erro. Nesse caso usamos o fluxo "replace": gera um
-                // link de checkout novo com a qty escolhida; quando o cliente
-                // pagar, o webhook-guru re-vincula a conta e cancela a sub
-                // antiga automaticamente.
-                const hasOpenInvoice = activeSub?.current_invoice
-                    && (activeSub.current_invoice.status === 'waiting_payment'
-                        || activeSub.current_invoice.status === 'pending');
-
-                if (hasOpenInvoice) {
-                    const replaceSlot = `up-${bp.account_id}-${bpIdx}`;
-                    _replaceStates[replaceSlot] = { accountId: bp.account_id, qty: currentQty };
-                    resultDiv.innerHTML = `
-                        <div style="background: var(--bg-card); padding: 20px; border-radius: 14px; border: 1px solid rgba(245,158,11,0.3);">
-                            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-                                <span style="color: var(--text-secondary);">Alteração:</span>
-                                <span style="color: var(--success); font-weight: 700;">⬆️ UPGRADE (+${diff})</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                                <span style="color: var(--text-secondary);">Conexões:</span>
-                                <span style="font-weight: 600;">${currentQty} → ${newQty}</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-                                <span style="color: var(--text-secondary);">Novo valor mensal:</span>
-                                <span style="color: var(--orange); font-weight: 700;">${fmtCurrency(newValue)}</span>
-                            </div>
-                            <div style="background: rgba(245,158,11,0.08); padding: 12px; border-radius: 10px; color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 14px; line-height: 1.5;">
-                                Sua renovação está próxima e a Guru não permite upgrade com pro-rata nesse momento. Vamos gerar um link de pagamento direto com o valor cheio do novo plano — quando você pagar, a assinatura atual é substituída automaticamente.
-                            </div>
-                            <input type="hidden" id="replaceQty-${replaceSlot}" value="${newQty}">
-                            <button class="btn-orange" id="replaceGoBtn-${replaceSlot}" style="width: 100%; padding: 14px; font-size: 0.95rem;"
-                                onclick="replaceGenerate('${replaceSlot}')">
-                                Gerar link de pagamento para ${newQty} conex${newQty !== 1 ? 'ões' : 'ão'}
-                            </button>
-                            <div id="replacePanel-${replaceSlot}" style="margin-top: 14px;"></div>
-                        </div>
-                    `;
-                } else {
-                    resultDiv.innerHTML = `
-                        <div style="background: var(--bg-card); padding: 20px; border-radius: 14px; border: 1px solid rgba(16,185,129,0.3);">
-                            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-                                <span style="color: var(--text-secondary);">Alteração:</span>
-                                <span style="color: var(--success); font-weight: 700;">⬆️ UPGRADE (+${diff})</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                                <span style="color: var(--text-secondary);">Conexões:</span>
-                                <span style="font-weight: 600;">${currentQty} → ${newQty}</span>
-                            </div>
-                            <div style="background: var(--bg-secondary); padding: 14px; border-radius: 10px; margin-bottom: 14px;">
-                                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">Estimativa pro rata:</div>
-                                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; padding: 6px 0; border-bottom: 1px solid var(--border);">
-                                    <span style="color: var(--text-secondary);">Crédito (${currentQty}x, ${diasRestantes}d)</span>
-                                    <span style="color: var(--error);">-${fmtCurrency(currentValue * diasRestantes / diasNoCiclo)}</span>
-                                </div>
-                                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; padding: 6px 0; border-bottom: 1px solid var(--border);">
-                                    <span style="color: var(--text-secondary);">Cobrança (${newQty}x, ${diasRestantes}d)</span>
-                                    <span style="color: var(--success);">+${fmtCurrency(newValue * diasRestantes / diasNoCiclo)}</span>
-                                </div>
-                                <div style="display: flex; justify-content: space-between; font-size: 1rem; padding-top: 8px;">
-                                    <span style="font-weight: 600;">Pro rata estimado:</span>
-                                    <span style="color: var(--orange); font-weight: 700;">${fmtCurrency(proRata)}</span>
-                                </div>
-                                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px; font-style: italic;">Valor exato calculado pela Guru na execução.</div>
-                            </div>
-                            <button class="btn-orange" id="execUpgrade-${bpIdx}" onclick="executeGuruUpgrade('${subId}', '${newOffer.id}', ${bpIdx})" style="width: 100%; padding: 14px;">
-                                Executar Upgrade para ${newOffer.name}
-                            </button>
-                        </div>
-                    `;
-                }
-            } else {
-                const replaceSlot = `up-${bp.account_id || 'x'}-${bpIdx}`;
-                _replaceStates[replaceSlot] = { accountId: bp.account_id, qty: currentQty, payAmount: proRata };
-                resultDiv.innerHTML = `
-                    <div class="group">
-                        <div class="row"><span class="label">Alteração</span><span class="value">${currentQty} → ${newQty}</span></div>
-                        <div class="row"><span class="label">Novo valor mensal</span><span class="value">${fmtCurrency(newValue)}</span></div>
-                        <div class="row"><span class="label">Pro rata estimado</span><span class="value">${fmtCurrency(proRata)}</span></div>
-                    </div>
-                    <p class="hint">Você paga o proporcional no PIX ou cartão à vista (1x). O mensal passa a ser ${fmtCurrency(newValue)} no plano de ${newQty} conexões.</p>
-                    <input type="hidden" id="replaceQty-${replaceSlot}" value="${newQty}">
-                    <button class="pay" id="replaceGoBtn-${replaceSlot}" type="button" onclick="replaceGenerate('${replaceSlot}')">
-                        Pagar ${fmtCurrency(proRata)}
-                    </button>
-                    <div id="replacePanel-${replaceSlot}"></div>
-                `;
-            }
+            openDlocalProrataUpgrade(resultDiv, {
+                accountId: bp.account_id,
+                currentQty,
+                newQty,
+                currentValue,
+                newValue,
+                proRata,
+                diasRestantes,
+                diasNoCiclo
+            });
         }
 
         async function executeGuruUpgrade(subscriptionId, offerId, bpIdx) {
@@ -1798,13 +1737,34 @@
                 const data = await res.json();
 
                 if (!data.success) {
+                    const profiles = getDisplayProfiles(_data || {});
+                    const bp = profiles[bpIdx];
+                    const input = document.getElementById(`newQty-${bpIdx}`);
+                    const newQty = parseInt(input && input.value, 10);
+                    const currentQty = bp ? (bp.starter_instances || 0) : 0;
+                    const offers = (_data && _data.offers) || [];
+                    const currentOffer = resolvePlan(offers, currentQty);
+                    const newOffer = resolvePlan(offers, newQty);
+                    if (bp && newOffer && bp.current_period_end && new Date(bp.current_period_end) > new Date()) {
+                        const currentValue = currentOffer ? currentOffer.value : leonaAmountReais(currentQty);
+                        const { proRata, diasRestantes, diasNoCiclo } = calcProRata(currentValue, newOffer.value, bp.current_period_end);
+                        openDlocalProrataUpgrade(resultDiv, {
+                            accountId: bp.account_id,
+                            currentQty,
+                            newQty,
+                            currentValue,
+                            newValue: newOffer.value,
+                            proRata,
+                            diasRestantes,
+                            diasNoCiclo
+                        });
+                        return;
+                    }
                     const errMsg = data.error || 'Erro desconhecido';
                     resultDiv.innerHTML = `
                         <div class="alert alert-warning">
                             <strong>Upgrade não disponível</strong>
-                            ${errMsg.toLowerCase().includes('offer') || res.status === 422 || res.status === 400
-                                ? 'O plano atual não tem upgrade configurado para este destino. Entre em contato com o suporte.'
-                                : errMsg}
+                            ${errMsg}
                             ${data.details ? `<details style="margin-top: 8px; font-size: 0.75rem;"><summary>Detalhes</summary><pre style="white-space: pre-wrap; margin-top: 4px;">${JSON.stringify(data.details, null, 2)}</pre></details>` : ''}
                         </div>
                     `;
