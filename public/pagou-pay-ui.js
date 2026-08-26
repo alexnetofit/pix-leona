@@ -59,7 +59,8 @@
     const state = {
       method: 'pix',
       region: 'br',
-      paddleReady: false
+      paddleReady: false,
+      dlocalReady: false
     };
 
     function checkout() {
@@ -93,7 +94,9 @@
         } else {
           hint.textContent = kind() === 'one_shot'
             ? 'Você paga só o proporcional. Ao pagar, o plano é atualizado.'
-            : 'Você será redirecionado ao checkout da Guru. A cobrança se repete todo mês.';
+            : (state.dlocalReady
+              ? 'Você será redirecionado ao checkout da dLocal. PIX ou cartão, sem IOF.'
+              : 'Você será redirecionado ao checkout da Guru. A cobrança se repete todo mês.');
         }
       }
       const btn = el(id, 'payBtn');
@@ -115,6 +118,25 @@
             : (raw.slice(0, 140) || 'Resposta inválida do servidor')
         );
       }
+    }
+
+    async function openDlocalCheckout(c) {
+      const r = await fetch('/api/dlocal-go-pay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account_id: c.accountId,
+          email: c.email,
+          qty: c.qty,
+          kind: c.kind === 'one_shot' ? 'one_shot' : 'subscription',
+          ...(Number(c.amount) > 0 ? { amount: c.amount } : {})
+        })
+      });
+      const data = await readJson(r);
+      if (!r.ok || !data.checkout_url) {
+        throw new Error(data.error || 'Não foi possível gerar o checkout da dLocal');
+      }
+      location.href = data.checkout_url;
     }
 
     async function openGuruCheckout(c) {
@@ -171,6 +193,7 @@
       btn.textContent = 'Processando...';
       try {
         if (state.region === 'international') await openPaddleCheckout(c);
+        else if (state.dlocalReady) await openDlocalCheckout(c);
         else await openGuruCheckout(c);
       } catch (err) {
         showErr(err.message);
@@ -189,13 +212,14 @@
     if (hint) {
       hint.textContent = kind() === 'one_shot'
         ? 'Você paga só o proporcional. Ao pagar, o plano é atualizado.'
-        : 'Você será redirecionado ao checkout da Guru. A cobrança se repete todo mês.';
+        : 'Você será redirecionado ao checkout. A cobrança se repete todo mês.';
     }
     const btn = el(id, 'payBtn');
     if (btn) btn.textContent = payLabel(state.method, kind(), state.region, checkout().amount);
 
     loadPayConfig().then((cfg) => {
       state.paddleReady = !!cfg.paddle_ready;
+      state.dlocalReady = !!cfg.dlocal_ready;
       applyRegion(cfg.suggest_international ? 'international' : 'br');
     });
   }

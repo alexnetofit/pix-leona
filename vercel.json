@@ -37,6 +37,9 @@
     },
     "api/webhook-guru.js": {
       "maxDuration": 60
+    },
+    "api/webhook-dlocal-go.js": {
+      "maxDuration": 60
     }
   },
   "routes": [
@@ -55,6 +58,10 @@
     {
       "src": "/pagar",
       "dest": "/public/pagar.html"
+    },
+    {
+      "src": "/dlocal",
+      "dest": "/public/dlocal.html"
     },
     {
       "src": "/guru/logs",

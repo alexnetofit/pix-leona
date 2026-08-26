@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>dLocal Go — Leona</title>
+  <link rel="icon" type="image/png" href="/logo-leona.png">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Helvetica, Arial, sans-serif;
+      background: #f5f5f7;
+      color: #1d1d1f;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { width: min(560px, calc(100% - 40px)); margin: 0 auto; padding: 48px 0 72px; }
+    header { display: flex; justify-content: center; margin-bottom: 32px; }
+    header img { height: 28px; }
+    h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.03em; margin-bottom: 8px; }
+    .lede { color: #6e6e73; font-size: 15px; line-height: 1.45; margin-bottom: 24px; }
+    .card { background: #fff; border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+    .card h2 { font-size: 15px; margin-bottom: 10px; }
+    .url {
+      display: block;
+      width: 100%;
+      border: 0;
+      background: #f5f5f7;
+      border-radius: 8px;
+      padding: 12px;
+      font: inherit;
+      font-size: 13px;
+      word-break: break-all;
+    }
+    .row { display: flex; gap: 8px; margin-top: 10px; }
+    button, .btn {
+      appearance: none;
+      border: 0;
+      background: #1d1d1f;
+      color: #fff;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+    }
+    button.ghost, .btn.ghost { background: #e8e8ed; color: #1d1d1f; }
+    ol { padding-left: 20px; color: #3a3a3c; font-size: 14px; line-height: 1.55; }
+    .field { margin-top: 12px; }
+    .field label { display: block; font-size: 12px; color: #6e6e73; margin-bottom: 4px; }
+    .field input, .field select {
+      width: 100%;
+      border: 0;
+      background: #f5f5f7;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font: inherit;
+      font-size: 15px;
+    }
+    .err { color: #c41e3a; font-size: 13px; margin-top: 10px; display: none; }
+    .ok { color: #248a3d; font-size: 13px; margin-top: 10px; display: none; }
+    .status { font-size: 13px; color: #6e6e73; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header><img src="/logo-leona.png" alt="Leona"></header>
+    <h1>dLocal Go</h1>
+    <p class="lede">Cola esta URL no painel da dLocal. Depois do pagamento, a Leona ativa sozinha e cancela Guru/Paddle se existirem.</p>
+
+    <div class="card">
+      <h2>1. URL do webhook</h2>
+      <input class="url" id="webhookUrl" readonly value="https://client.leonaflow.com/api/webhook-dlocal-go">
+      <div class="row">
+        <button type="button" id="copyBtn">Copiar URL</button>
+        <a class="btn ghost" href="https://dlocalgo.com" target="_blank" rel="noopener">Abrir painel dLocal</a>
+      </div>
+      <p class="status" id="readyStatus">Checando se a rota está no ar…</p>
+    </div>
+
+    <div class="card">
+      <h2>2. Onde colar</h2>
+      <ol>
+        <li>Entra em <a href="https://dlocalgo.com" target="_blank" rel="noopener">dlocalgo.com</a></li>
+        <li>Settings → Integration / Notifications</li>
+        <li>Cola a URL acima e salva</li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h2>3. Gerar cobrança</h2>
+      <div class="field">
+        <label>E-mail da conta Leona</label>
+        <input id="email" type="email" placeholder="cliente@email.com" autocomplete="email">
+      </div>
+      <div class="field">
+        <label>Account ID</label>
+        <input id="accountId" type="text" placeholder="12534">
+      </div>
+      <div class="field">
+        <label>Quantidade de conexões</label>
+        <input id="qty" type="number" min="1" value="1">
+      </div>
+      <div class="field">
+        <label>Tipo</label>
+        <select id="kind">
+          <option value="subscription">Renovação / assinatura</option>
+          <option value="one_shot">Pró-rata (valor avulso)</option>
+        </select>
+      </div>
+      <div class="field" id="amountField" style="display:none;">
+        <label>Valor em reais (pró-rata)</label>
+        <input id="amount" type="number" min="1" step="0.01" placeholder="171.10">
+      </div>
+      <div class="row">
+        <button type="button" id="payBtn">Gerar checkout</button>
+      </div>
+      <div class="err" id="err"></div>
+      <div class="ok" id="ok"></div>
+    </div>
+  </div>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const webhook = document.getElementById('webhookUrl');
+    const ready = document.getElementById('readyStatus');
+    const kind = document.getElementById('kind');
+    const amountField = document.getElementById('amountField');
+    document.getElementById('email').value = params.get('email') || '';
+    document.getElementById('accountId').value = params.get('account_id') || '';
+    document.getElementById('qty').value = params.get('qty') || '1';
+    if (params.get('kind') === 'one_shot' || params.get('amount')) kind.value = 'one_shot';
+    if (params.get('amount')) document.getElementById('amount').value = params.get('amount');
+    amountField.style.display = kind.value === 'one_shot' ? '' : 'none';
+    kind.addEventListener('change', () => {
+      amountField.style.display = kind.value === 'one_shot' ? '' : 'none';
+    });
+
+    fetch('/api/pagou-config').then((r) => r.json()).then((cfg) => {
+      if (cfg.dlocal_webhook_url) webhook.value = cfg.dlocal_webhook_url;
+      ready.textContent = cfg.dlocal_ready
+        ? 'Rota no ar. dLocal Go configurada.'
+        : 'Rota no ar, mas DLOCAL_GO_* ainda não está no servidor.';
+    }).catch(() => {
+      ready.textContent = 'Não consegui checar a rota agora.';
+    });
+
+    fetch('/api/webhook-dlocal-go').then((r) => r.json()).then((data) => {
+      if (data.webhook) webhook.value = data.webhook;
+    }).catch(() => {});
+
+    document.getElementById('copyBtn').addEventListener('click', async () => {
+      await navigator.clipboard.writeText(webhook.value);
+      document.getElementById('copyBtn').textContent = 'Copiado';
+      setTimeout(() => { document.getElementById('copyBtn').textContent = 'Copiar URL'; }, 1500);
+    });
+
+    document.getElementById('payBtn').addEventListener('click', async () => {
+      const err = document.getElementById('err');
+      const ok = document.getElementById('ok');
+      err.style.display = 'none';
+      ok.style.display = 'none';
+      const body = {
+        account_id: document.getElementById('accountId').value.trim(),
+        email: document.getElementById('email').value.trim(),
+        qty: Number(document.getElementById('qty').value),
+        kind: kind.value
+      };
+      if (kind.value === 'one_shot') body.amount = Number(document.getElementById('amount').value);
+      try {
+        const r = await fetch('/api/dlocal-go-pay', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await r.json();
+        if (!r.ok || !data.checkout_url) throw new Error(data.error || 'Falha ao gerar checkout');
+        ok.textContent = 'Checkout gerado. Redirecionando…';
+        ok.style.display = 'block';
+        location.href = data.checkout_url;
+      } catch (e) {
+        err.textContent = e.message;
+        err.style.display = 'block';
+      }
+    });
+  </script>
+</body>
+</html>
