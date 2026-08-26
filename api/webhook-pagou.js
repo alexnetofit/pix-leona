@@ -5,7 +5,7 @@
  * Cadastrar no painel Pagou: https://client.leonaflow.com/api/webhook-pagou
  */
 import { logAssinaturaEvent } from '../lib/assinatura-log.js';
-import { findLeonaAccountByEmail, getLeonaBillingProfile, updateLeonaBillingProfile } from '../lib/leona.js';
+import { resolveLeonaAccount, updateLeonaBillingProfile } from '../lib/leona.js';
 import { cancelGuruSubscription } from '../lib/guru.js';
 import { dueDatePlusDays, parseLeonaRef } from '../lib/leona-pricing.js';
 import { isAffiliateReversal, notifyAffiliatesPagou } from '../lib/notify-affiliates.js';
@@ -214,15 +214,15 @@ export default async function handler(req, res) {
 
   let accountId = ref?.accountId || intent?.account_id || null;
   let qty = ref?.qty || intent?.qty || null;
-  if (!accountId && email) {
-    const found = await findLeonaAccountByEmail(email, leonaToken);
-    if (found?.account_id) accountId = String(found.account_id);
-  }
   if (!qty && Number(amountCents) > 0) {
     if (Number(amountCents) === 12700 || Number(amountCents) === 2446 || Number(amountCents) === 2447) qty = 1;
   }
 
-  if (!accountId || !qty) {
+  const resolved = await resolveLeonaAccount({ accountId, email, leonaToken });
+  if (resolved?.account_id) accountId = resolved.account_id;
+  const profile = resolved?.profile || null;
+
+  if (!accountId || !qty || !profile) {
     console.error('webhook-pagou: sem account/qty', { eventId, name, email, ref, intent: intent?.id });
     return res.status(200).json({ received: true, processed: false, error: 'account_id/qty não resolvidos' });
   }
@@ -240,11 +240,6 @@ export default async function handler(req, res) {
       });
     }
     return res.status(200).json({ received: true, duplicate: true });
-  }
-
-  const profile = await getLeonaBillingProfile(accountId, leonaToken);
-  if (!profile) {
-    return res.status(200).json({ received: true, processed: false, error: `conta ${accountId} não encontrada` });
   }
 
   const periodEnd = extra.current_period_end || extra.currentPeriodEnd;
