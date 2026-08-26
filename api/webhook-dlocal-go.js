@@ -16,7 +16,9 @@ import {
   dlocalPaymentPaid,
   extractDlocalPaymentId,
   getDlocalPayment,
-  parseDlocalOrderId
+  listDlocalPayments,
+  parseDlocalOrderId,
+  qtyFromDlocalPlanName
 } from '../lib/dlocal-go.js';
 
 function pickEmail(payment = {}, payload = {}) {
@@ -67,7 +69,7 @@ async function resolveIntent({ accountId, email, qty, paymentId, orderId }) {
       if (orderId && row.title && String(row.title) === String(orderId)) return true;
       if (accountId && row.account_id === String(accountId) && qty && Number(row.qty) === Number(qty)) return true;
       if (email && row.email && String(row.email).toLowerCase() === String(email).toLowerCase()) {
-        if (qty && Number(row.qty) === Number(qty)) return true;
+        if (!qty || Number(row.qty) === Number(qty)) return true;
       }
       return false;
     }) || null;
@@ -126,7 +128,22 @@ export default async function handler(req, res) {
   }
 
   const payload = req.body || {};
-  const paymentId = extractDlocalPaymentId(payload, req.query || {});
+  let paymentId = extractDlocalPaymentId(payload, req.query || {});
+  if (!paymentId) {
+    const hintEmail = pickEmail({}, payload) || payload.client_email || payload.subscription?.client_email;
+    if (hintEmail) {
+      const day = new Date().toISOString().slice(0, 10);
+      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      const listed = await listDlocalPayments({
+        email: hintEmail,
+        startDate: yesterday,
+        endDate: day,
+        size: 20
+      });
+      const paid = (Array.isArray(listed.body?.data) ? listed.body.data : []).find((row) => dlocalPaymentPaid(row));
+      if (paid?.id) paymentId = paid.id;
+    }
+  }
   console.log('webhook-dlocal-go: recebido', {
     payment_id: paymentId,
     keys: Object.keys(payload || {}),
@@ -196,7 +213,7 @@ export default async function handler(req, res) {
   });
 
   let accountId = ref?.accountId || intent?.account_id || null;
-  let qty = ref?.qty || intent?.qty || null;
+  let qty = ref?.qty || intent?.qty || qtyFromDlocalPlanName(payment.description) || null;
   if (Number(intent?.amount_cents) > 0) amountCents = Number(intent.amount_cents);
   if (!accountId && email) {
     const found = await findLeonaAccountByEmail(email, leonaToken);

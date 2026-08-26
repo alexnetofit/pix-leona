@@ -12,7 +12,8 @@ import {
   parseDlocalOrderId,
   parseUsdToBrlRate,
   planDescriptionForQty,
-  planNameForQty
+  planNameForQty,
+  qtyFromDlocalPlanName
 } from '../lib/dlocal-go.js';
 import { buildAffiliatesPagouPayload } from '../lib/notify-affiliates.js';
 
@@ -33,6 +34,12 @@ test('makeDlocalOrderId volta a ser parseável e passa na regex da dLocal', () =
   assert.equal(parsed.accountId, '14221');
   assert.equal(parsed.qty, 3);
   assert.equal(parsed.kind, 'sub');
+});
+
+test('qty do plano de assinatura da Go', () => {
+  assert.equal(qtyFromDlocalPlanName('leona-starter-1'), 1);
+  assert.equal(qtyFromDlocalPlanName('leona-starter-5-usd'), 5);
+  assert.equal(qtyFromDlocalPlanName('ST-abc-0'), null);
 });
 
 test('sucesso do checkout volta pro app da Leona', () => {
