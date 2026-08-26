@@ -5,6 +5,7 @@ import {
   brlToUsd,
   dlocalCheckoutPaymentFields,
   dlocalGoAppUrl,
+  dlocalGoReturnUrl,
   dlocalPaymentPaid,
   extractDlocalNotificationRef,
   extractDlocalPaymentId,
@@ -69,11 +70,26 @@ test('extrai payment_id DP- do webhook', () => {
   assert.equal(extractDlocalPaymentId({ id: 'not-a-payment' }), null);
   assert.deepEqual(extractDlocalNotificationRef({ payment_id: 'ST-abc-0' }), {
     paymentId: null,
-    orderId: 'ST-abc-0'
+    orderId: 'ST-abc-0',
+    subscriptionId: null,
+    planId: null
   });
   assert.deepEqual(
     extractDlocalNotificationRef(normalizeDlocalWebhookPayload('{"payment_id":"DP-9"}')),
-    { paymentId: 'DP-9', orderId: null }
+    { paymentId: 'DP-9', orderId: null, subscriptionId: null, planId: null }
+  );
+  assert.deepEqual(extractDlocalNotificationRef({ subscription_id: 163779, plan_id: 23762 }), {
+    paymentId: null,
+    orderId: null,
+    subscriptionId: '163779',
+    planId: '23762'
+  });
+});
+
+test('retorno da assinatura aponta pro nosso endpoint', () => {
+  assert.equal(
+    dlocalGoReturnUrl({ headers: { host: 'client.leonaflow.com', 'x-forwarded-proto': 'https' } }),
+    'https://client.leonaflow.com/api/dlocal-go-return'
   );
 });
 

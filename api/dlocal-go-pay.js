@@ -10,9 +10,9 @@ import { sbConfigured, sbInsert, sbSelect, sbUpdate } from '../lib/supabase.js';
 import {
   brlToUsd,
   createDlocalPayment,
-  dlocalGoAppUrl,
   dlocalGoConfigured,
   dlocalGoPublicBase,
+  dlocalGoReturnUrl,
   dlocalGoWebhookUrl,
   dlocalPaymentPaid,
   ensureDlocalPlan,
@@ -136,7 +136,9 @@ export default async function handler(req, res) {
     account_id: accountId,
     ...(buyerEmail ? { email: buyerEmail } : {})
   });
-  const successUrl = dlocalGoAppUrl();
+  const returnUrl = dlocalGoReturnUrl(req);
+  const oneShotSuccessUrl = `${returnUrl}?${returnQs}`;
+  const planSuccessUrl = returnUrl;
   const backUrl = `${origin}/assinatura?${returnQs}`;
 
   if (oneShot) {
@@ -147,7 +149,7 @@ export default async function handler(req, res) {
       order_id: title,
       description: productName.slice(0, 100),
       notification_url: notificationUrl,
-      success_url: successUrl,
+      success_url: oneShotSuccessUrl,
       back_url: backUrl,
       expiration_type: 'DAYS',
       expiration_value: 2,
@@ -240,7 +242,7 @@ export default async function handler(req, res) {
     currency: planCurrency,
     country: planCountry,
     notificationUrl,
-    successUrl,
+    successUrl: planSuccessUrl,
     backUrl,
     errorUrl: backUrl
   });

@@ -1,6 +1,6 @@
 /**
- * Reconciliação manual da dLocal Go (não está no cron).
- * Uso: GET/POST /api/cron/dlocal-reconcile com Bearer CRON_SECRET.
+ * Reconcilia PAID da dLocal Go que o webhook de assinatura não entregou.
+ * Roda 1x por hora (Vercel cron + CRON_SECRET). Também aceita chamada manual.
  */
 import { processDlocalPaidPayment } from '../../lib/dlocal-activate.js';
 import { dlocalGoConfigured, dlocalPaymentPaid, listAllDlocalPayments } from '../../lib/dlocal-go.js';

@@ -4,14 +4,16 @@
  * Assinatura às vezes manda o order_id ST- no lugar do DP-.
  * GET sem params = health check do painel; GET com payment_id também processa.
  *
- * Colar no painel: Integrations → Notification URL
- * https://client.leonaflow.com/api/webhook-dlocal-go
+ * Assinatura: o plano compartilhado quase não notifica. O success_url
+ * (/api/dlocal-go-return) libera na volta do checkout; daí o webhook
+ * também aceita subscription_id.
  */
 import { logAssinaturaEvent } from '../lib/assinatura-log.js';
 import { pickDlocalEmail, processDlocalPaidPayment } from '../lib/dlocal-activate.js';
 import {
   extractDlocalNotificationRef,
   findDlocalPaymentByOrderId,
+  findDlocalPaymentForSubscription,
   getDlocalPayment,
   listDlocalPayments,
   normalizeDlocalWebhookPayload,
@@ -35,7 +37,7 @@ export default async function handler(req, res) {
 
   const payload = normalizeDlocalWebhookPayload(req.body);
   const ref = extractDlocalNotificationRef(payload, req.query || {});
-  const isHealthCheck = req.method === 'GET' && !ref.paymentId && !ref.orderId && !Object.keys(payload).length;
+  const isHealthCheck = req.method === 'GET' && !ref.paymentId && !ref.orderId && !ref.subscriptionId && !Object.keys(payload).length;
 
   if (isHealthCheck) {
     return res.status(200).json({
@@ -67,6 +69,7 @@ export default async function handler(req, res) {
     method: req.method,
     payment_id: paymentId,
     order_id: ref.orderId,
+    subscription_id: ref.subscriptionId,
     keys: Object.keys(payload || {}),
     status: payload.status || null
   });
@@ -101,6 +104,16 @@ export default async function handler(req, res) {
     if (!payment?.id) {
       console.error('webhook-dlocal-go: order_id sem pagamento', ref.orderId);
       return res.status(200).json({ received: true, processed: false, error: 'order_id não encontrado' });
+    }
+  } else if (ref.subscriptionId) {
+    payment = await findDlocalPaymentForSubscription({
+      subscriptionId: ref.subscriptionId,
+      planId: ref.planId,
+      email: pickDlocalEmail({}, payload)
+    });
+    if (!payment?.id) {
+      console.error('webhook-dlocal-go: subscription sem pagamento', ref.subscriptionId);
+      return res.status(200).json({ received: true, processed: false, error: 'subscription sem pagamento' });
     }
   } else {
     console.error('webhook-dlocal-go: sem payment_id', payload);

@@ -29,6 +29,10 @@
     {
       "path": "/api/cron/assinatura-logs-purge",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/dlocal-reconcile",
+      "schedule": "7 * * * *"
     }
   ],
   "functions": {
