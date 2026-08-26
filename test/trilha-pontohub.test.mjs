@@ -1,16 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildPontohubFulfillmentLines, PONTOHUB_LINKS } from '../lib/trilha-pontohub.js';
+import { buildPontohubFulfillmentLines } from '../lib/trilha-pontohub.js';
 import { buildPontohubPlayer } from '../lib/pontohub.js';
 import { extractPagarmePaymentLinkId } from '../lib/pagarme.js';
 import { paymentLinkLooksPaid } from '../lib/trilha-fulfill.js';
 
-test('placa 100k usa productName da Ponto Hub e o link da campanha', () => {
+test('placa 100k usa só productId e productName, sem linkId', () => {
   const lines = buildPontohubFulfillmentLines({ prizeId: '100k', extraQty: 1, bumps: { jaqueta: 1, garrafa: 2 } });
   assert.equal(lines[0].productName, 'Placa Trilha do Predador + Pin 100k + Carta + Box');
-  assert.equal(lines[0].linkId, PONTOHUB_LINKS['100k']);
+  assert.equal(lines[0].productId, 'c24fc253-90e6-40bf-a843-d42d07653bf9');
+  assert.equal(lines[0].linkId, undefined);
   assert.equal(lines[1].productName, lines[0].productName);
-  assert.equal(lines[1].linkId, null);
   assert.equal(lines.filter((l) => l.code === 'garrafa').length, 2);
   assert.equal(lines.find((l) => l.code === 'jaqueta').productId, '3089dcef-dfff-488e-af0c-9bd4f6d55102');
 });
