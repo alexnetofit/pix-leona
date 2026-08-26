@@ -943,13 +943,16 @@
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="checkoutTitle">
       <div class="modal-head">
         <div>
-          <div class="eyebrow">Pagamento</div>
-          <h2 id="checkoutTitle">Abrindo checkout…</h2>
+          <div class="eyebrow">Resgate</div>
+          <h2 id="checkoutTitle">Resgatar prêmio</h2>
         </div>
         <button class="close-btn" type="button" id="closeCheckout" aria-label="Fechar">×</button>
       </div>
-      <p class="note" id="checkoutStatus">A Pagar.me pede seus dados e o endereço de envio.</p>
+      <div class="checkout-summary" id="checkoutSummary"></div>
+      <div class="order-bumps" id="orderBumps"></div>
       <p class="form-error" id="checkoutError" hidden></p>
+      <button class="btn btn-primary" type="button" id="checkoutSubmit">Resgatar</button>
+      <p class="note">Dados e endereço de envio entram no checkout da Pagar.me.</p>
     </div>
   </div>
 
@@ -962,7 +965,11 @@
     const overlay = document.getElementById('checkoutOverlay');
     const checkoutTitle = document.getElementById('checkoutTitle');
     const checkoutError = document.getElementById('checkoutError');
+    const checkoutSummary = document.getElementById('checkoutSummary');
+    const orderBumpsEl = document.getElementById('orderBumps');
+    const checkoutSubmit = document.getElementById('checkoutSubmit');
     let currentData = null;
+    let selectedPrize = null;
     const extraQtyByPrize = {};
     let bumpQtyById = {};
     let checkoutBusy = false;
@@ -1049,7 +1056,6 @@
           <div class="stat"><strong>${esc(data.plan || '—')}</strong><span>Plano Leona</span></div>
         </div>
 
-        ${renderPageBumps()}
         <h2 class="section-title">Premiações</h2>
         <div class="prizes">
           ${data.prizes.map((prize, i) => renderPrize(prize, i, data.prizes)).join('')}
@@ -1057,21 +1063,13 @@
       `;
 
       document.querySelectorAll('[data-resgate]').forEach((btn) => {
-        btn.addEventListener('click', () => startCheckout(btn.dataset.resgate));
+        btn.addEventListener('click', () => openCheckout(btn.dataset.resgate));
       });
       document.querySelectorAll('[data-qty]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const id = btn.dataset.prize;
           const delta = Number(btn.dataset.qty);
           extraQtyByPrize[id] = Math.max(0, (extraQtyByPrize[id] || 0) + delta);
-          render(currentData);
-        });
-      });
-      document.querySelectorAll('[data-bump]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const id = btn.dataset.bump;
-          const delta = Number(btn.dataset.delta);
-          bumpQtyById[id] = Math.max(0, bumpQty(id) + delta);
           render(currentData);
         });
       });
@@ -1150,37 +1148,114 @@
       return bumpQtyById[id] || 0;
     }
 
-    function renderPageBumps() {
-      const bumps = orderBumps();
-      if (!bumps.length) return '';
-      return `
-        <section class="order-bumps page-bumps">
-          <div class="order-bumps-title">Leve também</div>
-          ${bumps.map((bump) => {
-            const q = bumpQty(bump.id);
-            return `
-              <div class="bump-item ${q > 0 ? 'active' : ''}">
-                <img src="${esc(bump.image)}" alt="${esc(bump.title)}" loading="lazy">
-                <div class="bump-copy">
-                  <strong>${esc(bump.title)}</strong>
-                  <span>${esc(bump.subtitle)} · ${esc(formatBrl(bump.priceCents / 100))} cada</span>
-                </div>
-                <div class="qty-stepper">
-                  <button type="button" data-bump="${esc(bump.id)}" data-delta="-1" ${q <= 0 ? 'disabled' : ''}>−</button>
-                  <span>${q}</span>
-                  <button type="button" data-bump="${esc(bump.id)}" data-delta="1">+</button>
-                </div>
-              </div>
-            `;
-          }).join('')}
-        </section>
+    function extraUnitsCents(prize) {
+      return extraQty(prize.id) * (prize.extraUnitCents || 0);
+    }
+
+    function calcCheckoutTotalCents() {
+      if (!selectedPrize) return 0;
+      let total = selectedPrize.priceCents || 0;
+      total += extraUnitsCents(selectedPrize);
+      for (const bump of orderBumps()) {
+        total += bumpQty(bump.id) * bump.priceCents;
+      }
+      return total;
+    }
+
+    function updateCheckoutSummary() {
+      if (!selectedPrize) return;
+      const extras = extraQty(selectedPrize.id);
+      const extraRow = extras > 0
+        ? `<div class="row bump"><span>${esc(selectedPrize.title)} × ${extras}</span><span>+ ${esc(formatBrl(extraUnitsCents(selectedPrize) / 100))}</span></div>`
+        : '';
+      const bumpRows = orderBumps()
+        .filter((b) => bumpQty(b.id) > 0)
+        .map((b) => `<div class="row bump"><span>${esc(b.title)} × ${bumpQty(b.id)}</span><span>+ ${esc(formatBrl((bumpQty(b.id) * b.priceCents) / 100))}</span></div>`)
+        .join('');
+      checkoutSummary.innerHTML = `
+        <div class="row"><span>Prêmio</span><strong>${esc(selectedPrize.title)}</strong></div>
+        <div class="row"><span>Marco</span><span>${esc(selectedPrize.label)}</span></div>
+        <div class="row"><span>Valor</span><span>${esc(selectedPrize.prizeFree ? 'GRÁTIS' : selectedPrize.priceFormatted)}</span></div>
+        <div class="row"><span>Frete</span><span>${esc(selectedPrize.prizeFree ? formatBrl(selectedPrize.priceCents / 100) : selectedPrize.shippingLabel)}</span></div>
+        ${extraRow}
+        ${bumpRows}
+        <div class="row total"><span>Total</span><span>${esc(formatBrl(calcCheckoutTotalCents() / 100))}</span></div>
       `;
+    }
+
+    function renderOrderBumps() {
+      if (!selectedPrize) return;
+      const qty = extraQty(selectedPrize.id);
+      const extraLabel = formatBrl((selectedPrize.extraUnitCents || 0) / 100);
+      orderBumpsEl.innerHTML = `
+        <div class="order-bumps-title">Leve também</div>
+        <div class="bump-item">
+          <img src="${esc(selectedPrize.image || '')}" alt="${esc(selectedPrize.title)}" loading="lazy">
+          <div class="bump-copy">
+            <strong>Unidades extras</strong>
+            <span>Mesmo item · ${esc(extraLabel)} cada${extraPriceHintHtml('start')}</span>
+          </div>
+          <div class="qty-stepper">
+            <button type="button" id="checkoutExtraMinus" ${qty <= 0 ? 'disabled' : ''}>−</button>
+            <span>${qty}</span>
+            <button type="button" id="checkoutExtraPlus">+</button>
+          </div>
+        </div>
+        ${orderBumps().map((bump) => {
+          const q = bumpQty(bump.id);
+          return `
+            <div class="bump-item ${q > 0 ? 'active' : ''}">
+              <img src="${esc(bump.image)}" alt="${esc(bump.title)}" loading="lazy">
+              <div class="bump-copy">
+                <strong>${esc(bump.title)}</strong>
+                <span>${esc(bump.subtitle)} · ${esc(formatBrl(bump.priceCents / 100))} cada</span>
+              </div>
+              <div class="qty-stepper">
+                <button type="button" data-bump="${esc(bump.id)}" data-delta="-1" ${q <= 0 ? 'disabled' : ''}>−</button>
+                <span>${q}</span>
+                <button type="button" data-bump="${esc(bump.id)}" data-delta="1">+</button>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      `;
+
+      const syncExtra = (delta) => {
+        extraQtyByPrize[selectedPrize.id] = Math.max(0, extraQty(selectedPrize.id) + delta);
+        renderOrderBumps();
+        updateCheckoutSummary();
+      };
+      document.getElementById('checkoutExtraMinus')?.addEventListener('click', () => syncExtra(-1));
+      document.getElementById('checkoutExtraPlus')?.addEventListener('click', () => syncExtra(1));
+      orderBumpsEl.querySelectorAll('[data-bump]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          bumpQtyById[btn.dataset.bump] = Math.max(0, bumpQty(btn.dataset.bump) + Number(btn.dataset.delta));
+          renderOrderBumps();
+          updateCheckoutSummary();
+        });
+      });
+    }
+
+    function openCheckout(prizeId) {
+      selectedPrize = currentData?.prizes?.find((row) => row.id === prizeId) || null;
+      if (!selectedPrize || selectedPrize.status !== 'available') return;
+      bumpQtyById = {};
+      checkoutBusy = false;
+      checkoutError.hidden = true;
+      checkoutSubmit.disabled = false;
+      checkoutSubmit.textContent = 'Resgatar';
+      checkoutTitle.textContent = selectedPrize.title;
+      renderOrderBumps();
+      updateCheckoutSummary();
+      overlay.classList.add('open');
+      overlay.setAttribute('aria-hidden', 'false');
     }
 
     function closeCheckout() {
       if (checkoutBusy) return;
       overlay.classList.remove('open');
       overlay.setAttribute('aria-hidden', 'true');
+      selectedPrize = null;
     }
 
     document.getElementById('closeCheckout').addEventListener('click', closeCheckout);
@@ -1200,9 +1275,8 @@
       document.querySelectorAll('.help-wrap.open').forEach((w) => w.classList.remove('open'));
     });
 
-    async function startCheckout(prizeId) {
-      const prize = currentData?.prizes?.find((row) => row.id === prizeId);
-      if (!prize || prize.status !== 'available' || checkoutBusy) return;
+    async function startCheckout() {
+      if (!selectedPrize || !currentData || checkoutBusy) return;
 
       const bumps = {};
       for (const bump of orderBumps()) {
@@ -1212,9 +1286,8 @@
 
       checkoutBusy = true;
       checkoutError.hidden = true;
-      checkoutTitle.textContent = 'Abrindo checkout…';
-      overlay.classList.add('open');
-      overlay.setAttribute('aria-hidden', 'false');
+      checkoutSubmit.disabled = true;
+      checkoutSubmit.textContent = 'Abrindo checkout…';
 
       try {
         const res = await fetch('/api/trilha-pay', {
@@ -1223,8 +1296,8 @@
           body: JSON.stringify({
             account_id: currentData.account_id,
             email: accountEmail,
-            prize_id: prize.id,
-            extra_qty: extraQty(prize.id),
+            prize_id: selectedPrize.id,
+            extra_qty: extraQty(selectedPrize.id),
             bumps
           })
         });
@@ -1233,11 +1306,14 @@
         location.href = data.url;
       } catch (err) {
         checkoutBusy = false;
-        checkoutTitle.textContent = 'Não deu pra abrir o pagamento';
+        checkoutSubmit.disabled = false;
+        checkoutSubmit.textContent = 'Resgatar';
         checkoutError.textContent = err.message;
         checkoutError.hidden = false;
       }
     }
+
+    checkoutSubmit.addEventListener('click', startCheckout);
 
     async function boot() {
       if (!accountId || !accountEmail) {
