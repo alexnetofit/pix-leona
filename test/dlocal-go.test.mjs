@@ -23,8 +23,9 @@ test('parseia order_id legado leona-conta-qty-prorata', () => {
   assert.deepEqual(parsed, { accountId: '12534', qty: 6, kind: 'one_shot' });
 });
 
-test('makeDlocalOrderId volta a ser parseável', () => {
+test('makeDlocalOrderId volta a ser parseável e passa na regex da dLocal', () => {
   const id = makeDlocalOrderId('14221', 3, 'subscription');
+  assert.match(id, /^[A-Za-z0-9_-]+$/);
   const parsed = parseDlocalOrderId(id);
   assert.equal(parsed.accountId, '14221');
   assert.equal(parsed.qty, 3);
