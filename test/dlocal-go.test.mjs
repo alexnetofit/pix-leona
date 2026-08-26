@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   brlToUsd,
+  dlocalCheckoutPaymentFields,
   extractDlocalPaymentId,
   isIntlRegion,
   isOneShotKind,
@@ -31,6 +32,13 @@ test('makeDlocalOrderId volta a ser parseável e passa na regex da dLocal', () =
   assert.equal(parsed.accountId, '14221');
   assert.equal(parsed.qty, 3);
   assert.equal(parsed.kind, 'sub');
+});
+
+test('checkout avulso é cartão 1x ou PIX, sem boleto', () => {
+  assert.deepEqual(dlocalCheckoutPaymentFields(), {
+    payment_type: 'CREDIT_CARD,BANK_TRANSFER',
+    max_installments: 1
+  });
 });
 
 test('extrai payment_id DP- do webhook', () => {

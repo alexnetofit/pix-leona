@@ -123,8 +123,12 @@ export default async function handler(req, res) {
   const amountCents = customCents || leonaAmountCents(qtyN);
   const amountReais = Number((amountCents / 100).toFixed(2));
   const title = makeDlocalOrderId(accountId, qtyN, oneShot ? 'prorata' : 'sub');
-  const productName = offer_name || `Leona Flow — ${qtyN} conex${qtyN === 1 ? 'ão' : 'ões'}`;
+  const productName = offer_name
+    || (oneShot
+      ? `Ajuste Leona — ${qtyN} conex${qtyN === 1 ? 'ão' : 'ões'}`
+      : `Leona Flow — ${qtyN} conex${qtyN === 1 ? 'ão' : 'ões'}`);
   const buyerEmail = access.profileEmail || email;
+  const buyerName = access.profile?.user?.name ? String(access.profile.user.name).trim().slice(0, 100) : '';
   const origin = requestOrigin(req);
   const notificationUrl = dlocalGoWebhookUrl(req);
   const returnQs = new URLSearchParams({
@@ -147,6 +151,7 @@ export default async function handler(req, res) {
       expiration_type: 'DAYS',
       expiration_value: 2,
       payer: {
+        ...(buyerName ? { name: buyerName } : {}),
         email: buyerEmail || undefined,
         user_reference: `leona:${accountId}`
       }

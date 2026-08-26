@@ -1771,7 +1771,7 @@
                         <div class="row"><span class="label">Novo valor mensal</span><span class="value">${fmtCurrency(newValue)}</span></div>
                         <div class="row"><span class="label">Pro rata estimado</span><span class="value">${fmtCurrency(proRata)}</span></div>
                     </div>
-                    <p class="hint">Hoje você paga o proporcional na Guru. O mensal passa a ser ${fmtCurrency(newValue)} no plano de ${newQty} conexões.</p>
+                    <p class="hint">Você paga o proporcional no PIX ou cartão à vista (1x). O mensal passa a ser ${fmtCurrency(newValue)} no plano de ${newQty} conexões.</p>
                     <input type="hidden" id="replaceQty-${replaceSlot}" value="${newQty}">
                     <button class="pay" id="replaceGoBtn-${replaceSlot}" type="button" onclick="replaceGenerate('${replaceSlot}')">
                         Pagar ${fmtCurrency(proRata)}

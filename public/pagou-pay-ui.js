@@ -26,8 +26,8 @@
     const email = opts.email || '';
     const kind = opts.kind === 'one_shot' ? 'one_shot' : 'subscription';
     const hint = kind === 'one_shot'
-      ? 'Você paga só o proporcional. Ao pagar, o plano é atualizado.'
-      : 'Você será redirecionado ao checkout. A cobrança se repete todo mês.';
+      ? 'PIX ou cartão à vista (1x). Ao pagar, o plano é atualizado.'
+      : 'PIX ou cartão à vista. A cobrança se repete todo mês.';
     return `
       <div id="payForm-${id}">
         <div class="group" style="margin-top:16px;">
@@ -88,12 +88,12 @@
       if (hint) {
         if (intl) {
           hint.textContent = kind() === 'one_shot'
-            ? 'Você paga o proporcional na dLocal. O checkout pede o país e converte a moeda.'
-            : 'Checkout da dLocal no exterior. Cartão ou método local do país.';
+            ? 'PIX ou cartão à vista (1x) na dLocal. O checkout pede o país e converte a moeda.'
+            : 'PIX ou cartão à vista na dLocal. A cobrança se repete todo mês.';
         } else {
           hint.textContent = kind() === 'one_shot'
-            ? 'Você paga só o proporcional. Ao pagar, o plano é atualizado.'
-            : 'Checkout da dLocal. PIX ou cartão, sem IOF.';
+            ? 'PIX ou cartão à vista (1x). Ao pagar, o plano é atualizado.'
+            : 'PIX ou cartão à vista. A cobrança se repete todo mês.';
         }
       }
       const btn = el(id, 'payBtn');
@@ -171,8 +171,8 @@
     const hint = el(id, 'payHint');
     if (hint) {
       hint.textContent = kind() === 'one_shot'
-        ? 'Você paga só o proporcional. Ao pagar, o plano é atualizado.'
-        : 'Você será redirecionado ao checkout. A cobrança se repete todo mês.';
+        ? 'PIX ou cartão à vista (1x). Ao pagar, o plano é atualizado.'
+        : 'PIX ou cartão à vista. A cobrança se repete todo mês.';
     }
     const btn = el(id, 'payBtn');
     if (btn) btn.textContent = payLabel(state.method, kind(), state.region, checkout().amount);
