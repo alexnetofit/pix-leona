@@ -47,7 +47,9 @@ test('buildTrilhaPayload bloqueia resgate sem 3 meses pagos', () => {
   assert.equal(payload.prizes.find(p => p.id === '50k').unlocked, true);
   assert.equal(payload.prizes.find(p => p.id === '50k').status, 'ineligible');
   assert.equal(payload.prizes.find(p => p.id === '50k').redeem_blocked, true);
-  assert.equal(payload.prizes.filter(p => p.status === 'available').length, 0);
+  assert.equal(payload.prizes.find(p => p.id === '100k').status, 'available');
+  assert.equal(payload.prizes.find(p => p.id === '100k').cta, 'Comprar placa');
+  assert.equal(payload.prizes.filter(p => p.status === 'available').length, 1);
 });
 
 test('pickBrlLifetimeRevenue usa só BRL', () => {

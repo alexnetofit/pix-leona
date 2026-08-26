@@ -659,6 +659,23 @@
       font-size: 0.82rem;
       color: var(--muted);
       background: rgba(255,255,255,0.02);
+      cursor: pointer;
+      font: inherit;
+    }
+
+    .form-error {
+      color: #fca5a5;
+      font-size: 0.82rem;
+    }
+
+    .paid-banner {
+      margin: 0 0 18px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(52,211,153,0.35);
+      background: rgba(52,211,153,0.1);
+      color: #bbf7d0;
+      font-size: 0.92rem;
     }
 
     .pay-method.active {
@@ -923,12 +940,13 @@
         </label>
 
         <div class="pay-methods">
-          <div class="pay-method active">PIX</div>
-          <div class="pay-method">Cartão</div>
+          <button type="button" class="pay-method active" data-pay="pix">PIX</button>
+          <button type="button" class="pay-method" data-pay="credit_card">Cartão</button>
         </div>
 
-        <button class="btn btn-primary" type="submit">Pagar e confirmar resgate</button>
-        <p class="note">Integração com gateway em breve. Layout pronto para plugar pagamento.</p>
+        <p class="form-error" id="checkoutError" hidden></p>
+        <button class="btn btn-primary" type="submit" id="checkoutSubmit">Pagar na Pagar.me</button>
+        <p class="note">Pagamento seguro pela Pagar.me. PIX ou cartão — o endereço entra só pra envio da placa/prêmio.</p>
       </form>
     </div>
   </div>
@@ -949,22 +967,11 @@
     const extraQtyByPrize = {};
     let bumpQtyById = {};
 
-    const ORDER_BUMPS = [
-      {
-        id: 'garrafa',
-        title: 'Garrafa Leona',
-        subtitle: 'Alumínio preto fosco · logo branca',
-        priceCents: 3750,
-        image: '/trilha/bumps/garrafa.png'
-      },
-      {
-        id: 'jaqueta',
-        title: 'Jaqueta Leona',
-        subtitle: 'Bomber preta premium · logo bordada',
-        priceCents: 12650,
-        image: '/trilha/bumps/jaqueta.png'
-      }
-    ];
+    const paidOk = params.get('paid') === '1';
+    let selectedPay = 'pix';
+    function orderBumps() {
+      return currentData?.order_bumps || [];
+    }
 
     function esc(s) {
       return String(s ?? '').replace(/[&<>"']/g, (c) => ({
@@ -1000,6 +1007,7 @@
       const redeemableCount = data.prizes.filter(p => p.status === 'available').length;
 
       app.innerHTML = `
+        ${paidOk ? '<div class="paid-banner">Pagamento iniciado. Assim que a Pagar.me confirmar, a gente separa o envio do prêmio.</div>' : ''}
         <section class="hero">
           <div class="hero-grid">
             <div>
@@ -1107,7 +1115,7 @@
               <div class="price-tag ${prize.prizeFree ? 'gratis' : ''}">${esc(prize.priceFormatted)}</div>
               <div class="ship-tag ${prize.freeShipping ? 'free' : ''}">${esc(prize.shippingLabel)}</div>
               <button class="btn btn-primary" data-resgate="${esc(prize.id)}" ${canResgate ? '' : 'disabled'}>
-                ${canResgate ? 'Resgatar' : prize.status === 'ineligible' ? '3 meses pagos necessários' : 'Meta não atingida'}
+                ${canResgate ? esc(prize.cta || 'Resgatar') : prize.status === 'ineligible' ? '3 meses pagos necessários' : 'Meta não atingida'}
               </button>
               <div class="qty-bump">
                 <div class="qty-bump-label">Order bump</div>
@@ -1152,7 +1160,7 @@
             <button type="button" id="checkoutExtraPlus">+</button>
           </div>
         </div>
-        ${ORDER_BUMPS.map((bump) => {
+        ${orderBumps().map((bump) => {
           const q = bumpQty(bump.id);
           return `
             <div class="bump-item ${q > 0 ? 'active' : ''}">
@@ -1198,7 +1206,7 @@
       if (!selectedPrize) return 0;
       let total = selectedPrize.priceCents || 0;
       total += extraUnitsCents(selectedPrize);
-      for (const bump of ORDER_BUMPS) {
+      for (const bump of orderBumps()) {
         total += bumpQty(bump.id) * bump.priceCents;
       }
       return total;
@@ -1212,7 +1220,7 @@
         ? `<div class="row bump"><span>${esc(selectedPrize.title)} × ${extras}</span><span>+ ${esc(formatBrl(extraUnitsCents(selectedPrize) / 100))}</span></div>`
         : '';
 
-      const bumpRows = ORDER_BUMPS
+      const bumpRows = orderBumps()
         .filter((b) => bumpQty(b.id) > 0)
         .map((b) => `<div class="row bump"><span>${esc(b.title)} × ${bumpQty(b.id)}</span><span>+ ${esc(formatBrl((bumpQty(b.id) * b.priceCents) / 100))}</span></div>`)
         .join('');
@@ -1269,15 +1277,58 @@
       document.querySelectorAll('.help-wrap.open').forEach((w) => w.classList.remove('open'));
     });
 
-    checkoutForm.addEventListener('submit', (e) => {
+    document.querySelectorAll('[data-pay]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        selectedPay = btn.dataset.pay;
+        document.querySelectorAll('[data-pay]').forEach((el) => el.classList.toggle('active', el === btn));
+      });
+    });
+
+    checkoutForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const extras = extraQty(selectedPrize?.id);
-      const extrasLabel = extras ? `\nUnidades extras: ${extras}` : '';
-      const merch = ORDER_BUMPS.filter((b) => bumpQty(b.id) > 0).map((b) => `${b.title} × ${bumpQty(b.id)}`);
-      const merchLabel = merch.length ? `\nExtras: ${merch.join(', ')}` : '';
-      const total = formatBrl(calcCheckoutTotalCents() / 100);
-      alert(`Checkout preparado para "${selectedPrize?.title}" (${total}).${extrasLabel}${merchLabel}\nIntegração de pagamento entra na próxima etapa.`);
-      closeCheckout();
+      const errorEl = document.getElementById('checkoutError');
+      const submitBtn = document.getElementById('checkoutSubmit');
+      errorEl.hidden = true;
+      if (!selectedPrize || !currentData) return;
+
+      const bumps = {};
+      for (const bump of orderBumps()) {
+        const q = bumpQty(bump.id);
+        if (q) bumps[bump.id] = q;
+      }
+
+      const payload = {
+        account_id: currentData.account_id,
+        email: accountEmail,
+        prize_id: selectedPrize.id,
+        extra_qty: extraQty(selectedPrize.id),
+        bumps,
+        payment_method: selectedPay,
+        name: checkoutForm.name.value,
+        checkout_email: checkoutForm.email.value,
+        document: checkoutForm.document.value,
+        phone: checkoutForm.phone.value,
+        cep: checkoutForm.cep.value,
+        address: checkoutForm.address.value
+      };
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Abrindo pagamento…';
+      try {
+        const res = await fetch('/api/trilha-pay', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.url) throw new Error(data.error || `HTTP ${res.status}`);
+        location.href = data.url;
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.hidden = false;
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Pagar na Pagar.me';
+      }
     });
 
     async function boot() {
