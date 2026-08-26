@@ -17,6 +17,7 @@ import {
   pickBrlLifetimeRevenue,
   resolveTrilhaRevenue
 } from '../lib/trilha-prizes.js';
+import { saveTrilhaCheckout } from '../lib/trilha-fulfill.js';
 
 function publicBase(req) {
   const host = String(req?.headers?.['x-forwarded-host'] || req?.headers?.host || '')
@@ -152,6 +153,27 @@ export default async function handler(req, res) {
     return res.status(502).json({
       error: created.body?.message || created.body?.error || 'Falha ao criar checkout na Pagar.me'
     });
+  }
+
+  try {
+    await saveTrilhaCheckout({
+      account_id: resolvedAccountId,
+      email: checkoutEmail,
+      prize_id: order.prize.id,
+      extra_qty: order.extras,
+      bumps: order.bumps,
+      amount_cents: order.totalCents,
+      name,
+      document: document.document,
+      phone: `${phone.area_code}${phone.number}`,
+      cep,
+      address,
+      payment_link_id: created.body.id,
+      checkout_url: created.body.url,
+      status: 'pending'
+    });
+  } catch (err) {
+    console.error('trilha-pay: falha ao gravar checkout', err.message);
   }
 
   logAssinaturaEvent(req, {
