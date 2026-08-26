@@ -10,6 +10,7 @@ import { sbConfigured, sbInsert, sbSelect, sbUpdate } from '../lib/supabase.js';
 import {
   brlToUsd,
   createDlocalPayment,
+  dlocalGoAppUrl,
   dlocalGoConfigured,
   dlocalGoPublicBase,
   dlocalGoWebhookUrl,
@@ -135,7 +136,7 @@ export default async function handler(req, res) {
     account_id: accountId,
     ...(buyerEmail ? { email: buyerEmail } : {})
   });
-  const successUrl = `${origin}/assinatura?${returnQs}&dlocal=ok`;
+  const successUrl = dlocalGoAppUrl();
   const backUrl = `${origin}/assinatura?${returnQs}`;
 
   if (oneShot) {

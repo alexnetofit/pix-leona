@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   brlToUsd,
   dlocalCheckoutPaymentFields,
+  dlocalGoAppUrl,
   extractDlocalPaymentId,
   isIntlRegion,
   isOneShotKind,
@@ -32,6 +33,13 @@ test('makeDlocalOrderId volta a ser parseável e passa na regex da dLocal', () =
   assert.equal(parsed.accountId, '14221');
   assert.equal(parsed.qty, 3);
   assert.equal(parsed.kind, 'sub');
+});
+
+test('sucesso do checkout volta pro app da Leona', () => {
+  const prev = process.env.LEONA_APP_URL;
+  delete process.env.LEONA_APP_URL;
+  assert.equal(dlocalGoAppUrl(), 'https://app.leonaflow.com');
+  if (prev !== undefined) process.env.LEONA_APP_URL = prev;
 });
 
 test('checkout avulso é cartão 1x ou PIX (voucher), sem TED', () => {
