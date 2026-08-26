@@ -34,9 +34,9 @@ test('makeDlocalOrderId volta a ser parseável e passa na regex da dLocal', () =
   assert.equal(parsed.kind, 'sub');
 });
 
-test('checkout avulso é cartão 1x ou PIX, sem boleto', () => {
+test('checkout avulso é cartão 1x ou PIX (voucher), sem TED', () => {
   assert.deepEqual(dlocalCheckoutPaymentFields(), {
-    payment_type: 'CREDIT_CARD,BANK_TRANSFER',
+    payment_type: 'CREDIT_CARD,VOUCHER',
     max_installments: 1
   });
 });
