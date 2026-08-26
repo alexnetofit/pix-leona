@@ -1,28 +1,49 @@
 /**
- * POST /api/webhook-dlocal-go
- * Libera a Leona quando a dLocal Go confirma pagamento.
- * Cancela Guru e Paddle se existirem.
+ * POST/GET /api/webhook-dlocal-go
+ * Webhook oficial da dLocal Go: POST { "payment_id": "DP-xxx" }.
+ * Assinatura às vezes manda o order_id ST- no lugar do DP-.
+ * GET sem params = health check do painel; GET com payment_id também processa.
  *
- * Colar no painel dLocal Go: https://client.leonaflow.com/api/webhook-dlocal-go
+ * Colar no painel: Integrations → Notification URL
+ * https://client.leonaflow.com/api/webhook-dlocal-go
  */
 import { logAssinaturaEvent } from '../lib/assinatura-log.js';
 import { pickDlocalEmail, processDlocalPaidPayment } from '../lib/dlocal-activate.js';
 import {
-  extractDlocalPaymentId,
+  extractDlocalNotificationRef,
+  findDlocalPaymentByOrderId,
   getDlocalPayment,
   listDlocalPayments,
+  normalizeDlocalWebhookPayload,
   dlocalPaymentPaid
 } from '../lib/dlocal-go.js';
 
+function brtDay(offset = 0) {
+  const ms = Date.now() + offset * 86400000;
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(new Date(ms));
+}
+
 export default async function handler(req, res) {
-  if (req.method === 'GET') {
+  if (!['GET', 'POST'].includes(req.method)) {
+    return res.status(405).json({ error: 'Método não permitido' });
+  }
+
+  const payload = normalizeDlocalWebhookPayload(req.body);
+  const ref = extractDlocalNotificationRef(payload, req.query || {});
+  const isHealthCheck = req.method === 'GET' && !ref.paymentId && !ref.orderId && !Object.keys(payload).length;
+
+  if (isHealthCheck) {
     return res.status(200).json({
       ok: true,
       service: 'dlocal-go',
       webhook: 'https://client.leonaflow.com/api/webhook-dlocal-go'
     });
   }
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
 
   const leonaToken = process.env.LEONA_BILLING_TOKEN;
   if (!leonaToken) {
@@ -30,25 +51,22 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Configuração incompleta' });
   }
 
-  const payload = req.body || {};
-  let paymentId = extractDlocalPaymentId(payload, req.query || {});
-  if (!paymentId) {
-    const hintEmail = pickDlocalEmail({}, payload);
-    if (hintEmail) {
-      const day = new Date().toISOString().slice(0, 10);
-      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-      const listed = await listDlocalPayments({
-        email: hintEmail,
-        startDate: yesterday,
-        endDate: day,
-        size: 20
-      });
-      const paid = (Array.isArray(listed.body?.data) ? listed.body.data : []).find((row) => dlocalPaymentPaid(row));
-      if (paid?.id) paymentId = paid.id;
-    }
+  let paymentId = ref.paymentId;
+  if (!paymentId && pickDlocalEmail({}, payload)) {
+    const listed = await listDlocalPayments({
+      email: pickDlocalEmail({}, payload),
+      startDate: brtDay(-1),
+      endDate: brtDay(0),
+      size: 20
+    });
+    const paid = (Array.isArray(listed.body?.data) ? listed.body.data : []).find((row) => dlocalPaymentPaid(row));
+    if (paid?.id) paymentId = paid.id;
   }
+
   console.log('webhook-dlocal-go: recebido', {
+    method: req.method,
     payment_id: paymentId,
+    order_id: ref.orderId,
     keys: Object.keys(payload || {}),
     status: payload.status || null
   });
@@ -58,19 +76,35 @@ export default async function handler(req, res) {
     provider: 'dlocal',
     email: pickDlocalEmail({}, payload),
     account_id: null,
-    details: { payment_id: paymentId, raw_status: payload.status || null, keys: Object.keys(payload || {}) }
+    details: {
+      method: req.method,
+      payment_id: paymentId,
+      order_id: ref.orderId || null,
+      raw_status: payload.status || null,
+      keys: Object.keys(payload || {})
+    }
   });
 
-  if (!paymentId) {
+  let payment = null;
+  if (paymentId) {
+    const fetched = await getDlocalPayment(paymentId);
+    payment = fetched.body || {};
+    if (!fetched.ok || !payment.id) {
+      console.error('webhook-dlocal-go: get payment falhou', paymentId, fetched.status, fetched.body);
+      return res.status(200).json({ received: true, processed: false, error: 'pagamento não encontrado na dLocal' });
+    }
+  } else if (ref.orderId) {
+    payment = await findDlocalPaymentByOrderId(ref.orderId, {
+      startDate: brtDay(-2),
+      endDate: brtDay(0)
+    });
+    if (!payment?.id) {
+      console.error('webhook-dlocal-go: order_id sem pagamento', ref.orderId);
+      return res.status(200).json({ received: true, processed: false, error: 'order_id não encontrado' });
+    }
+  } else {
     console.error('webhook-dlocal-go: sem payment_id', payload);
     return res.status(200).json({ received: true, processed: false, error: 'payment_id ausente' });
-  }
-
-  const fetched = await getDlocalPayment(paymentId);
-  const payment = fetched.body || {};
-  if (!fetched.ok || !payment.id) {
-    console.error('webhook-dlocal-go: get payment falhou', paymentId, fetched.status, fetched.body);
-    return res.status(200).json({ received: true, processed: false, error: 'pagamento não encontrado na dLocal' });
   }
 
   const result = await processDlocalPaidPayment(payment, { payload, req, source: 'webhook' });

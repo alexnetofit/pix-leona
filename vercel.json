@@ -19,10 +19,6 @@
       "schedule": "17 * * * *"
     },
     {
-      "path": "/api/cron/dlocal-reconcile",
-      "schedule": "*/5 * * * *"
-    },
-    {
       "path": "/api/cron/revenue-sync",
       "schedule": "*/5 * * * *"
     },

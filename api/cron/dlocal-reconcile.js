@@ -1,6 +1,6 @@
 /**
- * Recupera pagamentos PAID da dLocal Go cujo webhook não chegou
- * e libera a Leona. Roda a cada 5 minutos.
+ * Reconciliação manual da dLocal Go (não está no cron).
+ * Uso: GET/POST /api/cron/dlocal-reconcile com Bearer CRON_SECRET.
  */
 import { processDlocalPaidPayment } from '../../lib/dlocal-activate.js';
 import { dlocalGoConfigured, dlocalPaymentPaid, listAllDlocalPayments } from '../../lib/dlocal-go.js';

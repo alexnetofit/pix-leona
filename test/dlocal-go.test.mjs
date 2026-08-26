@@ -6,7 +6,9 @@ import {
   dlocalCheckoutPaymentFields,
   dlocalGoAppUrl,
   dlocalPaymentPaid,
+  extractDlocalNotificationRef,
   extractDlocalPaymentId,
+  normalizeDlocalWebhookPayload,
   isIntlRegion,
   isOneShotKind,
   makeDlocalOrderId,
@@ -65,6 +67,14 @@ test('extrai payment_id DP- do webhook', () => {
   assert.equal(extractDlocalPaymentId({ payment_id: 'DP-8050275' }), 'DP-8050275');
   assert.equal(extractDlocalPaymentId({ id: 'DP-1' }), 'DP-1');
   assert.equal(extractDlocalPaymentId({ id: 'not-a-payment' }), null);
+  assert.deepEqual(extractDlocalNotificationRef({ payment_id: 'ST-abc-0' }), {
+    paymentId: null,
+    orderId: 'ST-abc-0'
+  });
+  assert.deepEqual(
+    extractDlocalNotificationRef(normalizeDlocalWebhookPayload('{"payment_id":"DP-9"}')),
+    { paymentId: 'DP-9', orderId: null }
+  );
 });
 
 test('classifica kind one_shot', () => {
