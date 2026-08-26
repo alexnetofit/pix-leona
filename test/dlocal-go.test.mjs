@@ -5,6 +5,7 @@ import {
   brlToUsd,
   dlocalCheckoutPaymentFields,
   dlocalGoAppUrl,
+  dlocalPaymentPaid,
   extractDlocalPaymentId,
   isIntlRegion,
   isOneShotKind,
@@ -79,7 +80,17 @@ test('classifica kind one_shot', () => {
 
 test('converte BRL pra USD com o câmbio da dLocal', () => {
   assert.equal(parseUsdToBrlRate({ from: 'USD', to: 'BRL', rate: 5.61143 }), 5.61143);
+  assert.equal(parseUsdToBrlRate([
+    { source_currency: 'USD', target_currency: 'CLP', value: 978.78 },
+    { source_currency: 'USD', target_currency: 'BRL', value: 5.61143 }
+  ]), 5.61143);
   assert.equal(brlToUsd(127, 5.61143), 22.63);
+});
+
+test('considera PAID e COMPLETED como pagos', () => {
+  assert.equal(dlocalPaymentPaid({ status: 'PAID' }), true);
+  assert.equal(dlocalPaymentPaid({ status: 'COMPLETED' }), true);
+  assert.equal(dlocalPaymentPaid({ status: 'PENDING' }), false);
 });
 
 test('afiliados aceitam prefixo dlocal:', () => {

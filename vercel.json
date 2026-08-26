@@ -19,6 +19,10 @@
       "schedule": "17 * * * *"
     },
     {
+      "path": "/api/cron/dlocal-reconcile",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/revenue-sync",
       "schedule": "*/5 * * * *"
     },
@@ -34,6 +38,9 @@
   "functions": {
     "api/cron/revenue-sync.js": {
       "maxDuration": 300
+    },
+    "api/cron/dlocal-reconcile.js": {
+      "maxDuration": 60
     },
     "api/webhook-guru.js": {
       "maxDuration": 60
