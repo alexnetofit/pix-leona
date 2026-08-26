@@ -1,5 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
 import {
   brlToUsd,
@@ -10,8 +14,10 @@ import {
   extractDlocalNotificationRef,
   extractDlocalPaymentId,
   normalizeDlocalWebhookPayload,
+  isCardMethod,
   isIntlRegion,
   isOneShotKind,
+  isPixMethod,
   makeDlocalOrderId,
   parseDlocalOrderId,
   parseUsdToBrlRate,
@@ -62,6 +68,19 @@ test('checkout avulso é cartão 1x ou PIX (voucher), sem TED', () => {
     payment_type: 'CREDIT_CARD,VOUCHER',
     max_installments: 1
   });
+  assert.deepEqual(dlocalCheckoutPaymentFields('pix'), {
+    payment_type: 'VOUCHER',
+    max_installments: 1
+  });
+  assert.deepEqual(dlocalCheckoutPaymentFields('card'), {
+    payment_type: 'CREDIT_CARD',
+    max_installments: 1
+  });
+  assert.equal(isPixMethod('pix'), true);
+  assert.equal(isPixMethod('voucher'), true);
+  assert.equal(isPixMethod('card'), false);
+  assert.equal(isCardMethod('cartao'), true);
+  assert.equal(isCardMethod('pix'), false);
 });
 
 test('extrai payment_id DP- do webhook', () => {
@@ -117,6 +136,30 @@ test('considera PAID e COMPLETED como pagos', () => {
   assert.equal(dlocalPaymentPaid({ status: 'PAID' }), true);
   assert.equal(dlocalPaymentPaid({ status: 'COMPLETED' }), true);
   assert.equal(dlocalPaymentPaid({ status: 'PENDING' }), false);
+});
+
+test('página de assinatura oferece PIX ou cartão no Brasil', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const code = readFileSync(join(here, '../public/pagou-pay-ui.js'), 'utf8');
+  const window = {};
+  vm.runInNewContext(code, { window });
+  const html = window.PagouPay.formHtml('slot', { email: 'a@b.com', kind: 'subscription' });
+  assert.match(html, /id="tabPix-slot"/);
+  assert.match(html, /id="tabCard-slot"/);
+  assert.match(html, />PIX</);
+  assert.match(html, />Cartão</);
+  assert.equal(window.PagouPay.payLabel('pix', 'subscription', 'br', 316), 'Pagar R$\u00a0316,00 no PIX');
+  assert.equal(window.PagouPay.payLabel('card', 'subscription', 'br', 316), 'Pagar R$\u00a0316,00 no cartão');
+  assert.equal(window.PagouPay.payLabel('card', 'subscription', 'international'), 'Assinar no exterior');
+});
+
+test('PIX mensal grava tag sub e não conta como pró-rata', () => {
+  const id = makeDlocalOrderId('2662', 4, 'subscription');
+  const parsed = parseDlocalOrderId(id);
+  assert.equal(parsed.accountId, '2662');
+  assert.equal(parsed.qty, 4);
+  assert.equal(parsed.kind, 'sub');
+  assert.equal(isOneShotKind(parsed.kind), false);
 });
 
 test('afiliados aceitam prefixo dlocal:', () => {

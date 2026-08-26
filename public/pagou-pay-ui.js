@@ -4,11 +4,23 @@
   }
 
   function payLabel(method, kind, region, amount) {
-    if (kind === 'one_shot') {
-      const n = Number(amount);
-      return Number.isFinite(n) && n > 0 ? `Pagar ${money(n)}` : 'Pagar agora';
+    const n = Number(amount);
+    const priced = Number.isFinite(n) && n > 0 ? money(n) : '';
+    if (region === 'international') {
+      return kind === 'one_shot' && priced ? `Pagar ${priced}` : 'Assinar no exterior';
     }
-    return region === 'international' ? 'Assinar no exterior' : 'Assinar agora';
+    if (method === 'pix') {
+      if (kind === 'one_shot' && priced) return `Pagar ${priced} no PIX`;
+      return priced ? `Pagar ${priced} no PIX` : 'Pagar no PIX';
+    }
+    if (method === 'card') {
+      if (kind === 'one_shot' && priced) return `Pagar ${priced} no cartão`;
+      return priced ? `Pagar ${priced} no cartão` : 'Pagar no cartão';
+    }
+    if (kind === 'one_shot') {
+      return priced ? `Pagar ${priced}` : 'Pagar agora';
+    }
+    return 'Assinar agora';
   }
 
   let _payConfig = null;
@@ -26,8 +38,8 @@
     const email = opts.email || '';
     const kind = opts.kind === 'one_shot' ? 'one_shot' : 'subscription';
     const hint = kind === 'one_shot'
-      ? 'PIX ou cartão à vista (1x). Ao pagar, o plano é atualizado.'
-      : 'PIX ou cartão à vista. A cobrança se repete todo mês.';
+      ? 'PIX à vista (1x). Ao pagar, o plano é atualizado.'
+      : 'PIX à vista. A liberação vale o mês; no cartão a cobrança se repete.';
     return `
       <div id="payForm-${id}">
         <div class="group" style="margin-top:16px;">
@@ -46,8 +58,15 @@
               <button type="button" id="tabIntl-${id}">Exterior</button>
             </div>
           </div>
+          <div class="field" id="methodField-${id}">
+            <label>Como quer pagar</label>
+            <div class="seg" style="margin:8px 0 0;">
+              <button type="button" id="tabPix-${id}" class="active">PIX</button>
+              <button type="button" id="tabCard-${id}">Cartão</button>
+            </div>
+          </div>
         </div>
-        <button class="pay" id="payBtn-${id}" type="button">Assinar agora</button>
+        <button class="pay" id="payBtn-${id}" type="button">Pagar no PIX</button>
         <div class="err" id="err-${id}"></div>
         <p class="hint" id="payHint-${id}">${hint}</p>
       </div>
@@ -77,31 +96,55 @@
       node.style.display = msg ? 'block' : 'none';
     }
 
-    function applyRegion(region) {
-      state.region = region === 'international' ? 'international' : 'br';
+    function hintText() {
+      const intl = state.region === 'international';
+      if (intl) {
+        return kind() === 'one_shot'
+          ? 'Cartão à vista (1x) na dLocal. O checkout pede o país e converte a moeda.'
+          : 'Cartão na dLocal. A cobrança se repete todo mês.';
+      }
+      if (state.method === 'card') {
+        return kind() === 'one_shot'
+          ? 'Cartão à vista (1x). Ao pagar, o plano é atualizado.'
+          : 'Cartão. A cobrança se repete todo mês.';
+      }
+      return kind() === 'one_shot'
+        ? 'PIX à vista (1x). Ao pagar, o plano é atualizado.'
+        : 'PIX à vista. A liberação vale 30 dias; no cartão a renovação é automática.';
+    }
+
+    function syncChrome() {
       const intl = state.region === 'international';
       el(id, 'tabBr')?.classList.toggle('active', !intl);
       el(id, 'tabIntl')?.classList.toggle('active', intl);
+      el(id, 'tabPix')?.classList.toggle('active', state.method === 'pix');
+      el(id, 'tabCard')?.classList.toggle('active', state.method === 'card');
+      const methodField = document.getElementById(`methodField-${id}`);
+      if (methodField) methodField.style.display = intl ? 'none' : '';
       const nameField = document.getElementById(`nameField-${id}`);
       if (nameField) nameField.style.display = 'none';
       const hint = el(id, 'payHint');
-      if (hint) {
-        if (intl) {
-          hint.textContent = kind() === 'one_shot'
-            ? 'PIX ou cartão à vista (1x) na dLocal. O checkout pede o país e converte a moeda.'
-            : 'PIX ou cartão à vista na dLocal. A cobrança se repete todo mês.';
-        } else {
-          hint.textContent = kind() === 'one_shot'
-            ? 'PIX ou cartão à vista (1x). Ao pagar, o plano é atualizado.'
-            : 'PIX ou cartão à vista. A cobrança se repete todo mês.';
-        }
-      }
+      if (hint) hint.textContent = hintText();
       const btn = el(id, 'payBtn');
       if (btn) {
         btn.dataset.region = state.region;
+        btn.dataset.method = intl ? 'card' : state.method;
         btn.disabled = !state.dlocalReady;
-        btn.textContent = payLabel(state.method, kind(), state.region, checkout().amount);
+        btn.textContent = payLabel(intl ? 'card' : state.method, kind(), state.region, checkout().amount);
       }
+    }
+
+    function applyRegion(region) {
+      state.region = region === 'international' ? 'international' : 'br';
+      if (state.region === 'international') state.method = 'card';
+      else if (state.method !== 'pix' && state.method !== 'card') state.method = 'pix';
+      syncChrome();
+    }
+
+    function applyMethod(method) {
+      state.method = method === 'card' ? 'card' : 'pix';
+      if (state.region === 'international') state.method = 'card';
+      syncChrome();
     }
 
     async function readJson(r) {
@@ -118,6 +161,7 @@
     }
 
     async function openDlocalCheckout(c) {
+      const method = state.region === 'international' ? 'card' : state.method;
       const r = await fetch('/api/dlocal-go-pay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -127,6 +171,7 @@
           qty: c.qty,
           kind: c.kind === 'one_shot' ? 'one_shot' : 'subscription',
           region: state.region,
+          method,
           ...(Number(c.amount) > 0 ? { amount: c.amount } : {})
         })
       });
@@ -149,7 +194,10 @@
         showErr('Escolha um plano disponível.');
         return;
       }
-      if (typeof ctx.onSubmit === 'function') ctx.onSubmit({ ...c, region: state.region });
+      const method = state.region === 'international' ? 'card' : state.method;
+      if (typeof ctx.onSubmit === 'function') {
+        ctx.onSubmit({ ...c, region: state.region, method });
+      }
       btn.disabled = true;
       btn.textContent = 'Processando...';
       try {
@@ -158,24 +206,19 @@
       } catch (err) {
         showErr(err.message);
         btn.disabled = false;
-        btn.textContent = payLabel(state.method, kind(), state.region, c.amount);
+        btn.textContent = payLabel(method, kind(), state.region, c.amount);
       }
     }
 
     el(id, 'tabBr')?.addEventListener('click', () => applyRegion('br'));
     el(id, 'tabIntl')?.addEventListener('click', () => applyRegion('international'));
+    el(id, 'tabPix')?.addEventListener('click', () => applyMethod('pix'));
+    el(id, 'tabCard')?.addEventListener('click', () => applyMethod('card'));
     el(id, 'payBtn')?.addEventListener('click', () => submitPay());
 
     const emailInput = el(id, 'email');
     if (emailInput && checkout().email) emailInput.value = checkout().email;
-    const hint = el(id, 'payHint');
-    if (hint) {
-      hint.textContent = kind() === 'one_shot'
-        ? 'PIX ou cartão à vista (1x). Ao pagar, o plano é atualizado.'
-        : 'PIX ou cartão à vista. A cobrança se repete todo mês.';
-    }
-    const btn = el(id, 'payBtn');
-    if (btn) btn.textContent = payLabel(state.method, kind(), state.region, checkout().amount);
+    syncChrome();
 
     loadPayConfig().then((cfg) => {
       state.paddleReady = !!cfg.paddle_ready;
