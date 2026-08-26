@@ -4,12 +4,11 @@
   }
 
   function payLabel(method, kind, region, amount) {
-    if (region === 'international') return 'Pagar com cartão';
     if (kind === 'one_shot') {
       const n = Number(amount);
       return Number.isFinite(n) && n > 0 ? `Pagar ${money(n)}` : 'Pagar agora';
     }
-    return 'Assinar agora';
+    return region === 'international' ? 'Assinar no exterior' : 'Assinar agora';
   }
 
   let _payConfig = null;
@@ -84,26 +83,24 @@
       el(id, 'tabBr')?.classList.toggle('active', !intl);
       el(id, 'tabIntl')?.classList.toggle('active', intl);
       const nameField = document.getElementById(`nameField-${id}`);
-      if (nameField) nameField.style.display = intl ? '' : 'none';
+      if (nameField) nameField.style.display = 'none';
       const hint = el(id, 'payHint');
       if (hint) {
         if (intl) {
-          hint.textContent = state.paddleReady
-            ? 'Pagamento internacional pela Paddle. Sem CPF. Cartão na sua moeda.'
-            : 'Pagamento internacional temporariamente indisponível. Fale com o suporte.';
+          hint.textContent = kind() === 'one_shot'
+            ? 'Você paga o proporcional na dLocal. O checkout pede o país e converte a moeda.'
+            : 'Checkout da dLocal no exterior. Cartão ou método local do país.';
         } else {
           hint.textContent = kind() === 'one_shot'
             ? 'Você paga só o proporcional. Ao pagar, o plano é atualizado.'
-            : (state.dlocalReady
-              ? 'Você será redirecionado ao checkout da dLocal. PIX ou cartão, sem IOF.'
-              : 'Você será redirecionado ao checkout da Guru. A cobrança se repete todo mês.');
+            : 'Checkout da dLocal. PIX ou cartão, sem IOF.';
         }
       }
       const btn = el(id, 'payBtn');
       if (btn) {
         btn.dataset.region = state.region;
-        btn.disabled = intl && !state.paddleReady;
-        if (!btn.disabled || intl) btn.textContent = payLabel(state.method, kind(), state.region, checkout().amount);
+        btn.disabled = !state.dlocalReady;
+        btn.textContent = payLabel(state.method, kind(), state.region, checkout().amount);
       }
     }
 
@@ -129,49 +126,13 @@
           email: c.email,
           qty: c.qty,
           kind: c.kind === 'one_shot' ? 'one_shot' : 'subscription',
+          region: state.region,
           ...(Number(c.amount) > 0 ? { amount: c.amount } : {})
         })
       });
       const data = await readJson(r);
       if (!r.ok || !data.checkout_url) {
         throw new Error(data.error || 'Não foi possível gerar o checkout da dLocal');
-      }
-      location.href = data.checkout_url;
-    }
-
-    async function openGuruCheckout(c) {
-      const r = await fetch('/api/guru-replace-subscription', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          account_id: c.accountId,
-          email: c.email,
-          qty: c.qty,
-          ...(Number(c.amount) > 0 ? { amount: c.amount } : {})
-        })
-      });
-      const data = await readJson(r);
-      if (!r.ok || !data.checkout_url) {
-        throw new Error(data.error || 'Não foi possível gerar o checkout da Guru');
-      }
-      location.href = data.checkout_url;
-    }
-
-    async function openPaddleCheckout(c) {
-      if (!state.paddleReady) throw new Error('Pagamento internacional indisponível. Fale com o suporte.');
-      const r = await fetch('/api/paddle-international-checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          account_id: c.accountId,
-          email: c.email,
-          qty: c.qty,
-          name: (el(id, 'name')?.value || '').trim()
-        })
-      });
-      const data = await r.json();
-      if (!r.ok || !data.checkout_url) {
-        throw new Error(data.error || 'Falha ao abrir o checkout internacional');
       }
       location.href = data.checkout_url;
     }
@@ -192,9 +153,8 @@
       btn.disabled = true;
       btn.textContent = 'Processando...';
       try {
-        if (state.region === 'international') await openPaddleCheckout(c);
-        else if (state.dlocalReady) await openDlocalCheckout(c);
-        else await openGuruCheckout(c);
+        if (!state.dlocalReady) throw new Error('Pagamento dLocal indisponível. Tente de novo em instantes.');
+        await openDlocalCheckout(c);
       } catch (err) {
         showErr(err.message);
         btn.disabled = false;

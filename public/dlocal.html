@@ -105,6 +105,13 @@
         <input id="qty" type="number" min="1" value="1">
       </div>
       <div class="field">
+        <label>Região</label>
+        <select id="region">
+          <option value="br">Brasil</option>
+          <option value="international">Exterior</option>
+        </select>
+      </div>
+      <div class="field">
         <label>Tipo</label>
         <select id="kind">
           <option value="subscription">Renovação / assinatura</option>
@@ -131,6 +138,7 @@
     document.getElementById('email').value = params.get('email') || '';
     document.getElementById('accountId').value = params.get('account_id') || '';
     document.getElementById('qty').value = params.get('qty') || '1';
+    if (params.get('region') === 'international') document.getElementById('region').value = 'international';
     if (params.get('kind') === 'one_shot' || params.get('amount')) kind.value = 'one_shot';
     if (params.get('amount')) document.getElementById('amount').value = params.get('amount');
     amountField.style.display = kind.value === 'one_shot' ? '' : 'none';
@@ -166,7 +174,8 @@
         account_id: document.getElementById('accountId').value.trim(),
         email: document.getElementById('email').value.trim(),
         qty: Number(document.getElementById('qty').value),
-        kind: kind.value
+        kind: kind.value,
+        region: document.getElementById('region').value
       };
       if (kind.value === 'one_shot') body.amount = Number(document.getElementById('amount').value);
       try {

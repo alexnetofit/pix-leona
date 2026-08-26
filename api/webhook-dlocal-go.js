@@ -154,10 +154,10 @@ export default async function handler(req, res) {
   }
 
   const email = pickEmail(payment, payload);
-  const amountCents = pickAmountCents(payment);
   const buyerName = payment.payer?.name || payment.client_first_name || null;
   const orderId = payment.order_id || payment.external_id || null;
   const status = String(payment.status || '').toUpperCase();
+  let amountCents = pickAmountCents(payment);
 
   if (dlocalPaymentFailed(payment)) {
     const reversal = isAffiliateReversal('', status.toLowerCase());
@@ -197,6 +197,7 @@ export default async function handler(req, res) {
 
   let accountId = ref?.accountId || intent?.account_id || null;
   let qty = ref?.qty || intent?.qty || null;
+  if (Number(intent?.amount_cents) > 0) amountCents = Number(intent.amount_cents);
   if (!accountId && email) {
     const found = await findLeonaAccountByEmail(email, leonaToken);
     if (found?.account_id) accountId = String(found.account_id);

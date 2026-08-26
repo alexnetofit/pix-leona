@@ -2,10 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  brlToUsd,
   extractDlocalPaymentId,
+  isIntlRegion,
   isOneShotKind,
   makeDlocalOrderId,
   parseDlocalOrderId,
+  parseUsdToBrlRate,
   planNameForQty
 } from '../lib/dlocal-go.js';
 import { buildAffiliatesPagouPayload } from '../lib/notify-affiliates.js';
@@ -38,6 +41,14 @@ test('classifica kind one_shot', () => {
   assert.equal(isOneShotKind('prorata'), true);
   assert.equal(isOneShotKind('subscription'), false);
   assert.equal(planNameForQty(6), 'leona-starter-6');
+  assert.equal(planNameForQty(6, 'USD'), 'leona-starter-6-usd');
+  assert.equal(isIntlRegion('international'), true);
+  assert.equal(isIntlRegion('br'), false);
+});
+
+test('converte BRL pra USD com o câmbio da dLocal', () => {
+  assert.equal(parseUsdToBrlRate({ from: 'USD', to: 'BRL', rate: 5.61143 }), 5.61143);
+  assert.equal(brlToUsd(127, 5.61143), 22.63);
 });
 
 test('afiliados aceitam prefixo dlocal:', () => {

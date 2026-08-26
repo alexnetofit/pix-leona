@@ -1108,7 +1108,7 @@
                 },
                 onSubmit: (c) => {
                     logAssinatura('click_buy', {
-                        provider: c.region === 'international' ? 'paddle' : 'guru',
+                        provider: 'dlocal',
                         account_id: c.accountId,
                         email: c.email,
                         details: { qty: c.qty, offer: c.offer || null, value: c.amount || null, kind, region: c.region || 'br' }
@@ -1171,8 +1171,8 @@
                 const region = btn.dataset.region || 'br';
                 btn.textContent = window.PagouPay
                     ? PagouPay.payLabel('guru', state.kind || 'subscription', region)
-                    : (region === 'international' ? 'Pagar com cartão' : 'Assinar agora');
-                if (region !== 'international') btn.disabled = !offer;
+                    : (region === 'international' ? 'Assinar no exterior' : 'Assinar agora');
+                btn.disabled = !offer;
             }
         }
 
