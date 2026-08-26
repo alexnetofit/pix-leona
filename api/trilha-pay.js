@@ -18,6 +18,7 @@ import {
   resolveTrilhaRevenue
 } from '../lib/trilha-prizes.js';
 import { saveTrilhaCheckout } from '../lib/trilha-fulfill.js';
+import { formatTrilhaAddress } from '../lib/pontohub.js';
 
 function publicBase(req) {
   const host = String(req?.headers?.['x-forwarded-host'] || req?.headers?.host || '')
@@ -92,7 +93,15 @@ export default async function handler(req, res) {
   const document = parseTrilhaDocument(body.document);
   const phone = parseTrilhaPhone(body.phone);
   const cep = String(body.cep || '').replace(/\D/g, '');
-  const address = String(body.address || '').trim();
+  const shipping = {
+    street: String(body.street || '').trim(),
+    number: String(body.number || '').trim(),
+    complement: String(body.complement || '').trim(),
+    neighborhood: String(body.neighborhood || '').trim(),
+    city: String(body.city || '').trim(),
+    state: String(body.state || '').trim().toUpperCase()
+  };
+  const address = formatTrilhaAddress(shipping) || String(body.address || '').trim();
 
   if (!name) return res.status(400).json({ error: 'Informe o nome completo' });
   if (!checkoutEmail || !checkoutEmail.includes('@')) {
@@ -101,7 +110,9 @@ export default async function handler(req, res) {
   if (!document) return res.status(400).json({ error: 'Informe um CPF válido' });
   if (!phone) return res.status(400).json({ error: 'Informe um WhatsApp válido' });
   if (cep.length !== 8) return res.status(400).json({ error: 'Informe um CEP válido' });
-  if (address.length < 8) return res.status(400).json({ error: 'Informe o endereço completo' });
+  if (!shipping.street || !shipping.number || !shipping.neighborhood || !shipping.city || shipping.state.length !== 2) {
+    return res.status(400).json({ error: 'Informe o endereço completo' });
+  }
 
   const returnUrl = `${publicBase(req)}/trilha?id=${encodeURIComponent(resolvedAccountId)}&email=${encodeURIComponent(profileEmail)}&paid=1`;
   const payload = {
@@ -168,6 +179,7 @@ export default async function handler(req, res) {
       phone: `${phone.area_code}${phone.number}`,
       cep,
       address,
+      pontohub: { shipping: { ...shipping, cep } },
       payment_link_id: created.body.id,
       checkout_url: created.body.url,
       status: 'pending'

@@ -23,19 +23,27 @@ test('pins compartilham productId e mandam productName distinto', () => {
   assert.equal(pin1m.productName, 'Premiação - Pin 1M + Carta');
 });
 
-test('player monta endereço via CEP + texto livre', () => {
+test('player monta endereço pelos campos separados', () => {
   const player = buildPontohubPlayer({
     name: 'Maria',
     email: 'maria@leona.com',
     document: '529.982.247-25',
     phone: '(12) 98888-7777',
-    cep: '12240-460',
-    address: 'Rua das Flores 120, apto 3'
-  }, { logradouro: 'Rua das Flores', bairro: 'Centro', localidade: 'Jacarei', uf: 'SP' });
+    cep: '12306-753',
+    street: 'Rua Antônio Jordão Mercadante',
+    number: '120',
+    complement: 'Apto 3',
+    neighborhood: 'Jardim Altos de Santana II',
+    city: 'Jacareí',
+    state: 'sp'
+  });
   assert.equal(player.document, '52998224725');
   assert.equal(player.phone, '12988887777');
-  assert.equal(player.address.city, 'Jacarei');
+  assert.equal(player.address.street, 'Rua Antônio Jordão Mercadante');
   assert.equal(player.address.number, '120');
+  assert.equal(player.address.complement, 'Apto 3');
+  assert.equal(player.address.city, 'Jacareí');
+  assert.equal(player.address.state, 'SP');
 });
 
 test('extrai pl_ do webhook da Pagar.me', () => {
