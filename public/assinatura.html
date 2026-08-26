@@ -1111,7 +1111,7 @@
                         provider: 'dlocal',
                         account_id: c.accountId,
                         email: c.email,
-                        details: { qty: c.qty, offer: c.offer || null, value: c.amount || null, kind, region: c.region || 'br' }
+                        details: { qty: c.qty, offer: c.offer || null, value: c.amount || null, kind, region: c.region || 'br', method: c.method || null }
                     });
                 },
                 onPaid: () => {
@@ -1169,9 +1169,10 @@
             }
             if (btn) {
                 const region = btn.dataset.region || 'br';
+                const amount = offer?.value;
                 btn.textContent = window.PagouPay
-                    ? PagouPay.payLabel('guru', state.kind || 'subscription', region)
-                    : (region === 'international' ? 'Assinar no exterior' : 'Assinar agora');
+                    ? PagouPay.payLabel(btn.dataset.method || 'pix', state.kind || 'subscription', region, amount)
+                    : (region === 'international' ? 'Assinar no exterior' : 'Pagar no PIX');
                 btn.disabled = !offer;
             }
         }

@@ -18,8 +18,10 @@ import {
   ensureDlocalPlan,
   getDlocalPayment,
   getDlocalUsdToBrlRate,
+  isCardMethod,
   isIntlRegion,
   isOneShotKind,
+  isPixMethod,
   makeDlocalOrderId,
   subscribeUrlWithPayer
 } from '../lib/dlocal-go.js';
@@ -101,11 +103,14 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
 
-  const { account_id, email, qty, amount, offer_name, kind, region } = req.body || {};
+  const { account_id, email, qty, amount, offer_name, kind, region, method } = req.body || {};
   const accountId = account_id != null ? String(account_id).trim() : '';
   const qtyN = Math.max(1, Number(qty) || 0);
   const oneShot = isOneShotKind(kind);
   const intl = isIntlRegion(region);
+  const pix = !intl && isPixMethod(method);
+  const card = isCardMethod(method);
+  const payMethod = pix ? 'pix' : (card ? 'card' : null);
   if (!accountId) return res.status(400).json({ error: 'account_id obrigatório' });
   if (!qtyN) return res.status(400).json({ error: 'qty obrigatória' });
 
@@ -123,6 +128,8 @@ export default async function handler(req, res) {
   }
   const amountCents = customCents || leonaAmountCents(qtyN);
   const amountReais = Number((amountCents / 100).toFixed(2));
+  // PIX na Go só existe em checkout avulso. Assinatura recorrente = só cartão.
+  const hostedCheckout = oneShot || pix;
   const title = makeDlocalOrderId(accountId, qtyN, oneShot ? 'prorata' : 'sub');
   const productName = offer_name
     || (oneShot
@@ -141,7 +148,8 @@ export default async function handler(req, res) {
   const planSuccessUrl = returnUrl;
   const backUrl = `${origin}/assinatura?${returnQs}`;
 
-  if (oneShot) {
+  if (hostedCheckout) {
+    const checkoutKind = oneShot ? 'one_shot' : 'subscription';
     const created = await createDlocalPayment({
       currency: 'BRL',
       amount: amountReais,
@@ -158,16 +166,24 @@ export default async function handler(req, res) {
         email: buyerEmail || undefined,
         user_reference: `leona:${accountId}`
       }
-    });
+    }, payMethod);
     const data = created.body || {};
-    console.log('dlocal-go-pay: one_shot', created.status, data.id, title, amountReais, intl ? 'intl' : 'br');
+    console.log('dlocal-go-pay: hosted', checkoutKind, payMethod || 'any', created.status, data.id, title, amountReais, intl ? 'intl' : 'br');
     if (!created.ok || !data.id || !data.redirect_url) {
       logAssinaturaEvent(req, {
         action: 'dlocal_pay_error',
         provider: 'dlocal',
         email: buyerEmail,
         account_id: accountId,
-        details: { qty: qtyN, kind: 'one_shot', region: intl ? 'international' : 'br', status: created.status, error: created.body, title }
+        details: {
+          qty: qtyN,
+          kind: checkoutKind,
+          method: payMethod,
+          region: intl ? 'international' : 'br',
+          status: created.status,
+          error: created.body,
+          title
+        }
       });
       return res.status(created.status || 502).json({
         error: created.body?.message || created.body?.error || 'dLocal Go não gerou o checkout'
@@ -183,7 +199,13 @@ export default async function handler(req, res) {
       checkout_url: data.redirect_url,
       status: 'pending',
       dlocal_payment_id: data.id,
-      details: { kind: 'one_shot', region: intl ? 'international' : 'br', offer_name: productName, order_id: title }
+      details: {
+        kind: checkoutKind,
+        method: payMethod,
+        region: intl ? 'international' : 'br',
+        offer_name: productName,
+        order_id: title
+      }
     });
     logAssinaturaEvent(req, {
       action: 'dlocal_pay_created',
@@ -193,7 +215,8 @@ export default async function handler(req, res) {
       details: {
         qty: qtyN,
         amount_cents: amountCents,
-        kind: 'one_shot',
+        kind: checkoutKind,
+        method: payMethod,
         region: intl ? 'international' : 'br',
         payment_id: data.id,
         order_id: title
@@ -204,7 +227,8 @@ export default async function handler(req, res) {
       success: true,
       id: data.id,
       status: data.status || 'PENDING',
-      kind: 'one_shot',
+      kind: checkoutKind,
+      method: payMethod || (pix ? 'pix' : null),
       checkout_url: data.redirect_url,
       qty: qtyN,
       amount_cents: amountCents,
