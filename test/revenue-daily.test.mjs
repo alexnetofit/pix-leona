@@ -53,27 +53,32 @@ test('summarizeRange soma plataformas e converte centavos em reais', () => {
       net_cents: 2_288,
       sales_count: 1,
       transactions_scanned: 12_700
-    })
+    }),
+    row('2026-08-01', 'dlocal', { gross_cents: 12_700, net_cents: 12_251, sales_count: 1 })
   ];
 
   const summary = summarizeRange('2026-08-01', '2026-08-02', rows, {
     guru: { count: 40, recurring: null, prepaid: null },
     paddle: { count: 12, recurring: 9, prepaid: 3 },
-    pagou: { count: 2, recurring: 0, prepaid: 2 }
+    pagou: { count: 2, recurring: 0, prepaid: 2 },
+    dlocal: { count: 3, recurring: 2, prepaid: 1 }
   });
 
-  assert.deepEqual(summary.approved, { gross: 768, net: 700.65, count: 5 });
+  assert.deepEqual(summary.approved, { gross: 895, net: 823.16, count: 6 });
   assert.deepEqual(summary.refunded, { gross: 197, net: 180, count: 1 });
   assert.deepEqual(summary.daily, [
-    { day: '2026-08-01', gross: 374 },
+    { day: '2026-08-01', gross: 501 },
     { day: '2026-08-02', gross: 394 }
   ]);
   assert.deepEqual(summary.platforms.guru.approved, { gross: 591, net: 540, count: 3 });
   assert.deepEqual(summary.platforms.paddle.approved, { gross: 50, net: 42, count: 1 });
-  assert.equal(summary.active_subscribers.count, 54);
+  assert.equal(summary.active_subscribers.count, 57);
   assert.equal(summary.platforms.paddle.active_subscribers.recurring, 9);
   assert.equal(summary.platforms.pagou.currency, 'BRL');
   assert.deepEqual(summary.platforms.pagou.approved, { gross: 127, net: 118.65, count: 1, brl: 127 });
+  assert.deepEqual(summary.platforms.dlocal.approved, { gross: 127, net: 122.51, count: 1 });
+  assert.equal(summary.platforms.dlocal.active_subscribers.recurring, 2);
+  assert.equal(summary.platforms.dlocal.active_subscribers.prepaid, 1);
   assert.equal(summary.days_missing, 0);
 });
 
@@ -103,16 +108,19 @@ test('findDaysToSync cobre dia sem registro, plataforma faltando e dia recente v
     row('2026-08-01', 'guru'),
     row('2026-08-01', 'paddle'),
     row('2026-08-01', 'pagou'),
+    row('2026-08-01', 'dlocal'),
     // Dia antigo com uma plataforma faltando.
     row('2026-08-02', 'guru'),
     // Ontem, sincronizado há muito tempo.
     row('2026-08-03', 'guru', { synced_at: old }),
     row('2026-08-03', 'paddle', { synced_at: old }),
     row('2026-08-03', 'pagou', { synced_at: old }),
+    row('2026-08-03', 'dlocal', { synced_at: old }),
     // Hoje, recém sincronizado.
     row(today, 'guru', { synced_at: fresh }),
     row(today, 'paddle', { synced_at: fresh }),
-    row(today, 'pagou', { synced_at: fresh })
+    row(today, 'pagou', { synced_at: fresh }),
+    row(today, 'dlocal', { synced_at: fresh })
   ];
 
   assert.deepEqual(
@@ -127,7 +135,8 @@ test('findDaysToSync considera hoje vencido quando o snapshot envelhece', () => 
   const rows = [
     row(today, 'guru', { synced_at: stale }),
     row(today, 'paddle', { synced_at: stale }),
-    row(today, 'pagou', { synced_at: stale })
+    row(today, 'pagou', { synced_at: stale }),
+    row(today, 'dlocal', { synced_at: stale })
   ];
 
   assert.deepEqual(findDaysToSync([today], rows, { today }), [today]);
@@ -152,4 +161,5 @@ test('findSyncPlan nao manda Guru de volta so porque falta Pagou', () => {
   assert.deepEqual(plan.guru, []);
   assert.deepEqual(plan.paddle, []);
   assert.deepEqual(plan.pagou, days);
+  assert.deepEqual(plan.dlocal, days);
 });

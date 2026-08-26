@@ -435,6 +435,7 @@
         }
         .share-dot.paddle { background: var(--blue); }
         .share-dot.pagou { background: var(--green); }
+        .share-dot.dlocal { background: var(--amber); }
         .share-bar {
             display: flex;
             gap: 3px;
@@ -447,11 +448,12 @@
         .share-seg.guru { background: linear-gradient(90deg, var(--brand-soft), var(--brand)); }
         .share-seg.paddle { background: linear-gradient(90deg, #7cc0ff, var(--blue)); }
         .share-seg.pagou { background: linear-gradient(90deg, #64e8bb, var(--green)); }
+        .share-seg.dlocal { background: linear-gradient(90deg, #ffd27a, var(--amber)); }
 
         /* ---------- platforms ---------- */
         .platform-grid {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 14px;
         }
         .platform-card {
@@ -475,6 +477,7 @@
         .guru-platform { --tint: rgba(139, 124, 255, 0.16); --key: var(--brand); }
         .paddle-platform { --tint: rgba(90, 169, 255, 0.14); --key: var(--blue); }
         .pagou-platform { --tint: rgba(52, 216, 160, 0.14); --key: var(--green); }
+        .dlocal-platform { --tint: rgba(255, 184, 77, 0.16); --key: var(--amber); }
 
         .platform-card h3 {
             position: relative;
@@ -876,7 +879,7 @@
                 <div class="mini-card orange">
                     <div class="mini-head"><span class="mini-label">Assinantes ativos</span><span class="mini-icon">●</span></div>
                     <div class="mini-value" id="activeSubsValue">—</div>
-                    <div class="mini-foot"><span class="mini-sub">Guru + Paddle + Pagou</span></div>
+                    <div class="mini-foot"><span class="mini-sub">Guru + Paddle + Pagou + dLocal</span></div>
                 </div>
                 <div class="mini-card">
                     <div class="mini-head"><span class="mini-label">Vendas</span><span class="mini-icon">↗</span></div>
@@ -902,11 +905,13 @@
                     <span><span class="share-dot"></span>Guru <b id="shareGuruPct">—</b> · <span id="shareGuruVal"></span></span>
                     <span><span class="share-dot paddle"></span>Paddle <b id="sharePaddlePct">—</b> · <span id="sharePaddleVal"></span></span>
                     <span><span class="share-dot pagou"></span>Pagou <b id="sharePagouPct">—</b> · <span id="sharePagouVal"></span></span>
+                    <span><span class="share-dot dlocal"></span>dLocal <b id="shareDlocalPct">—</b> · <span id="shareDlocalVal"></span></span>
                 </div>
                 <div class="share-bar">
-                    <div class="share-seg guru" id="shareGuruSeg" style="width: 40%"></div>
-                    <div class="share-seg paddle" id="sharePaddleSeg" style="width: 40%"></div>
-                    <div class="share-seg pagou" id="sharePagouSeg" style="width: 20%"></div>
+                    <div class="share-seg guru" id="shareGuruSeg" style="width: 25%"></div>
+                    <div class="share-seg paddle" id="sharePaddleSeg" style="width: 25%"></div>
+                    <div class="share-seg pagou" id="sharePagouSeg" style="width: 25%"></div>
+                    <div class="share-seg dlocal" id="shareDlocalSeg" style="width: 25%"></div>
                 </div>
             </div>
             <div class="platform-grid">
@@ -974,6 +979,28 @@
                         </div>
                     </div>
                     <div class="platform-note" id="pagouNote">—</div>
+                </div>
+
+                <div class="platform-card dlocal-platform">
+                    <h3>
+                        <span class="platform-title"><span class="platform-logo">D</span> dLocal Go</span>
+                        <span class="platform-badge">PIX + cartão</span>
+                    </h3>
+                    <div class="platform-metrics">
+                        <div class="platform-metric">
+                            <div class="label">Bruto</div>
+                            <div class="value" id="dlocalGross">—</div>
+                        </div>
+                        <div class="platform-metric">
+                            <div class="label">Líquido</div>
+                            <div class="value" id="dlocalNet">—</div>
+                        </div>
+                        <div class="platform-metric">
+                            <div class="label">Assinantes</div>
+                            <div class="value" id="dlocalSubscribers">—</div>
+                        </div>
+                    </div>
+                    <div class="platform-note" id="dlocalNote">—</div>
                 </div>
             </div>
 
@@ -1474,11 +1501,14 @@
             const guru = body.platforms?.guru || {};
             const paddle = body.platforms?.paddle || {};
             const pagou = body.platforms?.pagou || {};
+            const dlocal = body.platforms?.dlocal || {};
             const guruApproved = guru.approved || {};
             const paddleApproved = paddle.approved || {};
             const pagouApproved = pagou.approved || {};
+            const dlocalApproved = dlocal.approved || {};
             const paddleSubscribers = paddle.active_subscribers || {};
             const pagouSubscribers = pagou.active_subscribers || {};
+            const dlocalSubscribers = dlocal.active_subscribers || {};
             const rangeKey = `${body.range.start}:${body.range.end}`;
             const rangeChanged = lastRendered?.key !== rangeKey;
             lastRendered = { key: rangeKey, body };
@@ -1504,20 +1534,25 @@
             const guruGrossV = Number(guruApproved.gross) || 0;
             const paddleGrossV = Number(paddleApproved.gross) || 0;
             const pagouGrossBrl = Number(pagouApproved.brl || pagouApproved.gross) || 0;
-            const totalGross = guruGrossV + paddleGrossV + pagouGrossBrl;
-            const guruPct = totalGross > 0 ? (guruGrossV / totalGross * 100) : 40;
-            const paddlePct = totalGross > 0 ? (paddleGrossV / totalGross * 100) : 40;
-            const pagouPct = totalGross > 0 ? (pagouGrossBrl / totalGross * 100) : 20;
+            const dlocalGrossV = Number(dlocalApproved.gross) || 0;
+            const totalGross = guruGrossV + paddleGrossV + pagouGrossBrl + dlocalGrossV;
+            const guruPct = totalGross > 0 ? (guruGrossV / totalGross * 100) : 25;
+            const paddlePct = totalGross > 0 ? (paddleGrossV / totalGross * 100) : 25;
+            const pagouPct = totalGross > 0 ? (pagouGrossBrl / totalGross * 100) : 25;
+            const dlocalPct = totalGross > 0 ? (dlocalGrossV / totalGross * 100) : 25;
             const fmtPct = p => p > 0 && p < 1 ? '<1%' : p > 99 && p < 100 ? '>99%' : `${Math.round(p)}%`;
             document.getElementById('shareGuruSeg').style.width = `${guruPct.toFixed(2)}%`;
             document.getElementById('sharePaddleSeg').style.width = `${paddlePct.toFixed(2)}%`;
             document.getElementById('sharePagouSeg').style.width = `${pagouPct.toFixed(2)}%`;
+            document.getElementById('shareDlocalSeg').style.width = `${dlocalPct.toFixed(2)}%`;
             document.getElementById('shareGuruPct').textContent = fmtPct(guruPct);
             document.getElementById('sharePaddlePct').textContent = fmtPct(paddlePct);
             document.getElementById('sharePagouPct').textContent = fmtPct(pagouPct);
+            document.getElementById('shareDlocalPct').textContent = fmtPct(dlocalPct);
             document.getElementById('shareGuruVal').textContent = formatBRL(guruGrossV);
             document.getElementById('sharePaddleVal').textContent = formatBRL(paddleGrossV);
             document.getElementById('sharePagouVal').textContent = formatBRL(pagouGrossBrl);
+            document.getElementById('shareDlocalVal').textContent = formatBRL(dlocalGrossV);
 
             renderSparkline(body.daily);
 
@@ -1542,6 +1577,14 @@
                 String(pagouSubscribers.count ?? '—');
             document.getElementById('pagouNote').textContent =
                 `${pagouApproved.count || 0} venda(s) · ${pagouSubscribers.count || 0} pagante(s) em 32 dias`;
+
+            document.getElementById('dlocalGross').textContent = formatBRL(dlocalApproved.gross);
+            document.getElementById('dlocalNet').textContent = formatBRL(dlocalApproved.net);
+            document.getElementById('dlocalSubscribers').textContent =
+                String(dlocalSubscribers.count ?? '—');
+            document.getElementById('dlocalNote').textContent =
+                `${dlocalApproved.count || 0} venda(s) · ${dlocalSubscribers.recurring || 0} assinatura(s) · ` +
+                `${dlocalSubscribers.prepaid || 0} avulso(s) em ${dlocalSubscribers.prepaid_window_days || 30} dias`;
 
             document.getElementById('approvedCount').textContent = String(a.count || 0);
             document.getElementById('refundedCount').textContent = String(ref.count || 0);

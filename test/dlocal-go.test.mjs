@@ -13,6 +13,7 @@ import {
   parseUsdToBrlRate,
   planDescriptionForQty,
   planNameForQty,
+  isDlocalLeonaPlanName,
   qtyFromDlocalPlanName
 } from '../lib/dlocal-go.js';
 import { buildAffiliatesPagouPayload } from '../lib/notify-affiliates.js';
@@ -40,6 +41,9 @@ test('qty do plano de assinatura da Go', () => {
   assert.equal(qtyFromDlocalPlanName('leona-starter-1'), 1);
   assert.equal(qtyFromDlocalPlanName('leona-starter-5-usd'), 5);
   assert.equal(qtyFromDlocalPlanName('ST-abc-0'), null);
+  assert.equal(isDlocalLeonaPlanName('leona-starter-1'), true);
+  assert.equal(isDlocalLeonaPlanName('leona-starter-5-usd'), true);
+  assert.equal(isDlocalLeonaPlanName('leona-off'), false);
 });
 
 test('sucesso do checkout volta pro app da Leona', () => {
