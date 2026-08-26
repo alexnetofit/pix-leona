@@ -9,6 +9,7 @@ import {
   makeDlocalOrderId,
   parseDlocalOrderId,
   parseUsdToBrlRate,
+  planDescriptionForQty,
   planNameForQty
 } from '../lib/dlocal-go.js';
 import { buildAffiliatesPagouPayload } from '../lib/notify-affiliates.js';
@@ -43,6 +44,8 @@ test('classifica kind one_shot', () => {
   assert.equal(isOneShotKind('subscription'), false);
   assert.equal(planNameForQty(6), 'leona-starter-6');
   assert.equal(planNameForQty(6, 'USD'), 'leona-starter-6-usd');
+  assert.equal(planDescriptionForQty(1), 'Leona Flow — 1 conexao / mes');
+  assert.equal(planDescriptionForQty(3), 'Leona Flow — 3 conexoes / mes');
   assert.equal(isIntlRegion('international'), true);
   assert.equal(isIntlRegion('br'), false);
 });
