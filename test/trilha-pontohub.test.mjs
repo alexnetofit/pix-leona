@@ -2,8 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildPontohubFulfillmentLines } from '../lib/trilha-pontohub.js';
 import { buildPontohubPlayer } from '../lib/pontohub.js';
-import { extractPagarmePaymentLinkId, pagarmeWebhookLooksPaid } from '../lib/pagarme.js';
-import { paymentLinkLooksPaid } from '../lib/trilha-fulfill.js';
+import {
+  extractPagarmePaymentLinkId,
+  extractPagarmePayer,
+  pagarmePayerHasAddress,
+  pagarmeWebhookLooksPaid
+} from '../lib/pagarme.js';
+import { mergeTrilhaPayer, paymentLinkLooksPaid } from '../lib/trilha-fulfill.js';
 
 test('placa 100k usa só productId e productName, sem linkId', () => {
   const lines = buildPontohubFulfillmentLines({ prizeId: '100k', extraQty: 1, bumps: { jaqueta: 1, garrafa: 2 } });
@@ -54,4 +59,37 @@ test('extrai pl_ do webhook da Pagar.me', () => {
   assert.equal(pagarmeWebhookLooksPaid({ type: 'order.created' }), false);
   assert.equal(paymentLinkLooksPaid({ total_paid_sessions: 1 }), true);
   assert.equal(paymentLinkLooksPaid({ status: 'active', total_paid_sessions: 0 }), false);
+});
+
+test('extrai cliente e endereço do order.paid da Pagar.me', () => {
+  const payer = extractPagarmePayer({
+    type: 'order.paid',
+    data: {
+      id: 'or_abc',
+      customer: {
+        name: 'Alex Alvarez Neto',
+        email: 'gabrielgouvea59@gmail.com',
+        document: '14472663740',
+        phones: { mobile_phone: { country_code: '55', area_code: '12', number: '991426510' } },
+        address: {
+          zip_code: '12306753',
+          city: 'Jacareí',
+          state: 'SP',
+          line_1: '103, Rua Antônio Jordão Mercadante, Jardim Altos de Santana II'
+        }
+      }
+    }
+  });
+  assert.equal(payer.document, '14472663740');
+  assert.equal(payer.phone, '12991426510');
+  assert.equal(payer.cep, '12306753');
+  assert.equal(payer.shipping.street, 'Rua Antônio Jordão Mercadante');
+  assert.equal(payer.shipping.number, '103');
+  assert.equal(payer.shipping.neighborhood, 'Jardim Altos de Santana II');
+  assert.equal(pagarmePayerHasAddress(payer), true);
+
+  const merged = mergeTrilhaPayer({ name: 'Conta Demo', email: 'teste123@gmail.com' }, payer);
+  assert.equal(merged.cep, '12306753');
+  assert.equal(merged.pontohub.shipping.city, 'Jacareí');
+  assert.equal(pagarmePayerHasAddress(merged), true);
 });

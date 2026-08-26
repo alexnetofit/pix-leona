@@ -6,30 +6,13 @@ import { logAssinaturaEvent } from '../lib/assinatura-log.js';
 import { createPagarmePaymentLink, pagarmeConfigured } from '../lib/pagarme.js';
 import { resolveTrilhaAccess } from '../lib/trilha-access.js';
 import { resolveTrilhaRedeemEligibility } from '../lib/trilha-eligibility.js';
-import {
-  buildTrilhaOrder,
-  parseTrilhaDocument,
-  parseTrilhaPhone,
-  paymentLinkItems
-} from '../lib/trilha-order.js';
+import { buildTrilhaOrder, paymentLinkItems } from '../lib/trilha-order.js';
 import { getLeonaLifetimeRevenue } from '../lib/leona.js';
 import {
   pickBrlLifetimeRevenue,
   resolveTrilhaRevenue
 } from '../lib/trilha-prizes.js';
 import { saveTrilhaCheckout } from '../lib/trilha-fulfill.js';
-import { formatTrilhaAddress } from '../lib/pontohub.js';
-
-function publicBase(req) {
-  const host = String(req?.headers?.['x-forwarded-host'] || req?.headers?.host || '')
-    .split(',')[0]
-    .trim();
-  const proto = String(req?.headers?.['x-forwarded-proto'] || 'https').split(',')[0].trim();
-  if (host) return `${proto}://${host}`.replace(/\/+$/, '');
-  return (process.env.PADDLE_BILLING_BASE_URL || 'https://client.leonaflow.com')
-    .replace(/\/+$/, '')
-    .replace(/\/paddle$/i, '');
-}
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -46,9 +29,6 @@ export default async function handler(req, res) {
   const accountId = String(body.account_id || body.id || '').trim();
   const email = String(body.email || '').trim();
   const prizeId = String(body.prize_id || '').trim();
-  const method = String(body.payment_method || 'pix').toLowerCase() === 'credit_card'
-    ? 'credit_card'
-    : 'pix';
 
   const access = await resolveTrilhaAccess({ accountId, email, leonaToken });
   if (!access.ok) return res.status(access.status).json(access.body);
@@ -88,33 +68,16 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'Resgate ainda não liberado (3 meses pagos)' });
   }
 
-  const name = String(body.name || access.profile.user?.name || '').trim();
-  const checkoutEmail = String(body.checkout_email || profileEmail).trim().toLowerCase();
-  const document = parseTrilhaDocument(body.document);
-  const phone = parseTrilhaPhone(body.phone);
-  const cep = String(body.cep || '').replace(/\D/g, '');
-  const shipping = {
-    street: String(body.street || '').trim(),
-    number: String(body.number || '').trim(),
-    complement: String(body.complement || '').trim(),
-    neighborhood: String(body.neighborhood || '').trim(),
-    city: String(body.city || '').trim(),
-    state: String(body.state || '').trim().toUpperCase()
-  };
-  const address = formatTrilhaAddress(shipping) || String(body.address || '').trim();
-
-  if (!name) return res.status(400).json({ error: 'Informe o nome completo' });
+  const name = String(access.profile.user?.name || '').trim();
+  const checkoutEmail = String(profileEmail || '').trim().toLowerCase();
   if (!checkoutEmail || !checkoutEmail.includes('@')) {
-    return res.status(400).json({ error: 'Informe um e-mail válido' });
-  }
-  if (!document) return res.status(400).json({ error: 'Informe um CPF válido' });
-  if (!phone) return res.status(400).json({ error: 'Informe um WhatsApp válido' });
-  if (cep.length !== 8) return res.status(400).json({ error: 'Informe um CEP válido' });
-  if (!shipping.street || !shipping.number || !shipping.neighborhood || !shipping.city || shipping.state.length !== 2) {
-    return res.status(400).json({ error: 'Informe o endereço completo' });
+    return res.status(400).json({ error: 'E-mail da conta Leona inválido' });
   }
 
-  const returnUrl = `${publicBase(req)}/trilha?id=${encodeURIComponent(resolvedAccountId)}&email=${encodeURIComponent(profileEmail)}&paid=1`;
+  const customer = {
+    name: (name || 'Cliente Leona').slice(0, 64),
+    email: checkoutEmail
+  };
   const payload = {
     type: 'order',
     name: `Trilha ${order.prize.id} #${resolvedAccountId}`.slice(0, 64),
@@ -133,21 +96,10 @@ export default async function handler(req, res) {
         }
       }
     },
-    customer_settings: {
-      customer: {
-        name,
-        email: checkoutEmail,
-        document: document.document,
-        type: document.type,
-        phones: { mobile_phone: phone }
-      }
-    },
+    customer_settings: { customer },
     cart_settings: {
-      items: paymentLinkItems(order.items.map((item, index) => (
-        index === 0
-          ? { ...item, description: `${item.description} · Envio ${cep} ${address}`.slice(0, 256) }
-          : item
-      )))
+      shipping_cost: 0,
+      items: paymentLinkItems(order.items)
     }
   };
 
@@ -174,12 +126,7 @@ export default async function handler(req, res) {
       extra_qty: order.extras,
       bumps: order.bumps,
       amount_cents: order.totalCents,
-      name,
-      document: document.document,
-      phone: `${phone.area_code}${phone.number}`,
-      cep,
-      address,
-      pontohub: { shipping: { ...shipping, cep } },
+      name: customer.name,
       payment_link_id: created.body.id,
       checkout_url: created.body.url,
       status: 'pending'
@@ -198,10 +145,7 @@ export default async function handler(req, res) {
       total_cents: order.totalCents,
       extras: order.extras,
       bumps: order.bumps,
-      payment_link_id: created.body.id,
-      cep,
-      address: address.slice(0, 240),
-      method
+      payment_link_id: created.body.id
     }
   });
 

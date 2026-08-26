@@ -20,9 +20,9 @@ export default async function handler(req, res) {
 
   let result;
   if (paymentLinkId) {
-    result = await fulfillPaidPaymentLink(paymentLinkId, { source: 'webhook' });
+    result = await fulfillPaidPaymentLink(paymentLinkId, { source: 'webhook', payload });
   } else if (pagarmeWebhookLooksPaid(payload)) {
-    result = await reconcilePendingTrilhaCheckouts({ max: 20 });
+    result = await reconcilePendingTrilhaCheckouts({ max: 20, payload });
   } else {
     return res.status(200).json({ received: true, processed: false, ignored: payload.type || null });
   }

@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Trilha de Premiação — Leona</title>
-  <link rel="icon" type="image/png" href="/logo-leona.png">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta name="description" content="Acompanhe seu faturamento e resgate premiações exclusivas Leona.">
   <style>
     :root {
@@ -720,6 +721,10 @@
       text-align: center;
     }
 
+    .page-bumps {
+      margin: 8px 0 28px;
+    }
+
     .order-bumps {
       margin-bottom: 18px;
     }
@@ -938,91 +943,13 @@
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="checkoutTitle">
       <div class="modal-head">
         <div>
-          <div class="eyebrow">Checkout</div>
-          <h2 id="checkoutTitle">Resgatar prêmio</h2>
+          <div class="eyebrow">Pagamento</div>
+          <h2 id="checkoutTitle">Abrindo checkout…</h2>
         </div>
         <button class="close-btn" type="button" id="closeCheckout" aria-label="Fechar">×</button>
       </div>
-
-      <div class="checkout-summary" id="checkoutSummary"></div>
-
-      <div class="order-bumps" id="orderBumps"></div>
-
-      <form class="form-grid" id="checkoutForm">
-        <label>Nome completo
-          <input name="name" required autocomplete="name">
-        </label>
-        <label>E-mail
-          <input name="email" type="email" required autocomplete="email">
-        </label>
-        <label>CPF
-          <input name="document" required inputmode="numeric" placeholder="000.000.000-00">
-        </label>
-        <label>Telefone / WhatsApp
-          <input name="phone" required autocomplete="tel" placeholder="(00) 00000-0000">
-        </label>
-        <label>CEP
-          <input name="cep" required inputmode="numeric" maxlength="9" placeholder="00000-000" autocomplete="postal-code">
-        </label>
-        <div class="addr-row">
-          <label class="span-2">Endereço
-            <input name="street" required placeholder="Rua / avenida" autocomplete="address-line1">
-          </label>
-          <label>Número
-            <input name="number" required placeholder="123" autocomplete="address-line2">
-          </label>
-          <label>Complemento
-            <input name="complement" placeholder="Apto, bloco…" >
-          </label>
-          <label class="span-2">Bairro
-            <input name="neighborhood" required placeholder="Bairro">
-          </label>
-          <label>Cidade
-            <input name="city" required placeholder="Cidade" autocomplete="address-level2">
-          </label>
-          <label>Estado
-            <select name="state" required autocomplete="address-level1">
-              <option value="">UF</option>
-              <option value="AC">Acre</option>
-              <option value="AL">Alagoas</option>
-              <option value="AP">Amapá</option>
-              <option value="AM">Amazonas</option>
-              <option value="BA">Bahia</option>
-              <option value="CE">Ceará</option>
-              <option value="DF">Distrito Federal</option>
-              <option value="ES">Espírito Santo</option>
-              <option value="GO">Goiás</option>
-              <option value="MA">Maranhão</option>
-              <option value="MT">Mato Grosso</option>
-              <option value="MS">Mato Grosso do Sul</option>
-              <option value="MG">Minas Gerais</option>
-              <option value="PA">Pará</option>
-              <option value="PB">Paraíba</option>
-              <option value="PR">Paraná</option>
-              <option value="PE">Pernambuco</option>
-              <option value="PI">Piauí</option>
-              <option value="RJ">Rio de Janeiro</option>
-              <option value="RN">Rio Grande do Norte</option>
-              <option value="RS">Rio Grande do Sul</option>
-              <option value="RO">Rondônia</option>
-              <option value="RR">Roraima</option>
-              <option value="SC">Santa Catarina</option>
-              <option value="SP">São Paulo</option>
-              <option value="SE">Sergipe</option>
-              <option value="TO">Tocantins</option>
-            </select>
-          </label>
-        </div>
-
-        <div class="pay-methods">
-          <button type="button" class="pay-method active" data-pay="pix">PIX</button>
-          <button type="button" class="pay-method" data-pay="credit_card">Cartão</button>
-        </div>
-
-        <p class="form-error" id="checkoutError" hidden></p>
-        <button class="btn btn-primary" type="submit" id="checkoutSubmit">Finalizar Pedido</button>
-        <p class="note">Pagamento seguro. PIX ou cartão — o endereço entra só pra envio da placa/prêmio.</p>
-      </form>
+      <p class="note" id="checkoutStatus">A Pagar.me pede seus dados e o endereço de envio.</p>
+      <p class="form-error" id="checkoutError" hidden></p>
     </div>
   </div>
 
@@ -1033,17 +960,14 @@
     const app = document.getElementById('app');
     const accountPill = document.getElementById('accountPill');
     const overlay = document.getElementById('checkoutOverlay');
-    const checkoutForm = document.getElementById('checkoutForm');
-    const checkoutSummary = document.getElementById('checkoutSummary');
     const checkoutTitle = document.getElementById('checkoutTitle');
-    const orderBumpsEl = document.getElementById('orderBumps');
+    const checkoutError = document.getElementById('checkoutError');
     let currentData = null;
-    let selectedPrize = null;
     const extraQtyByPrize = {};
     let bumpQtyById = {};
+    let checkoutBusy = false;
 
     const paidOk = params.get('paid') === '1';
-    let selectedPay = 'pix';
     function orderBumps() {
       return currentData?.order_bumps || [];
     }
@@ -1125,6 +1049,7 @@
           <div class="stat"><strong>${esc(data.plan || '—')}</strong><span>Plano Leona</span></div>
         </div>
 
+        ${renderPageBumps()}
         <h2 class="section-title">Premiações</h2>
         <div class="prizes">
           ${data.prizes.map((prize, i) => renderPrize(prize, i, data.prizes)).join('')}
@@ -1132,13 +1057,21 @@
       `;
 
       document.querySelectorAll('[data-resgate]').forEach((btn) => {
-        btn.addEventListener('click', () => openCheckout(btn.dataset.resgate));
+        btn.addEventListener('click', () => startCheckout(btn.dataset.resgate));
       });
       document.querySelectorAll('[data-qty]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const id = btn.dataset.prize;
           const delta = Number(btn.dataset.qty);
           extraQtyByPrize[id] = Math.max(0, (extraQtyByPrize[id] || 0) + delta);
+          render(currentData);
+        });
+      });
+      document.querySelectorAll('[data-bump]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.bump;
+          const delta = Number(btn.dataset.delta);
+          bumpQtyById[id] = Math.max(0, bumpQty(id) + delta);
           render(currentData);
         });
       });
@@ -1217,122 +1150,37 @@
       return bumpQtyById[id] || 0;
     }
 
-    function renderOrderBumps() {
-      if (!selectedPrize) return;
-      const qty = extraQty(selectedPrize.id);
-      const extraLabel = formatBrl((selectedPrize.extraUnitCents || 0) / 100);
-      orderBumpsEl.innerHTML = `
-        <div class="order-bumps-title">Adicionar ao pedido</div>
-        <div class="bump-item">
-          <img src="${esc(selectedPrize.image || '')}" alt="${esc(selectedPrize.title)}" loading="lazy">
-          <div class="bump-copy">
-            <strong>Unidades extras</strong>
-            <span>Mesmo item · ${esc(extraLabel)} cada${extraPriceHintHtml('start')}</span>
-          </div>
-          <div class="qty-stepper">
-            <button type="button" id="checkoutExtraMinus" ${qty <= 0 ? 'disabled' : ''}>−</button>
-            <span>${qty}</span>
-            <button type="button" id="checkoutExtraPlus">+</button>
-          </div>
-        </div>
-        ${orderBumps().map((bump) => {
-          const q = bumpQty(bump.id);
-          return `
-            <div class="bump-item ${q > 0 ? 'active' : ''}">
-              <img src="${esc(bump.image)}" alt="${esc(bump.title)}" loading="lazy">
-              <div class="bump-copy">
-                <strong>${esc(bump.title)}</strong>
-                <span>${esc(bump.subtitle)} · ${esc(formatBrl(bump.priceCents / 100))} cada</span>
+    function renderPageBumps() {
+      const bumps = orderBumps();
+      if (!bumps.length) return '';
+      return `
+        <section class="order-bumps page-bumps">
+          <div class="order-bumps-title">Leve também</div>
+          ${bumps.map((bump) => {
+            const q = bumpQty(bump.id);
+            return `
+              <div class="bump-item ${q > 0 ? 'active' : ''}">
+                <img src="${esc(bump.image)}" alt="${esc(bump.title)}" loading="lazy">
+                <div class="bump-copy">
+                  <strong>${esc(bump.title)}</strong>
+                  <span>${esc(bump.subtitle)} · ${esc(formatBrl(bump.priceCents / 100))} cada</span>
+                </div>
+                <div class="qty-stepper">
+                  <button type="button" data-bump="${esc(bump.id)}" data-delta="-1" ${q <= 0 ? 'disabled' : ''}>−</button>
+                  <span>${q}</span>
+                  <button type="button" data-bump="${esc(bump.id)}" data-delta="1">+</button>
+                </div>
               </div>
-              <div class="qty-stepper">
-                <button type="button" data-bump="${esc(bump.id)}" data-delta="-1" ${q <= 0 ? 'disabled' : ''}>−</button>
-                <span>${q}</span>
-                <button type="button" data-bump="${esc(bump.id)}" data-delta="1">+</button>
-              </div>
-            </div>
-          `;
-        }).join('')}
+            `;
+          }).join('')}
+        </section>
       `;
-
-      const syncExtra = (delta) => {
-        extraQtyByPrize[selectedPrize.id] = Math.max(0, extraQty(selectedPrize.id) + delta);
-        renderOrderBumps();
-        updateCheckoutSummary();
-      };
-      document.getElementById('checkoutExtraMinus')?.addEventListener('click', () => syncExtra(-1));
-      document.getElementById('checkoutExtraPlus')?.addEventListener('click', () => syncExtra(1));
-
-      orderBumpsEl.querySelectorAll('[data-bump]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const id = btn.dataset.bump;
-          const delta = Number(btn.dataset.delta);
-          bumpQtyById[id] = Math.max(0, bumpQty(id) + delta);
-          renderOrderBumps();
-          updateCheckoutSummary();
-        });
-      });
-    }
-
-    function extraUnitsCents(prize) {
-      return extraQty(prize.id) * (prize.extraUnitCents || 0);
-    }
-
-    function calcCheckoutTotalCents() {
-      if (!selectedPrize) return 0;
-      let total = selectedPrize.priceCents || 0;
-      total += extraUnitsCents(selectedPrize);
-      for (const bump of orderBumps()) {
-        total += bumpQty(bump.id) * bump.priceCents;
-      }
-      return total;
-    }
-
-    function updateCheckoutSummary() {
-      if (!selectedPrize) return;
-      const extras = extraQty(selectedPrize.id);
-
-      const extraRow = extras > 0
-        ? `<div class="row bump"><span>${esc(selectedPrize.title)} × ${extras}</span><span>+ ${esc(formatBrl(extraUnitsCents(selectedPrize) / 100))}</span></div>`
-        : '';
-
-      const bumpRows = orderBumps()
-        .filter((b) => bumpQty(b.id) > 0)
-        .map((b) => `<div class="row bump"><span>${esc(b.title)} × ${bumpQty(b.id)}</span><span>+ ${esc(formatBrl((bumpQty(b.id) * b.priceCents) / 100))}</span></div>`)
-        .join('');
-
-      checkoutSummary.innerHTML = `
-        <div class="row"><span>Prêmio</span><strong>${esc(selectedPrize.title)}</strong></div>
-        <div class="row"><span>Marco</span><span>${esc(selectedPrize.label)}</span></div>
-        <div class="row"><span>Valor</span><span>${esc(selectedPrize.prizeFree ? 'GRÁTIS' : selectedPrize.priceFormatted)}</span></div>
-        <div class="row"><span>Frete</span><span>${esc(selectedPrize.prizeFree ? formatBrl(selectedPrize.priceCents / 100) : selectedPrize.shippingLabel)}</span></div>
-        ${extraRow}
-        ${bumpRows}
-        <div class="row total"><span>Total hoje</span><span>${esc(formatBrl(calcCheckoutTotalCents() / 100))}</span></div>
-      `;
-    }
-
-    function openCheckout(prizeId) {
-      selectedPrize = currentData.prizes.find(p => p.id === prizeId);
-      if (!selectedPrize || selectedPrize.status !== 'available') return;
-
-      bumpQtyById = {};
-      checkoutTitle.textContent = selectedPrize.title;
-      renderOrderBumps();
-      updateCheckoutSummary();
-
-      if (currentData.user?.name) checkoutForm.name.value = currentData.user.name;
-      if (currentData.user?.email) checkoutForm.email.value = currentData.user.email;
-
-      overlay.classList.add('open');
-      overlay.setAttribute('aria-hidden', 'false');
     }
 
     function closeCheckout() {
+      if (checkoutBusy) return;
       overlay.classList.remove('open');
       overlay.setAttribute('aria-hidden', 'true');
-      selectedPrize = null;
-      bumpQtyById = {};
-      orderBumpsEl.innerHTML = '';
     }
 
     document.getElementById('closeCheckout').addEventListener('click', closeCheckout);
@@ -1352,49 +1200,9 @@
       document.querySelectorAll('.help-wrap.open').forEach((w) => w.classList.remove('open'));
     });
 
-    function digitsOnly(value) {
-      return String(value || '').replace(/\D/g, '');
-    }
-
-    function formatCep(value) {
-      const d = digitsOnly(value).slice(0, 8);
-      return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
-    }
-
-    async function fillAddressFromCep() {
-      const cep = digitsOnly(checkoutForm.cep.value);
-      if (cep.length !== 8) return;
-      try {
-        const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-        const data = await res.json();
-        if (!res.ok || data.erro) return;
-        if (data.logradouro) checkoutForm.street.value = data.logradouro;
-        if (data.bairro) checkoutForm.neighborhood.value = data.bairro;
-        if (data.localidade) checkoutForm.city.value = data.localidade;
-        if (data.uf) checkoutForm.state.value = data.uf;
-        checkoutForm.number.focus();
-      } catch (_) {}
-    }
-
-    checkoutForm.cep.addEventListener('input', () => {
-      checkoutForm.cep.value = formatCep(checkoutForm.cep.value);
-      if (digitsOnly(checkoutForm.cep.value).length === 8) fillAddressFromCep();
-    });
-    checkoutForm.cep.addEventListener('blur', fillAddressFromCep);
-
-    document.querySelectorAll('[data-pay]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        selectedPay = btn.dataset.pay;
-        document.querySelectorAll('[data-pay]').forEach((el) => el.classList.toggle('active', el === btn));
-      });
-    });
-
-    checkoutForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const errorEl = document.getElementById('checkoutError');
-      const submitBtn = document.getElementById('checkoutSubmit');
-      errorEl.hidden = true;
-      if (!selectedPrize || !currentData) return;
+    async function startCheckout(prizeId) {
+      const prize = currentData?.prizes?.find((row) => row.id === prizeId);
+      if (!prize || prize.status !== 'available' || checkoutBusy) return;
 
       const bumps = {};
       for (const bump of orderBumps()) {
@@ -1402,44 +1210,34 @@
         if (q) bumps[bump.id] = q;
       }
 
-      const payload = {
-        account_id: currentData.account_id,
-        email: accountEmail,
-        prize_id: selectedPrize.id,
-        extra_qty: extraQty(selectedPrize.id),
-        bumps,
-        payment_method: selectedPay,
-        name: checkoutForm.name.value,
-        checkout_email: checkoutForm.email.value,
-        document: checkoutForm.document.value,
-        phone: checkoutForm.phone.value,
-        cep: checkoutForm.cep.value,
-        street: checkoutForm.street.value,
-        number: checkoutForm.number.value,
-        complement: checkoutForm.complement.value,
-        neighborhood: checkoutForm.neighborhood.value,
-        city: checkoutForm.city.value,
-        state: checkoutForm.state.value
-      };
+      checkoutBusy = true;
+      checkoutError.hidden = true;
+      checkoutTitle.textContent = 'Abrindo checkout…';
+      overlay.classList.add('open');
+      overlay.setAttribute('aria-hidden', 'false');
 
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Abrindo pagamento…';
       try {
         const res = await fetch('/api/trilha-pay', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          body: JSON.stringify({
+            account_id: currentData.account_id,
+            email: accountEmail,
+            prize_id: prize.id,
+            extra_qty: extraQty(prize.id),
+            bumps
+          })
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.url) throw new Error(data.error || `HTTP ${res.status}`);
         location.href = data.url;
       } catch (err) {
-        errorEl.textContent = err.message;
-        errorEl.hidden = false;
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Finalizar Pedido';
+        checkoutBusy = false;
+        checkoutTitle.textContent = 'Não deu pra abrir o pagamento';
+        checkoutError.textContent = err.message;
+        checkoutError.hidden = false;
       }
-    });
+    }
 
     async function boot() {
       if (!accountId || !accountEmail) {
