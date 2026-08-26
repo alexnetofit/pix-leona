@@ -3,8 +3,8 @@
  */
 import { applyCors } from '../lib/auth.js';
 import { logAssinaturaEvent } from '../lib/assinatura-log.js';
-import { extractPagarmePaymentLinkId } from '../lib/pagarme.js';
-import { fulfillPaidPaymentLink } from '../lib/trilha-fulfill.js';
+import { extractPagarmePaymentLinkId, pagarmeWebhookLooksPaid } from '../lib/pagarme.js';
+import { fulfillPaidPaymentLink, reconcilePendingTrilhaCheckouts } from '../lib/trilha-fulfill.js';
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -17,16 +17,21 @@ export default async function handler(req, res) {
 
   const payload = req.body && typeof req.body === 'object' ? req.body : {};
   const paymentLinkId = extractPagarmePaymentLinkId(payload, req.query || {});
-  if (!paymentLinkId) {
-    return res.status(200).json({ received: true, processed: false, error: 'payment_link_id ausente' });
+
+  let result;
+  if (paymentLinkId) {
+    result = await fulfillPaidPaymentLink(paymentLinkId, { source: 'webhook' });
+  } else if (pagarmeWebhookLooksPaid(payload)) {
+    result = await reconcilePendingTrilhaCheckouts({ max: 20 });
+  } else {
+    return res.status(200).json({ received: true, processed: false, ignored: payload.type || null });
   }
 
-  const result = await fulfillPaidPaymentLink(paymentLinkId, { source: 'webhook' });
   logAssinaturaEvent(req, {
     action: result.ok ? 'trilha_pontohub_ok' : 'trilha_pontohub_failed',
     provider: 'pagarme',
     account_id: null,
-    details: { payment_link_id: paymentLinkId, ...result }
+    details: { payment_link_id: paymentLinkId, type: payload.type || null, ...result }
   });
   return res.status(200).json({ received: true, payment_link_id: paymentLinkId, ...result });
 }

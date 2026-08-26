@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildPontohubFulfillmentLines } from '../lib/trilha-pontohub.js';
 import { buildPontohubPlayer } from '../lib/pontohub.js';
-import { extractPagarmePaymentLinkId } from '../lib/pagarme.js';
+import { extractPagarmePaymentLinkId, pagarmeWebhookLooksPaid } from '../lib/pagarme.js';
 import { paymentLinkLooksPaid } from '../lib/trilha-fulfill.js';
 
 test('placa 100k usa só productId e productName, sem linkId', () => {
@@ -40,7 +40,10 @@ test('player monta endereço via CEP + texto livre', () => {
 
 test('extrai pl_ do webhook da Pagar.me', () => {
   assert.equal(extractPagarmePaymentLinkId({ data: { id: 'pl_abc' } }), 'pl_abc');
+  assert.equal(extractPagarmePaymentLinkId({ data: { id: 'or_xxx', payment_link: { id: 'pl_from_order' } } }), 'pl_from_order');
   assert.equal(extractPagarmePaymentLinkId({ id: 'or_xxx' }), null);
+  assert.equal(pagarmeWebhookLooksPaid({ type: 'order.paid' }), true);
+  assert.equal(pagarmeWebhookLooksPaid({ type: 'order.created' }), false);
   assert.equal(paymentLinkLooksPaid({ total_paid_sessions: 1 }), true);
   assert.equal(paymentLinkLooksPaid({ status: 'active', total_paid_sessions: 0 }), false);
 });
