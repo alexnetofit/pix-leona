@@ -2,7 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { calcLeonaProrata, leonaAmountReais } from '../lib/leona-pricing.js';
 import {
-  buildPagarmeAssinaturaLinkPayload,
+  extractPagarmePix,
+  pagarmeDigitalCustomer,
+  pagarmeOrderLooksPaid
+} from '../lib/pagarme.js';
+import {
+  buildPagarmeAssinaturaOrderPayload,
   resolvePagarmeAssinaturaCharge
 } from '../lib/pagarme-assinatura.js';
 
@@ -43,18 +48,57 @@ test('upgrade mid-cycle cobra só o pró-rata e mantém vencimento', () => {
   assert.ok(charge.amountCents > 0);
 });
 
-test('payload do checkout tem PIX + cartão 1x', () => {
-  const payload = buildPagarmeAssinaturaLinkPayload({
+test('pedido PIX da assinatura não pede endereço', () => {
+  const payload = buildPagarmeAssinaturaOrderPayload({
     accountId: '15221',
     qty: 1,
     oneShot: false,
     amountCents: 12700,
     productName: 'Leona Flow — 1 conexão',
-    customer: { name: 'Ana', email: 'ana@test.com' }
+    customer: { name: 'Ana', email: 'ana@test.com' },
+    method: 'pix'
   });
-  assert.equal(payload.type, 'order');
-  assert.deepEqual(payload.payment_settings.accepted_payment_methods, ['pix', 'credit_card']);
-  assert.equal(payload.payment_settings.credit_card_settings.installments_setup.max_installments, 1);
-  assert.equal(payload.cart_settings.items[0].amount, 12700);
-  assert.match(payload.cart_settings.items[0].code, /leona-15221-1-sub/);
+  assert.equal(payload.payments[0].payment_method, 'pix');
+  assert.equal(payload.items[0].amount, 12700);
+  assert.match(payload.items[0].code, /leona-15221-1-sub/);
+  assert.equal(payload.customer.email, 'ana@test.com');
+  assert.equal(payload.customer.address, undefined);
+  assert.equal(payload.customer.address_type, undefined);
+});
+
+test('pedido cartão usa endereço da empresa, não do cliente', () => {
+  const payload = buildPagarmeAssinaturaOrderPayload({
+    accountId: '15221',
+    qty: 1,
+    oneShot: false,
+    amountCents: 12700,
+    productName: 'Leona Flow — 1 conexão',
+    customer: { name: 'Ana', email: 'ana@test.com' },
+    method: 'credit_card',
+    card: {
+      number: '4000000000000010',
+      holder_name: 'ANA',
+      exp_month: 12,
+      exp_year: 2030,
+      cvv: '123'
+    }
+  });
+  assert.equal(payload.payments[0].payment_method, 'credit_card');
+  assert.equal(payload.customer.address, undefined);
+  assert.equal(payload.payments[0].credit_card.card.billing_address.zip_code, '12308301');
+  assert.match(payload.payments[0].credit_card.card.billing_address.line_1, /Antonio Lopes da Costa/i);
+});
+
+test('cliente digital não inclui endereço', () => {
+  const customer = pagarmeDigitalCustomer({ name: 'Ana', email: 'ana@test.com' });
+  assert.equal(customer.address, undefined);
+  assert.ok(customer.phones.mobile_phone.number);
+});
+
+test('PIX e paid do pedido Pagar.me', () => {
+  assert.equal(pagarmeOrderLooksPaid({ status: 'pending' }), false);
+  assert.equal(pagarmeOrderLooksPaid({ status: 'paid' }), true);
+  assert.equal(extractPagarmePix({
+    charges: [{ payment_method: 'pix', last_transaction: { qr_code: '000201010212' } }]
+  }).qr_code, '000201010212');
 });

@@ -3,6 +3,10 @@
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
   }
 
+  function digits(v) {
+    return String(v || '').replace(/\D/g, '');
+  }
+
   function payLabel(method, kind, region, amount) {
     const n = Number(amount);
     const priced = Number.isFinite(n) && n > 0 ? money(n) : '';
@@ -39,8 +43,8 @@
     const name = String(opts.name || '').replace(/"/g, '&quot;');
     const kind = opts.kind === 'one_shot' ? 'one_shot' : 'subscription';
     const hint = kind === 'one_shot'
-      ? 'PIX ou cartão à vista (1x) na Pagar.me. Ao pagar, o plano é atualizado.'
-      : 'PIX ou cartão à vista na Pagar.me. A liberação vale 30 dias.';
+      ? 'PIX ou cartão à vista (1x). Sem endereço — isso é só da assinatura.'
+      : 'PIX ou cartão à vista. Sem endereço. A liberação vale 30 dias.';
     return `
       <div id="payForm-${id}">
         <div class="group" style="margin-top:16px;">
@@ -67,9 +71,37 @@
             </div>
           </div>
         </div>
+        <div id="cardFields-${id}" style="display:none;margin-top:16px;">
+          <div class="group">
+            <div class="field">
+              <label>Número do cartão</label>
+              <input id="cardNumber-${id}" type="text" inputmode="numeric" autocomplete="cc-number" placeholder="•••• •••• •••• ••••">
+            </div>
+            <div class="field">
+              <label>Validade</label>
+              <input id="cardExpiry-${id}" type="text" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/AA">
+            </div>
+            <div class="field">
+              <label>CVV</label>
+              <input id="cardCvv-${id}" type="text" inputmode="numeric" autocomplete="cc-csc" placeholder="000">
+            </div>
+          </div>
+        </div>
         <button class="pay" id="payBtn-${id}" type="button">Pagar no PIX</button>
         <div class="err" id="err-${id}"></div>
         <p class="hint" id="payHint-${id}">${hint}</p>
+      </div>
+      <div class="panel pix-box" id="pixCard-${id}">
+        <h2>Pague com PIX</h2>
+        <p class="hint">Escaneie o QR ou toque no código para copiar.</p>
+        <img id="pixQr-${id}" alt="QR Code PIX">
+        <div class="copy" id="pixCopy-${id}"></div>
+        <p class="hint" id="pixWait-${id}">Aguardando pagamento…</p>
+      </div>
+      <div class="panel ok-box" id="okCard-${id}">
+        <h2>Pronto</h2>
+        <p class="lede" style="margin-bottom:0;">Sua Leona já está sendo liberada.</p>
+        ${opts.backHref ? `<p class="hint" style="margin-top:20px;"><a href="${String(opts.backHref).replace(/"/g, '&quot;')}">Voltar para a assinatura</a></p>` : ''}
       </div>
     `;
   }
@@ -80,7 +112,9 @@
       region: 'br',
       paddleReady: false,
       dlocalReady: false,
-      pagarmeReady: false
+      pagarmeReady: false,
+      txId: null,
+      pixCode: ''
     };
 
     function checkout() {
@@ -107,12 +141,12 @@
       }
       if (state.method === 'card') {
         return kind() === 'one_shot'
-          ? 'Cartão à vista (1x) na Pagar.me. Ao pagar, o plano é atualizado.'
-          : 'Cartão à vista na Pagar.me. A liberação vale 30 dias.';
+          ? 'Cartão à vista (1x). Sem endereço — a placa é que pede entrega.'
+          : 'Cartão à vista. Sem endereço. A liberação vale 30 dias.';
       }
       return kind() === 'one_shot'
-        ? 'PIX à vista (1x) na Pagar.me. Ao pagar, o plano é atualizado.'
-        : 'PIX à vista na Pagar.me. A liberação vale 30 dias.';
+        ? 'PIX à vista (1x). Sem endereço — a placa é que pede entrega.'
+        : 'PIX à vista. Sem endereço. A liberação vale 30 dias.';
     }
 
     function syncChrome() {
@@ -123,6 +157,8 @@
       el(id, 'tabCard')?.classList.toggle('active', state.method === 'card');
       const methodField = document.getElementById(`methodField-${id}`);
       if (methodField) methodField.style.display = intl ? 'none' : '';
+      const cardFields = document.getElementById(`cardFields-${id}`);
+      if (cardFields) cardFields.style.display = !intl && state.method === 'card' ? 'block' : 'none';
       const hint = el(id, 'payHint');
       if (hint) hint.textContent = hintText();
       const btn = el(id, 'payBtn');
@@ -154,7 +190,7 @@
       } catch {
         throw new Error(
           r.status >= 500
-            ? 'Servidor falhou ao gerar o checkout. Tente de novo.'
+            ? 'Servidor falhou ao gerar o pagamento. Tente de novo.'
             : (raw.slice(0, 140) || 'Resposta inválida do servidor')
         );
       }
@@ -165,25 +201,114 @@
       return typed || String(c.name || '').trim();
     }
 
-    async function openPagarmeCheckout(c) {
+    function readCard(c) {
+      const number = digits(el(id, 'cardNumber')?.value);
+      const exp = digits(el(id, 'cardExpiry')?.value);
+      const cvv = digits(el(id, 'cardCvv')?.value);
+      if (number.length < 13 || exp.length < 4 || cvv.length < 3) return null;
+      let year = Number(exp.slice(2));
+      if (year < 100) year += 2000;
+      return {
+        number,
+        holder_name: payerName(c),
+        exp_month: Number(exp.slice(0, 2)),
+        exp_year: year,
+        cvv
+      };
+    }
+
+    function hideChrome() {
+      const form = document.getElementById(`payForm-${id}`);
+      const chrome = document.getElementById(`payChrome-${id}`);
+      if (form) form.style.display = 'none';
+      if (chrome) chrome.style.display = 'none';
+    }
+
+    function showOk() {
+      hideChrome();
+      const pix = el(id, 'pixCard');
+      const ok = el(id, 'okCard');
+      if (pix) pix.style.display = 'none';
+      if (ok) ok.style.display = 'block';
+      if (typeof ctx.onPaid === 'function') ctx.onPaid();
+    }
+
+    async function checkPaid(payId) {
+      if (!payId) return false;
+      const c = checkout();
+      const q = new URLSearchParams({ id: payId, account_id: c.accountId, email: c.email });
+      const r = await fetch('/api/pagarme-pay?' + q.toString());
+      const data = await r.json().catch(() => ({}));
+      return !!(r.ok && data.paid);
+    }
+
+    function pollPaid() {
+      const timer = setInterval(async () => {
+        if (await checkPaid(state.txId)) {
+          clearInterval(timer);
+          showOk();
+        }
+      }, 3500);
+    }
+
+    function showPix(data) {
+      state.txId = data.id;
+      state.pixCode = data.pix?.qr_code || '';
+      hideChrome();
+      const pix = el(id, 'pixCard');
+      if (pix) pix.style.display = 'block';
+      const copy = el(id, 'pixCopy');
+      if (copy) copy.textContent = state.pixCode || 'Código indisponível';
+      const qr = el(id, 'pixQr');
+      if (state.pixCode && qr) {
+        qr.src = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' + encodeURIComponent(state.pixCode);
+      } else if (qr) {
+        qr.style.display = 'none';
+      }
+      if (copy) copy.onclick = () => {
+        if (!state.pixCode) return;
+        navigator.clipboard.writeText(state.pixCode).then(() => {
+          const wait = el(id, 'pixWait');
+          if (wait) wait.textContent = 'Código copiado. Aguardando pagamento...';
+        });
+      };
+      pollPaid();
+    }
+
+    async function payPagarme(c) {
       const name = payerName(c);
+      const method = state.method === 'card' ? 'credit_card' : 'pix';
+      const body = {
+        account_id: c.accountId,
+        email: c.email,
+        qty: c.qty,
+        kind: c.kind === 'one_shot' ? 'one_shot' : 'subscription',
+        method,
+        ...(name ? { name } : {}),
+        ...(Number(c.amount) > 0 ? { amount: c.amount } : {})
+      };
+      if (method === 'credit_card') {
+        const card = readCard(c);
+        if (!card) throw new Error('Preencha os dados do cartão');
+        body.card = card;
+      }
       const r = await fetch('/api/pagarme-pay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          account_id: c.accountId,
-          email: c.email,
-          qty: c.qty,
-          kind: c.kind === 'one_shot' ? 'one_shot' : 'subscription',
-          ...(name ? { name } : {}),
-          ...(Number(c.amount) > 0 ? { amount: c.amount } : {})
-        })
+        body: JSON.stringify(body)
       });
       const data = await readJson(r);
-      if (!r.ok || !data.checkout_url) {
-        throw new Error(data.error || 'Não foi possível gerar o checkout da Pagar.me');
+      if (!r.ok) throw new Error(data.error || 'Não foi possível gerar o pagamento');
+      if (data.paid) {
+        showOk();
+        return;
       }
-      location.href = data.checkout_url;
+      if (method === 'pix') {
+        if (!data.pix?.qr_code) throw new Error('PIX gerado sem código. Tente de novo.');
+        showPix(data);
+        return;
+      }
+      throw new Error(data.error || 'Pagamento não concluído');
     }
 
     async function openDlocalCheckout(c) {
@@ -230,7 +355,7 @@
       btn.textContent = 'Processando...';
       try {
         if (state.region !== 'international' && state.pagarmeReady) {
-          await openPagarmeCheckout(c);
+          await payPagarme(c);
           return;
         }
         if (!state.dlocalReady) throw new Error('Pagamento indisponível. Tente de novo em instantes.');

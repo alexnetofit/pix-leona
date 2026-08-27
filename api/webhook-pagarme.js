@@ -3,7 +3,7 @@
  */
 import { applyCors } from '../lib/auth.js';
 import { logAssinaturaEvent } from '../lib/assinatura-log.js';
-import { extractPagarmePaymentLinkId, pagarmeWebhookLooksPaid } from '../lib/pagarme.js';
+import { extractPagarmeOrderId, extractPagarmePaymentLinkId, pagarmeWebhookLooksPaid } from '../lib/pagarme.js';
 import {
   findPagarmeAssinaturaIntent,
   processPagarmeAssinaturaPaid,
@@ -26,6 +26,7 @@ export default async function handler(req, res) {
 
   const payload = req.body && typeof req.body === 'object' ? req.body : {};
   const paymentLinkId = extractPagarmePaymentLinkId(payload, req.query || {});
+  const orderId = extractPagarmeOrderId(payload, req.query || {});
 
   let result;
   if (paymentLinkId) {
@@ -37,6 +38,8 @@ export default async function handler(req, res) {
     } else {
       result = { kind: null, processed: false, error: 'checkout não encontrado' };
     }
+  } else if (orderId && await findPagarmeAssinaturaIntent(orderId)) {
+    result = { kind: 'assinatura', ...(await processPagarmeAssinaturaPaid(orderId, { payload, req, source: 'webhook' })) };
   } else if (pagarmeWebhookLooksPaid(payload)) {
     const trilha = await reconcilePendingTrilhaCheckouts({ max: 20, payload });
     const assinatura = await reconcilePendingPagarmeAssinatura({ max: 20, payload, req });
