@@ -56,6 +56,10 @@
             <label>Nome</label>
             <input id="name-${id}" type="text" autocomplete="name" placeholder="Como no cartão" value="${name}">
           </div>
+          <div class="field" id="documentField-${id}">
+            <label>CPF ou CNPJ</label>
+            <input id="document-${id}" type="text" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00">
+          </div>
           <div class="field">
             <label>País</label>
             <div class="seg" style="margin:8px 0 0;">
@@ -155,7 +159,9 @@
       el(id, 'tabPix')?.classList.toggle('active', state.method === 'pix');
       el(id, 'tabCard')?.classList.toggle('active', state.method === 'card');
       const methodField = document.getElementById(`methodField-${id}`);
+      const documentField = document.getElementById(`documentField-${id}`);
       if (methodField) methodField.style.display = intl ? 'none' : '';
+      if (documentField) documentField.style.display = intl ? 'none' : '';
       const cardFields = document.getElementById(`cardFields-${id}`);
       if (cardFields) cardFields.style.display = !intl && state.method === 'card' ? 'block' : 'none';
       const hint = el(id, 'payHint');
@@ -274,8 +280,16 @@
       pollPaid();
     }
 
+    function payerDocument() {
+      return digits(el(id, 'document')?.value);
+    }
+
     async function payPagarme(c) {
       const name = payerName(c);
+      const document = payerDocument();
+      if (document.length !== 11 && document.length !== 14) {
+        throw new Error('Informe um CPF ou CNPJ válido');
+      }
       const method = state.method === 'card' ? 'credit_card' : 'pix';
       const body = {
         account_id: c.accountId,
@@ -283,6 +297,7 @@
         qty: c.qty,
         kind: c.kind === 'one_shot' ? 'one_shot' : 'subscription',
         method,
+        document,
         ...(name ? { name } : {}),
         ...(Number(c.amount) > 0 ? { amount: c.amount } : {})
       };

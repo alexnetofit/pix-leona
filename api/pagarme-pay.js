@@ -73,7 +73,7 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
 
-  const { account_id, email, qty, amount, kind, name, method, card_token } = req.body || {};
+  const { account_id, email, qty, amount, kind, name, method, card_token, document } = req.body || {};
   const accountId = account_id != null ? String(account_id).trim() : '';
   if (!accountId) return res.status(400).json({ error: 'account_id obrigatório' });
   const payMethod = String(method || 'pix').toLowerCase() === 'card'
@@ -100,7 +100,8 @@ export default async function handler(req, res) {
     profile: access.profile,
     method: payMethod,
     cardToken: card_token || null,
-    card
+    card,
+    document
   });
 
   if (!created.ok) {

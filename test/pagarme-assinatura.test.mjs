@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { calcLeonaProrata, leonaAmountReais } from '../lib/leona-pricing.js';
 import {
   extractPagarmePix,
+  friendlyPagarmeError,
   pagarmeDigitalCustomer,
   pagarmeOrderLooksPaid
 } from '../lib/pagarme.js';
@@ -55,13 +56,15 @@ test('pedido PIX da assinatura não pede endereço', () => {
     oneShot: false,
     amountCents: 12700,
     productName: 'Leona Flow — 1 conexão',
-    customer: { name: 'Ana', email: 'ana@test.com' },
+    customer: { name: 'Ana', email: 'ana@test.com', document: '39053344705' },
     method: 'pix'
   });
   assert.equal(payload.payments[0].payment_method, 'pix');
   assert.equal(payload.items[0].amount, 12700);
   assert.match(payload.items[0].code, /leona-15221-1-sub/);
   assert.equal(payload.customer.email, 'ana@test.com');
+  assert.equal(payload.customer.document, '39053344705');
+  assert.equal(payload.customer.document_type, 'CPF');
   assert.equal(payload.customer.address, undefined);
   assert.equal(payload.customer.address_type, undefined);
 });
@@ -90,9 +93,15 @@ test('pedido cartão usa endereço da empresa, não do cliente', () => {
 });
 
 test('cliente digital não inclui endereço', () => {
-  const customer = pagarmeDigitalCustomer({ name: 'Ana', email: 'ana@test.com' });
+  const customer = pagarmeDigitalCustomer({ name: 'Ana', email: 'ana@test.com', document: '39053344705' });
   assert.equal(customer.address, undefined);
+  assert.equal(customer.document, '39053344705');
   assert.ok(customer.phones.mobile_phone.number);
+});
+
+test('erro de documento da Pagar.me vira texto em português', () => {
+  assert.equal(friendlyPagarmeError('The customer Document is required.'), 'Informe o CPF ou CNPJ');
+  assert.equal(friendlyPagarmeError('The Customer Document is necessary'), 'Informe o CPF ou CNPJ');
 });
 
 test('PIX e paid do pedido Pagar.me', () => {
