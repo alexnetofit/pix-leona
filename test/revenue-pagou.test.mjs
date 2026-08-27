@@ -46,5 +46,22 @@ test('buildPagouSubscriberSnapshot conta e-mail unico pago, sem olhar assinatura
     ]
   });
 
-  assert.deepEqual(snapshot, { count: 2, recurring: null, prepaid: 2 });
+  assert.deepEqual(snapshot, {
+    count: 2,
+    recurring: null,
+    prepaid: 2,
+    emails: ['recorrente@x.com', 'avulso@x.com']
+  });
+});
+
+test('buildPagouSubscriberSnapshot ignora e-mail que já está em outra fonte', () => {
+  const snapshot = buildPagouSubscriberSnapshot({
+    transactions: [
+      { buyer: { email: 'ainda-pagou@x.com' } },
+      { buyer: { email: 'foi-pra-dlocal@x.com' } }
+    ],
+    occupiedEmails: ['foi-pra-dlocal@x.com']
+  });
+  assert.deepEqual(snapshot.emails, ['ainda-pagou@x.com']);
+  assert.equal(snapshot.count, 1);
 });

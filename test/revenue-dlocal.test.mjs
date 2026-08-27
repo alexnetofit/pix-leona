@@ -75,5 +75,10 @@ test('snapshot soma assinatura + avulso 30d sem duplicar o mesmo e-mail', () => 
     ]
   });
 
-  assert.deepEqual(snapshot, { count: 2, recurring: 1, prepaid: 1 });
+  assert.deepEqual(snapshot, {
+    count: 2,
+    recurring: 1,
+    prepaid: 1,
+    emails: ['recorrente@x.com', 'avulso@x.com']
+  });
 });

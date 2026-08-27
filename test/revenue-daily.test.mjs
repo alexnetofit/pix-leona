@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { findDaysToSync, findSyncPlan, summarizeRange } from '../lib/revenue-daily.js';
-import { daysBetween, shiftDays } from '../lib/revenue-source.js';
+import { assignUniqueSubscribers, daysBetween, shiftDays } from '../lib/revenue-source.js';
 
 function row(day, platform, overrides = {}) {
   return {
@@ -162,4 +162,34 @@ test('findSyncPlan nao manda Guru de volta so porque falta Pagou', () => {
   assert.deepEqual(plan.paddle, []);
   assert.deepEqual(plan.pagou, days);
   assert.deepEqual(plan.dlocal, days);
+});
+
+test('assignUniqueSubscribers não soma a mesma cabeça em duas fontes', () => {
+  const assigned = assignUniqueSubscribers({
+    guruCount: 2182,
+    paddleEmails: ['david@x.com', 'so-paddle@x.com'],
+    pagouEmails: ['groupseven@x.com', 'agencia@x.com', 'so-pagou@x.com'],
+    dlocalEmails: ['agencia@x.com', 'so-dlocal@x.com'],
+    guruOverlapEmails: ['david@x.com', 'groupseven@x.com']
+  });
+
+  assert.equal(assigned.pagou, 1);
+  assert.equal(assigned.dlocal, 2);
+  assert.equal(assigned.paddle, 2);
+  assert.equal(assigned.unique, 2182 + 1 + 2 + 1);
+});
+
+test('summarizeRange usa unique quando o snapshot já veio deduplicado', () => {
+  const summary = summarizeRange('2026-08-01', '2026-08-01', [
+    row('2026-08-01', 'guru')
+  ], {
+    unique: 2328,
+    guru: { count: 2179 },
+    paddle: { count: 26 },
+    pagou: { count: 76 },
+    dlocal: { count: 47 }
+  });
+
+  assert.equal(summary.active_subscribers.count, 2328);
+  assert.equal(summary.platforms.pagou.active_subscribers.count, 76);
 });

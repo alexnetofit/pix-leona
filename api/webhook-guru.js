@@ -1,4 +1,5 @@
 import { updateGuruContact, cancelGuruSubscription } from '../lib/guru.js';
+import { findActivePaddleSubscriptionByEmail } from '../lib/paddle-client.js';
 import { logAssinaturaEvent } from '../lib/assinatura-log.js';
 import {
   extractContactPhones,
@@ -26,6 +27,20 @@ const REFUND_LIKE_STATUSES = new Set([
 
 function isRefundLikeStatus(status) {
   return REFUND_LIKE_STATUSES.has(String(status || '').toLowerCase());
+}
+
+async function preserveLeonaForPaddle(email, reason) {
+  if (!email || !process.env.PADDLE_API_KEY) return null;
+  try {
+    const subscription = await findActivePaddleSubscriptionByEmail(email);
+    if (subscription) {
+      console.log(`webhook-guru ${reason}: ${email} tem Paddle ${subscription.id} — Leona preservada`);
+    }
+    return subscription;
+  } catch (err) {
+    console.error(`webhook-guru ${reason}: falha ao checar Paddle de ${email}:`, err.message);
+    return null;
+  }
 }
 
 function extractGuruSubIds(payload) {
@@ -519,6 +534,17 @@ async function handleRefundOrChargeback(payload, leonaToken, res, opts = {}) {
     'Content-Type': 'application/json'
   };
 
+  const paddleLive = await preserveLeonaForPaddle(email, action);
+  if (paddleLive) {
+    return res.status(200).json({
+      received: true,
+      processed: false,
+      reason: action,
+      skipped: 'leona_preservada_paddle',
+      paddle_subscription_id: paddleLive.id
+    });
+  }
+
   const match = await resolveLeonaMatchForGuruEvent(payload, email, guruSubId, guruSubCode, leonaHeaders);
 
   if (!match) {
@@ -659,6 +685,17 @@ async function handleSubscriptionLapse(payload, leonaToken, res, reason) {
 
   if ((!guruSubId && !guruSubCode) || !email) {
     return res.status(200).json({ received: true, ignored: true, reason: `${reason}: sub/email ausentes` });
+  }
+
+  const paddleLive = await preserveLeonaForPaddle(email, reason);
+  if (paddleLive) {
+    return res.status(200).json({
+      received: true,
+      processed: false,
+      reason,
+      skipped: 'leona_preservada_paddle',
+      paddle_subscription_id: paddleLive.id
+    });
   }
 
   const leonaHeaders = {
