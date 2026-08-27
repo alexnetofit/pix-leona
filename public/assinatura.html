@@ -1121,7 +1121,7 @@
                 },
                 onSubmit: (c) => {
                     logAssinatura('click_buy', {
-                        provider: 'dlocal',
+                        provider: 'pagarme',
                         account_id: c.accountId,
                         email: c.email,
                         details: { qty: c.qty, offer: c.offer || null, value: c.amount || null, kind, region: c.region || 'br', method: c.method || null }
@@ -1291,7 +1291,7 @@
                     <div class="row"><span class="label">Cobrança (${newQty}x, ${diasRestantes}d)</span><span class="value">+${fmtCurrency(newValue * diasRestantes / diasNoCiclo)}</span></div>
                     <div class="row"><span class="label">Pro rata</span><span class="value">${fmtCurrency(proRata)}</span></div>
                 </div>
-                <p class="hint">PIX ou cartão à vista (1x) na dLocal. O vencimento atual não muda. Depois a renovação fica ${fmtCurrency(newValue)}/mês com ${newQty} conexões.</p>
+                <p class="hint">PIX ou cartão à vista (1x) na Pagar.me. O vencimento atual não muda. Depois a renovação fica ${fmtCurrency(newValue)}/mês com ${newQty} conexões.</p>
                 <input type="hidden" id="replaceQty-${slot}" value="${newQty}">
                 <div id="replacePanel-${slot}"></div>
             `;
@@ -1313,7 +1313,7 @@
             const payId = `rep-${slot}`;
 
             logAssinatura('click_buy', {
-                provider: 'dlocal',
+                provider: 'pagarme',
                 account_id: state.accountId,
                 details: { qty, via: 'prorata', amount: charge, kind: 'one_shot' }
             });

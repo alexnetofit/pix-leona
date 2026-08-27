@@ -10,6 +10,7 @@ import {
 } from '../lib/geo-billing.js';
 import { pagouPublicKey } from '../lib/pagou.js';
 import { dlocalGoConfigured, dlocalGoWebhookUrl } from '../lib/dlocal-go.js';
+import { pagarmeConfigured } from '../lib/pagarme.js';
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -24,6 +25,7 @@ export default async function handler(req, res) {
     suggest_international: suggestInternational(country),
     paddle_ready: paddleInternationalReady(),
     dlocal_ready: dlocalGoConfigured(),
+    pagarme_ready: pagarmeConfigured(),
     dlocal_webhook_url: dlocalGoWebhookUrl(req)
   });
 }

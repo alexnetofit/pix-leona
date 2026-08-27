@@ -39,8 +39,8 @@
     const name = String(opts.name || '').replace(/"/g, '&quot;');
     const kind = opts.kind === 'one_shot' ? 'one_shot' : 'subscription';
     const hint = kind === 'one_shot'
-      ? 'PIX à vista (1x). Ao pagar, o plano é atualizado.'
-      : 'PIX à vista. A liberação vale o mês; no cartão a cobrança se repete.';
+      ? 'PIX ou cartão à vista (1x) na Pagar.me. Ao pagar, o plano é atualizado.'
+      : 'PIX ou cartão à vista na Pagar.me. A liberação vale 30 dias.';
     return `
       <div id="payForm-${id}">
         <div class="group" style="margin-top:16px;">
@@ -79,7 +79,8 @@
       method: 'pix',
       region: 'br',
       paddleReady: false,
-      dlocalReady: false
+      dlocalReady: false,
+      pagarmeReady: false
     };
 
     function checkout() {
@@ -106,12 +107,12 @@
       }
       if (state.method === 'card') {
         return kind() === 'one_shot'
-          ? 'Cartão à vista (1x). Ao pagar, o plano é atualizado.'
-          : 'Cartão. A cobrança se repete todo mês.';
+          ? 'Cartão à vista (1x) na Pagar.me. Ao pagar, o plano é atualizado.'
+          : 'Cartão à vista na Pagar.me. A liberação vale 30 dias.';
       }
       return kind() === 'one_shot'
-        ? 'PIX à vista (1x). Ao pagar, o plano é atualizado.'
-        : 'PIX à vista. A liberação vale 30 dias; no cartão a renovação é automática.';
+        ? 'PIX à vista (1x) na Pagar.me. Ao pagar, o plano é atualizado.'
+        : 'PIX à vista na Pagar.me. A liberação vale 30 dias.';
     }
 
     function syncChrome() {
@@ -128,7 +129,7 @@
       if (btn) {
         btn.dataset.region = state.region;
         btn.dataset.method = intl ? 'card' : state.method;
-        btn.disabled = !state.dlocalReady;
+        btn.disabled = intl ? !state.dlocalReady : !(state.pagarmeReady || state.dlocalReady);
         btn.textContent = payLabel(intl ? 'card' : state.method, kind(), state.region, checkout().amount);
       }
     }
@@ -162,6 +163,27 @@
     function payerName(c) {
       const typed = String(el(id, 'name')?.value || '').trim();
       return typed || String(c.name || '').trim();
+    }
+
+    async function openPagarmeCheckout(c) {
+      const name = payerName(c);
+      const r = await fetch('/api/pagarme-pay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account_id: c.accountId,
+          email: c.email,
+          qty: c.qty,
+          kind: c.kind === 'one_shot' ? 'one_shot' : 'subscription',
+          ...(name ? { name } : {}),
+          ...(Number(c.amount) > 0 ? { amount: c.amount } : {})
+        })
+      });
+      const data = await readJson(r);
+      if (!r.ok || !data.checkout_url) {
+        throw new Error(data.error || 'Não foi possível gerar o checkout da Pagar.me');
+      }
+      location.href = data.checkout_url;
     }
 
     async function openDlocalCheckout(c) {
@@ -207,7 +229,11 @@
       btn.disabled = true;
       btn.textContent = 'Processando...';
       try {
-        if (!state.dlocalReady) throw new Error('Pagamento dLocal indisponível. Tente de novo em instantes.');
+        if (state.region !== 'international' && state.pagarmeReady) {
+          await openPagarmeCheckout(c);
+          return;
+        }
+        if (!state.dlocalReady) throw new Error('Pagamento indisponível. Tente de novo em instantes.');
         await openDlocalCheckout(c);
       } catch (err) {
         showErr(err.message);
@@ -231,6 +257,7 @@
     loadPayConfig().then((cfg) => {
       state.paddleReady = !!cfg.paddle_ready;
       state.dlocalReady = !!cfg.dlocal_ready;
+      state.pagarmeReady = !!cfg.pagarme_ready;
       applyRegion(cfg.suggest_international ? 'international' : 'br');
     });
   }
