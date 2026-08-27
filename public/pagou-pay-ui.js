@@ -111,7 +111,6 @@
       method: 'pix',
       region: 'br',
       paddleReady: false,
-      dlocalReady: false,
       pagarmeReady: false,
       txId: null,
       pixCode: ''
@@ -135,9 +134,9 @@
     function hintText() {
       const intl = state.region === 'international';
       if (intl) {
-        return kind() === 'one_shot'
-          ? 'Cartão à vista (1x) na dLocal. O checkout pede o país e converte a moeda.'
-          : 'Cartão na dLocal. A cobrança se repete todo mês.';
+        return state.paddleReady
+          ? 'Cartão na Paddle, na sua moeda. Sem CPF.'
+          : 'Pagamento internacional temporariamente indisponível. Fale com o suporte.';
       }
       if (state.method === 'card') {
         return kind() === 'one_shot'
@@ -165,7 +164,7 @@
       if (btn) {
         btn.dataset.region = state.region;
         btn.dataset.method = intl ? 'card' : state.method;
-        btn.disabled = intl ? !state.dlocalReady : !(state.pagarmeReady || state.dlocalReady);
+        btn.disabled = intl ? !state.paddleReady : !state.pagarmeReady;
         btn.textContent = payLabel(intl ? 'card' : state.method, kind(), state.region, checkout().amount);
       }
     }
@@ -311,26 +310,21 @@
       throw new Error(data.error || 'Pagamento não concluído');
     }
 
-    async function openDlocalCheckout(c) {
-      const method = state.region === 'international' ? 'card' : state.method;
+    async function openPaddleCheckout(c) {
       const name = payerName(c);
-      const r = await fetch('/api/dlocal-go-pay', {
+      const r = await fetch('/api/paddle-international-checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           account_id: c.accountId,
           email: c.email,
           qty: c.qty,
-          kind: c.kind === 'one_shot' ? 'one_shot' : 'subscription',
-          region: state.region,
-          method,
-          ...(name ? { name } : {}),
-          ...(Number(c.amount) > 0 ? { amount: c.amount } : {})
+          ...(name ? { name } : {})
         })
       });
       const data = await readJson(r);
       if (!r.ok || !data.checkout_url) {
-        throw new Error(data.error || 'Não foi possível gerar o checkout da dLocal');
+        throw new Error(data.error || 'Não foi possível abrir o checkout da Paddle');
       }
       location.href = data.checkout_url;
     }
@@ -354,12 +348,13 @@
       btn.disabled = true;
       btn.textContent = 'Processando...';
       try {
-        if (state.region !== 'international' && state.pagarmeReady) {
-          await payPagarme(c);
+        if (state.region === 'international') {
+          if (!state.paddleReady) throw new Error('Pagamento internacional indisponível. Fale com o suporte.');
+          await openPaddleCheckout(c);
           return;
         }
-        if (!state.dlocalReady) throw new Error('Pagamento indisponível. Tente de novo em instantes.');
-        await openDlocalCheckout(c);
+        if (!state.pagarmeReady) throw new Error('Pagamento indisponível. Tente de novo em instantes.');
+        await payPagarme(c);
       } catch (err) {
         showErr(err.message);
         btn.disabled = false;
@@ -381,7 +376,6 @@
 
     loadPayConfig().then((cfg) => {
       state.paddleReady = !!cfg.paddle_ready;
-      state.dlocalReady = !!cfg.dlocal_ready;
       state.pagarmeReady = !!cfg.pagarme_ready;
       applyRegion(cfg.suggest_international ? 'international' : 'br');
     });
