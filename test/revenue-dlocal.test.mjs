@@ -3,11 +3,30 @@ import test from 'node:test';
 
 import {
   buildDlocalSubscriberSnapshot,
+  dlocalBrtDay,
   dlocalGrossBrlCents,
+  dlocalListDateWindow,
   dlocalNetBrlCents,
   isDlocalOneShotPayment,
   isDlocalSubActive
 } from '../lib/revenue-source.js';
+
+test('data da Go sem fuso conta no dia BRT, não no relógio da máquina', () => {
+  assert.equal(dlocalBrtDay('2026-08-27T01:10:21'), '2026-08-26');
+  assert.equal(dlocalBrtDay('2026-08-26T23:10:21'), '2026-08-26');
+});
+
+test('janela da Go inclui o dia UTC seguinte pra não perder venda depois das 21h', () => {
+  assert.deepEqual(dlocalListDateWindow(['2026-08-26']), {
+    startDate: '2026-08-26',
+    endDate: '2026-08-27'
+  });
+  assert.deepEqual(dlocalListDateWindow(['2026-08-25', '2026-08-26']), {
+    startDate: '2026-08-25',
+    endDate: '2026-08-27'
+  });
+  assert.equal(dlocalListDateWindow([]), null);
+});
 
 test('dlocalGrossBrlCents usa o BRL do cliente, nao o USD do settlement', () => {
   assert.equal(dlocalGrossBrlCents({
