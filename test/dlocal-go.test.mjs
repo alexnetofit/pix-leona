@@ -20,6 +20,9 @@ import {
   isPixMethod,
   makeDlocalOrderId,
   parseDlocalOrderId,
+  checkoutUrlWithPayer,
+  sanitizeCheckoutPayerName,
+  subscribeUrlWithPayer,
   parseUsdToBrlRate,
   planDescriptionForQty,
   planNameForQty,
@@ -143,14 +146,37 @@ test('página de assinatura oferece PIX ou cartão no Brasil', () => {
   const code = readFileSync(join(here, '../public/pagou-pay-ui.js'), 'utf8');
   const window = {};
   vm.runInNewContext(code, { window });
-  const html = window.PagouPay.formHtml('slot', { email: 'a@b.com', kind: 'subscription' });
+  const html = window.PagouPay.formHtml('slot', { email: 'a@b.com', name: 'Victor Hugo', kind: 'subscription' });
   assert.match(html, /id="tabPix-slot"/);
   assert.match(html, /id="tabCard-slot"/);
   assert.match(html, />PIX</);
   assert.match(html, />Cartão</);
+  assert.match(html, /id="name-slot"/);
+  assert.match(html, /value="Victor Hugo"/);
+  assert.doesNotMatch(html, /id="nameField-slot" style="display:none;"/);
   assert.equal(window.PagouPay.payLabel('pix', 'subscription', 'br', 316), 'Pagar R$\u00a0316,00 no PIX');
   assert.equal(window.PagouPay.payLabel('card', 'subscription', 'br', 316), 'Pagar R$\u00a0316,00 no cartão');
   assert.equal(window.PagouPay.payLabel('card', 'subscription', 'international'), 'Assinar no exterior');
+});
+
+test('checkout da Go recebe nome na URL', () => {
+  assert.equal(sanitizeCheckoutPayerName('  Victor   Hugo  '), 'Victor Hugo');
+  const hosted = checkoutUrlWithPayer('https://checkout.dlocalgo.com/validate/abc', {
+    email: 'a@b.com',
+    name: 'Victor Hugo'
+  });
+  const hostedUrl = new URL(hosted);
+  assert.equal(hostedUrl.searchParams.get('email'), 'a@b.com');
+  assert.equal(hostedUrl.searchParams.get('name'), 'Victor Hugo');
+  const sub = subscribeUrlWithPayer('https://checkout.dlocalgo.com/validate/plan', {
+    email: 'a@b.com',
+    name: 'Victor Hugo',
+    accountId: '12969',
+    qty: 5
+  });
+  const subUrl = new URL(sub);
+  assert.equal(subUrl.searchParams.get('name'), 'Victor Hugo');
+  assert.equal(subUrl.searchParams.get('external_id'), 'leona:12969:5');
 });
 
 test('PIX mensal grava tag sub e não conta como pró-rata', () => {

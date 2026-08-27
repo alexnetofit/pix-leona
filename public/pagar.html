@@ -188,6 +188,7 @@
         const state = {
             accountId: params.get('account_id') || '',
             email: params.get('email') || '',
+            name: params.get('name') || '',
             qty: Math.max(1, Number(params.get('qty')) || 1),
             amount: Number(params.get('amount')) || 0,
             offer: params.get('offer') || '',
@@ -206,6 +207,7 @@
         const backHref = `/assinatura?account_id=${encodeURIComponent(state.accountId)}&email=${encodeURIComponent(state.email)}`;
         document.getElementById('payMount').innerHTML = PagouPay.formHtml('main', {
             email: state.email,
+            name: state.name,
             kind: state.kind,
             backHref
         });
@@ -213,6 +215,7 @@
             getCheckout: () => ({
                 accountId: state.accountId,
                 email: state.email,
+                name: state.name,
                 qty: state.qty,
                 amount: state.amount,
                 offer: state.offer,

@@ -9,6 +9,7 @@ import { leonaAmountCents, reaisToCents } from '../lib/leona-pricing.js';
 import { sbConfigured, sbInsert, sbSelect, sbUpdate } from '../lib/supabase.js';
 import {
   brlToUsd,
+  checkoutUrlWithPayer,
   createDlocalPayment,
   dlocalGoConfigured,
   dlocalGoPublicBase,
@@ -23,6 +24,7 @@ import {
   isOneShotKind,
   isPixMethod,
   makeDlocalOrderId,
+  sanitizeCheckoutPayerName,
   subscribeUrlWithPayer
 } from '../lib/dlocal-go.js';
 
@@ -103,7 +105,7 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
 
-  const { account_id, email, qty, amount, offer_name, kind, region, method } = req.body || {};
+  const { account_id, email, qty, amount, offer_name, kind, region, method, name } = req.body || {};
   const accountId = account_id != null ? String(account_id).trim() : '';
   const qtyN = Math.max(1, Number(qty) || 0);
   const oneShot = isOneShotKind(kind);
@@ -136,7 +138,8 @@ export default async function handler(req, res) {
       ? `Ajuste Leona — ${qtyN} conex${qtyN === 1 ? 'ão' : 'ões'}`
       : `Leona Flow — ${qtyN} conex${qtyN === 1 ? 'ão' : 'ões'}`);
   const buyerEmail = access.profileEmail || email;
-  const buyerName = access.profile?.user?.name ? String(access.profile.user.name).trim().slice(0, 100) : '';
+  const buyerName = sanitizeCheckoutPayerName(name)
+    || sanitizeCheckoutPayerName(access.profile?.user?.name);
   const origin = requestOrigin(req);
   const notificationUrl = dlocalGoWebhookUrl(req);
   const returnQs = new URLSearchParams({
@@ -190,13 +193,18 @@ export default async function handler(req, res) {
       });
     }
 
+    const checkoutUrl = checkoutUrlWithPayer(data.redirect_url, {
+      email: buyerEmail,
+      name: buyerName
+    });
+
     await rememberIntent({
       account_id: accountId,
       email: buyerEmail || null,
       qty: qtyN,
       amount_cents: amountCents,
       title,
-      checkout_url: data.redirect_url,
+      checkout_url: checkoutUrl,
       status: 'pending',
       dlocal_payment_id: data.id,
       details: {
@@ -229,7 +237,7 @@ export default async function handler(req, res) {
       status: data.status || 'PENDING',
       kind: checkoutKind,
       method: payMethod || (pix ? 'pix' : null),
-      checkout_url: data.redirect_url,
+      checkout_url: checkoutUrl,
       qty: qtyN,
       amount_cents: amountCents,
       offer_name: productName
@@ -286,6 +294,7 @@ export default async function handler(req, res) {
 
   const checkoutUrl = subscribeUrlWithPayer(plan.plan.subscribe_url, {
     email: buyerEmail,
+    name: buyerName,
     accountId,
     qty: qtyN
   });

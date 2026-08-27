@@ -36,6 +36,7 @@
 
   function formHtml(id, opts = {}) {
     const email = opts.email || '';
+    const name = String(opts.name || '').replace(/"/g, '&quot;');
     const kind = opts.kind === 'one_shot' ? 'one_shot' : 'subscription';
     const hint = kind === 'one_shot'
       ? 'PIX à vista (1x). Ao pagar, o plano é atualizado.'
@@ -47,9 +48,9 @@
             <label>E-mail</label>
             <input id="email-${id}" type="email" autocomplete="email" readonly value="${String(email).replace(/"/g, '&quot;')}">
           </div>
-          <div class="field" id="nameField-${id}" style="display:none;">
+          <div class="field" id="nameField-${id}">
             <label>Nome</label>
-            <input id="name-${id}" type="text" autocomplete="name" placeholder="Como no cartão">
+            <input id="name-${id}" type="text" autocomplete="name" placeholder="Como no cartão" value="${name}">
           </div>
           <div class="field">
             <label>País</label>
@@ -121,8 +122,6 @@
       el(id, 'tabCard')?.classList.toggle('active', state.method === 'card');
       const methodField = document.getElementById(`methodField-${id}`);
       if (methodField) methodField.style.display = intl ? 'none' : '';
-      const nameField = document.getElementById(`nameField-${id}`);
-      if (nameField) nameField.style.display = 'none';
       const hint = el(id, 'payHint');
       if (hint) hint.textContent = hintText();
       const btn = el(id, 'payBtn');
@@ -160,8 +159,14 @@
       }
     }
 
+    function payerName(c) {
+      const typed = String(el(id, 'name')?.value || '').trim();
+      return typed || String(c.name || '').trim();
+    }
+
     async function openDlocalCheckout(c) {
       const method = state.region === 'international' ? 'card' : state.method;
+      const name = payerName(c);
       const r = await fetch('/api/dlocal-go-pay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -172,6 +177,7 @@
           kind: c.kind === 'one_shot' ? 'one_shot' : 'subscription',
           region: state.region,
           method,
+          ...(name ? { name } : {}),
           ...(Number(c.amount) > 0 ? { amount: c.amount } : {})
         })
       });
@@ -218,6 +224,8 @@
 
     const emailInput = el(id, 'email');
     if (emailInput && checkout().email) emailInput.value = checkout().email;
+    const nameInput = el(id, 'name');
+    if (nameInput && checkout().name && !nameInput.value) nameInput.value = checkout().name;
     syncChrome();
 
     loadPayConfig().then((cfg) => {

@@ -579,6 +579,7 @@
     <script>
         let _data = null;
         let _email = '';
+        let _buyerName = '';
 
         function logAssinatura(action, extra = {}) {
             const bp = (_data && getDisplayProfiles(_data)[0]) || {};
@@ -1005,6 +1006,12 @@
                     _email = String(data.leona.billing_profile.user.email).trim().toLowerCase();
                     email = _email;
                 }
+                const profileName = String(
+                    data?.leona?.billing_profile?.user?.name
+                    || getDisplayProfiles(data)[0]?.user?.name
+                    || ''
+                ).trim();
+                if (profileName) _buyerName = profileName;
 
                 if (!res.ok) {
                     content.innerHTML = `<div class="error-msg">${data.error || 'Erro ao buscar dados'}</div>`;
@@ -1087,7 +1094,11 @@
             if (!mount || !window.PagouPay) return;
             const state = _qtySelStates[slotId];
             if (!state) return;
-            mount.innerHTML = PagouPay.formHtml(slotId, { email: state.email || _email, kind });
+            mount.innerHTML = PagouPay.formHtml(slotId, {
+                email: state.email || _email,
+                name: state.name || _buyerName,
+                kind
+            });
             PagouPay.attach(slotId, {
                 getCheckout: () => {
                     const input = document.getElementById(`qtySel-${slotId}`);
@@ -1099,6 +1110,7 @@
                     return {
                         accountId: state.accountId,
                         email: state.email || _email,
+                        name: state.name || _buyerName,
                         qty,
                         amount: Number.isFinite(amount) && amount > 0
                             ? amount
