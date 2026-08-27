@@ -10,6 +10,12 @@ import {
 } from '../lib/pagarme.js';
 import { mergeTrilhaPayer, paymentLinkLooksPaid } from '../lib/trilha-fulfill.js';
 
+test('kit 50k usa o produto novo com pin', () => {
+  const line = buildPontohubFulfillmentLines({ prizeId: '50k' })[0];
+  assert.equal(line.productId, '04acfa25-03ee-45d3-8c08-fe1ad2639537');
+  assert.equal(line.productName, 'Kit Pulseira Leona + Carta + Envelope + Pin 50k');
+});
+
 test('placa 100k usa só productId e productName, sem linkId', () => {
   const lines = buildPontohubFulfillmentLines({ prizeId: '100k', extraQty: 1, bumps: { jaqueta: 1, garrafa: 2 } });
   assert.equal(lines[0].productName, 'Placa Trilha do Predador + Pin 100k + Carta + Box');
