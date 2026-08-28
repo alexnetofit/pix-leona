@@ -23,7 +23,12 @@ test('so pedido Leona entra no faturamento da Pagar.me', () => {
   assert.equal(isPagarmeLeonaOrder({
     metadata: { kind: 'one_shot' },
     items: [{ description: 'Ajuste Leona — 2 conexões' }]
-  }), true);
+  }), false);
+  assert.equal(isPagarmeLeonaOrder({
+    code: 'a29ab549-e291-42a0',
+    metadata: { kind: 'subscription' },
+    items: [{ description: 'Leona Flow' }]
+  }), false);
 });
 
 test('ciclo novo e ajuste nao se misturam', () => {
