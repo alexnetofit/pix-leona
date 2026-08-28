@@ -115,6 +115,22 @@ test('pedido Guru (UUID) nao entra no checkout', () => {
   }), true);
 });
 
+test('payment link da /assinatura entra; Guru e trilha nao', () => {
+  assert.equal(isPagarmeLeonaOrder({
+    code: 'pl_x3Xg8Njod9ewkzqcA9FrgKM21YAr5bGV',
+    items: [{ description: 'Leona Flow — 1 conexão' }],
+    metadata: { payment_link_id: 'pl_x3Xg8Njod9ewkzqcA9FrgKM21YAr5bGV' }
+  }), true);
+  assert.equal(isPagarmeOneShotOrder({
+    code: 'pl_LEvQpx6mPabjqdgwhkSzA78lZB20Dyk1',
+    items: [{ description: 'Ajuste Leona — 40 conexões' }]
+  }), true);
+  assert.equal(isPagarmeLeonaOrder({
+    code: 'pl_abc',
+    items: [{ description: 'Placa trilha' }]
+  }), false);
+});
+
 test('assinatura nativa conta no recorrente', () => {
   const snapshot = buildPagarmeSubscriberSnapshot({
     subscriptions: [
