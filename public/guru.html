@@ -1627,8 +1627,8 @@
             document.getElementById('pagarmeSubscribers').textContent =
                 String(pagarmeSubscribers.count ?? '—');
             document.getElementById('pagarmeNote').textContent =
-                `${pagarmeApproved.count || 0} venda(s) · ${pagarmeSubscribers.recurring || 0} ciclo novo · ` +
-                `${pagarmeSubscribers.prepaid || 0} ajuste(s) em ${pagarmeSubscribers.prepaid_window_days || 32} dias`;
+                `${pagarmeApproved.count || 0} venda(s) do checkout · ` +
+                `${pagarmeSubscribers.count || 0} pagante(s) em ${pagarmeSubscribers.prepaid_window_days || 32} dias`;
 
             document.getElementById('approvedCount').textContent = String(a.count || 0);
             document.getElementById('refundedCount').textContent = String(ref.count || 0);
