@@ -99,9 +99,9 @@ mes anterior e mais curto, a data gruda no ultimo dia dele: 31/mar compara com
   settlement e não pode ser somado com Guru/Paddle. Assinante = e-mail
   único com pagamento `paid` nos últimos 32 dias (recorrente e avulso
   entram iguais; renovação mensal já recai nessa janela).
-- **Pagar.me**: pedidos Leona (`leona-…`) em BRL. Ciclo novo e ajuste avulso
-  entram no bruto do dia do pagamento. Assinante = e-mail único com pedido
-  `paid` nos últimos 32 dias.
+- **Pagar.me**: lê as intents da `/assinatura` no Supabase (não lista a conta
+  Stone). Ciclo novo e ajuste avulso entram no bruto do dia do pagamento.
+  Assinante = e-mail único com pedido `paid` nos últimos 32 dias.
 - `active_subscribers` e snapshot do momento da sincronizacao, nao fluxo do dia.
   Fica gravado no dia em que foi coletado e a tela usa o mais recente; dias de
   carga historica ficam com `null`.
