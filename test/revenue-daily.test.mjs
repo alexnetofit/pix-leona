@@ -194,15 +194,30 @@ test('summarizeRange usa unique quando o snapshot já veio deduplicado', () => {
   const summary = summarizeRange('2026-08-01', '2026-08-01', [
     row('2026-08-01', 'guru')
   ], {
-    unique: 2328,
+    unique: 2305,
     guru: { count: 2179 },
     paddle: { count: 26 },
     pagou: { count: 76 },
     dlocal: { count: 47 },
-    pagarme: { count: 40 }
+    pagarme: { count: 35 }
   });
 
-  assert.equal(summary.active_subscribers.count, 2328);
+  assert.equal(summary.active_subscribers.count, 2305);
   assert.equal(summary.platforms.pagou.active_subscribers.count, 76);
-  assert.equal(summary.platforms.pagarme.active_subscribers.count, 40);
+  assert.equal(summary.platforms.pagarme.active_subscribers.count, 35);
+});
+
+test('assignUniqueSubscribers tira da Pagar.me quem já está na dLocal', () => {
+  const assigned = assignUniqueSubscribers({
+    guruCount: 2098,
+    paddleEmails: ['so-paddle@x.com'],
+    pagouEmails: [],
+    dlocalEmails: ['migrou@x.com', 'so-dlocal@x.com'],
+    pagarmeEmails: ['migrou@x.com', 'so-pagarme@x.com'],
+    guruOverlapEmails: []
+  });
+
+  assert.equal(assigned.pagarme, 1);
+  assert.equal(assigned.dlocal, 2);
+  assert.equal(assigned.unique, 2098 + 1 + 2 + 1);
 });

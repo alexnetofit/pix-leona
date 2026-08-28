@@ -101,7 +101,10 @@ mes anterior e mais curto, a data gruda no ultimo dia dele: 31/mar compara com
   entram iguais; renovação mensal já recai nessa janela).
 - **Pagar.me**: lê as intents da `/assinatura` no Supabase (não lista a conta
   Stone). Ciclo novo e ajuste avulso entram no bruto do dia do pagamento.
-  Assinante = e-mail único com pedido `paid` nos últimos 32 dias.
+  Assinante = e-mail único com pedido `paid` nos últimos 32 dias, **sem** quem
+  já está na dLocal/Pagou/Guru.
 - `active_subscribers` e snapshot do momento da sincronizacao, nao fluxo do dia.
   Fica gravado no dia em que foi coletado e a tela usa o mais recente; dias de
   carga historica ficam com `null`.
+- O total da tela (`unique_subscribers`) nao soma os cards: cada cabeça conta
+  uma vez. Quem migrou dLocal → Pagar.me fica só na dLocal.
