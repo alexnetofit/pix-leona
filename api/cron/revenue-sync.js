@@ -68,7 +68,8 @@ export default async function handler(req, res) {
           guru: result.snapshot.guru?.count ?? null,
           paddle: result.snapshot.paddle?.count ?? null,
           pagou: result.snapshot.pagou?.count ?? null,
-          dlocal: result.snapshot.dlocal?.count ?? null
+          dlocal: result.snapshot.dlocal?.count ?? null,
+          pagarme: result.snapshot.pagarme?.count ?? null
         }
         : null,
       elapsed_ms: Date.now() - startedAt

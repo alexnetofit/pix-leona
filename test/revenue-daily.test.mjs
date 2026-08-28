@@ -54,31 +54,35 @@ test('summarizeRange soma plataformas e converte centavos em reais', () => {
       sales_count: 1,
       transactions_scanned: 12_700
     }),
-    row('2026-08-01', 'dlocal', { gross_cents: 12_700, net_cents: 12_251, sales_count: 1 })
+    row('2026-08-01', 'dlocal', { gross_cents: 12_700, net_cents: 12_251, sales_count: 1 }),
+    row('2026-08-01', 'pagarme', { gross_cents: 25_400, net_cents: 24_800, sales_count: 2 })
   ];
 
   const summary = summarizeRange('2026-08-01', '2026-08-02', rows, {
     guru: { count: 40, recurring: null, prepaid: null },
     paddle: { count: 12, recurring: 9, prepaid: 3 },
     pagou: { count: 2, recurring: 0, prepaid: 2 },
-    dlocal: { count: 3, recurring: 2, prepaid: 1 }
+    dlocal: { count: 3, recurring: 2, prepaid: 1 },
+    pagarme: { count: 4, recurring: 3, prepaid: 1 }
   });
 
-  assert.deepEqual(summary.approved, { gross: 895, net: 823.16, count: 6 });
+  assert.deepEqual(summary.approved, { gross: 1149, net: 1071.16, count: 8 });
   assert.deepEqual(summary.refunded, { gross: 197, net: 180, count: 1 });
   assert.deepEqual(summary.daily, [
-    { day: '2026-08-01', gross: 501 },
+    { day: '2026-08-01', gross: 755 },
     { day: '2026-08-02', gross: 394 }
   ]);
   assert.deepEqual(summary.platforms.guru.approved, { gross: 591, net: 540, count: 3 });
   assert.deepEqual(summary.platforms.paddle.approved, { gross: 50, net: 42, count: 1 });
-  assert.equal(summary.active_subscribers.count, 57);
   assert.equal(summary.platforms.paddle.active_subscribers.recurring, 9);
   assert.equal(summary.platforms.pagou.currency, 'BRL');
   assert.deepEqual(summary.platforms.pagou.approved, { gross: 127, net: 118.65, count: 1, brl: 127 });
   assert.deepEqual(summary.platforms.dlocal.approved, { gross: 127, net: 122.51, count: 1 });
   assert.equal(summary.platforms.dlocal.active_subscribers.recurring, 2);
   assert.equal(summary.platforms.dlocal.active_subscribers.prepaid, 1);
+  assert.deepEqual(summary.platforms.pagarme.approved, { gross: 254, net: 248, count: 2 });
+  assert.equal(summary.platforms.pagarme.active_subscribers.recurring, 3);
+  assert.equal(summary.active_subscribers.count, 61);
   assert.equal(summary.days_missing, 0);
 });
 
@@ -109,6 +113,7 @@ test('findDaysToSync cobre dia sem registro, plataforma faltando e dia recente v
     row('2026-08-01', 'paddle'),
     row('2026-08-01', 'pagou'),
     row('2026-08-01', 'dlocal'),
+    row('2026-08-01', 'pagarme'),
     // Dia antigo com uma plataforma faltando.
     row('2026-08-02', 'guru'),
     // Ontem, sincronizado há muito tempo.
@@ -116,11 +121,13 @@ test('findDaysToSync cobre dia sem registro, plataforma faltando e dia recente v
     row('2026-08-03', 'paddle', { synced_at: old }),
     row('2026-08-03', 'pagou', { synced_at: old }),
     row('2026-08-03', 'dlocal', { synced_at: old }),
+    row('2026-08-03', 'pagarme', { synced_at: old }),
     // Hoje, recém sincronizado.
     row(today, 'guru', { synced_at: fresh }),
     row(today, 'paddle', { synced_at: fresh }),
     row(today, 'pagou', { synced_at: fresh }),
-    row(today, 'dlocal', { synced_at: fresh })
+    row(today, 'dlocal', { synced_at: fresh }),
+    row(today, 'pagarme', { synced_at: fresh })
   ];
 
   assert.deepEqual(
@@ -136,7 +143,8 @@ test('findDaysToSync considera hoje vencido quando o snapshot envelhece', () => 
     row(today, 'guru', { synced_at: stale }),
     row(today, 'paddle', { synced_at: stale }),
     row(today, 'pagou', { synced_at: stale }),
-    row(today, 'dlocal', { synced_at: stale })
+    row(today, 'dlocal', { synced_at: stale }),
+    row(today, 'pagarme', { synced_at: stale })
   ];
 
   assert.deepEqual(findDaysToSync([today], rows, { today }), [today]);
@@ -162,6 +170,7 @@ test('findSyncPlan nao manda Guru de volta so porque falta Pagou', () => {
   assert.deepEqual(plan.paddle, []);
   assert.deepEqual(plan.pagou, days);
   assert.deepEqual(plan.dlocal, days);
+  assert.deepEqual(plan.pagarme, days);
 });
 
 test('assignUniqueSubscribers não soma a mesma cabeça em duas fontes', () => {
@@ -170,13 +179,15 @@ test('assignUniqueSubscribers não soma a mesma cabeça em duas fontes', () => {
     paddleEmails: ['david@x.com', 'so-paddle@x.com'],
     pagouEmails: ['groupseven@x.com', 'agencia@x.com', 'so-pagou@x.com'],
     dlocalEmails: ['agencia@x.com', 'so-dlocal@x.com'],
+    pagarmeEmails: ['agencia@x.com', 'so-pagarme@x.com'],
     guruOverlapEmails: ['david@x.com', 'groupseven@x.com']
   });
 
   assert.equal(assigned.pagou, 1);
   assert.equal(assigned.dlocal, 2);
   assert.equal(assigned.paddle, 2);
-  assert.equal(assigned.unique, 2182 + 1 + 2 + 1);
+  assert.equal(assigned.pagarme, 1);
+  assert.equal(assigned.unique, 2182 + 1 + 2 + 1 + 1);
 });
 
 test('summarizeRange usa unique quando o snapshot já veio deduplicado', () => {
@@ -187,9 +198,11 @@ test('summarizeRange usa unique quando o snapshot já veio deduplicado', () => {
     guru: { count: 2179 },
     paddle: { count: 26 },
     pagou: { count: 76 },
-    dlocal: { count: 47 }
+    dlocal: { count: 47 },
+    pagarme: { count: 40 }
   });
 
   assert.equal(summary.active_subscribers.count, 2328);
   assert.equal(summary.platforms.pagou.active_subscribers.count, 76);
+  assert.equal(summary.platforms.pagarme.active_subscribers.count, 40);
 });

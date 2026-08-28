@@ -1,5 +1,5 @@
 /**
- * api/guru-revenue.js — Faturamento consolidado (Guru + Paddle + Pagou + dLocal Go) da tela /guru.
+ * api/guru-revenue.js — Faturamento consolidado (Guru + Paddle + Pagou + dLocal Go + Pagar.me) da tela /guru.
  *
  * Body JSON:
  *   {
@@ -163,15 +163,17 @@ async function servedFromCache({ start, end, compareStart, compareEnd, force, gu
 }
 
 /**
- * Guru e cara: sem `force` so os 2 dias recentes. Pagou e dLocal sao baratas,
- * entao preenchem o intervalo inteiro (teto de MAX_LIVE_DAYS) sem reconsultar Guru.
+ * Guru e cara: sem `force` so os 2 dias recentes. Pagou, dLocal e Pagar.me sao
+ * baratas, entao preenchem o intervalo inteiro (teto de MAX_LIVE_DAYS) sem
+ * reconsultar Guru.
  */
 function selectPlanToSyncInline(pending, force) {
   return {
     guru: selectDaysToSyncInline(pending.guru, force),
     paddle: selectDaysToSyncInline(pending.paddle, force),
     pagou: (pending.pagou || []).slice(-MAX_LIVE_DAYS),
-    dlocal: (pending.dlocal || []).slice(-MAX_LIVE_DAYS)
+    dlocal: (pending.dlocal || []).slice(-MAX_LIVE_DAYS),
+    pagarme: (pending.pagarme || []).slice(-MAX_LIVE_DAYS)
   };
 }
 
@@ -183,7 +185,13 @@ function selectDaysToSyncInline(pending, force) {
 }
 
 function planHasDays(plan) {
-  return Boolean(plan.guru?.length || plan.paddle?.length || plan.pagou?.length || plan.dlocal?.length);
+  return Boolean(
+    plan.guru?.length
+    || plan.paddle?.length
+    || plan.pagou?.length
+    || plan.dlocal?.length
+    || plan.pagarme?.length
+  );
 }
 
 function countPlanDays(plan) {
@@ -191,7 +199,8 @@ function countPlanDays(plan) {
     ...(plan.guru || []),
     ...(plan.paddle || []),
     ...(plan.pagou || []),
-    ...(plan.dlocal || [])
+    ...(plan.dlocal || []),
+    ...(plan.pagarme || [])
   ]).size;
 }
 

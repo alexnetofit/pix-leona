@@ -2,7 +2,7 @@
 
 ## Por que existe
 
-A tela `/guru` mostra receita consolidada de Guru e Paddle. Ela consultava as
+A tela `/guru` mostra receita consolidada de Guru, Paddle, Pagou, dLocal e Pagar.me. Ela consultava as
 duas APIs a cada abertura, e a Guru e lenta de um jeito que nao da pra
 contornar no cliente:
 
@@ -32,7 +32,7 @@ carga manual  ─┘
 esse agregado, entao a resposta e uma consulta SQL sobre poucas dezenas de
 linhas em vez de ~70 paginas de API.
 
-- `lib/revenue-source.js` fala com Guru e Paddle e devolve totais por dia.
+- `lib/revenue-source.js` fala com Guru, Paddle, Pagou, dLocal e Pagar.me e devolve totais por dia.
 - `lib/revenue-daily.js` le/grava a tabela e monta o resumo de um intervalo.
 - `api/cron/revenue-sync.js` mantem a tabela atualizada.
 - `api/guru-revenue.js` responde a tela.
@@ -99,6 +99,9 @@ mes anterior e mais curto, a data gruda no ultimo dia dele: 31/mar compara com
   settlement e não pode ser somado com Guru/Paddle. Assinante = e-mail
   único com pagamento `paid` nos últimos 32 dias (recorrente e avulso
   entram iguais; renovação mensal já recai nessa janela).
+- **Pagar.me**: pedidos Leona (`leona-…`) em BRL. Ciclo novo e ajuste avulso
+  entram no bruto do dia do pagamento. Assinante = e-mail único com pedido
+  `paid` nos últimos 32 dias.
 - `active_subscribers` e snapshot do momento da sincronizacao, nao fluxo do dia.
   Fica gravado no dia em que foi coletado e a tela usa o mais recente; dias de
   carga historica ficam com `null`.
