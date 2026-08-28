@@ -108,3 +108,6 @@ mes anterior e mais curto, a data gruda no ultimo dia dele: 31/mar compara com
   carga historica ficam com `null`.
 - O total da tela (`unique_subscribers`) nao soma os cards: cada cabeça conta
   uma vez. Quem migrou dLocal → Pagar.me fica só na dLocal.
+- Mesmo e-mail com **duas contas Leona ativas** soma as duas no unique (dono
+  409 no billing). Clique duplo Pagar.me (mesmo conta/valor/tipo em até 60s)
+  conta uma venda — sem estornar.

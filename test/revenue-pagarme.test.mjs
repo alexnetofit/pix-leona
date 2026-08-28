@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   buildPagarmeSubscriberSnapshot,
+  collapsePagarmeRepeatIntents,
   intentAsPagarmeOrder,
   isPagarmeLeonaOrder,
   isPagarmeOneShotOrder,
@@ -181,4 +182,36 @@ test('assinante unico: ciclo novo ganha do ajuste no mesmo e-mail', () => {
   assert.equal(snapshot.recurring, 1);
   assert.equal(snapshot.prepaid, 1);
   assert.equal(snapshot.count, 2);
+});
+
+test('clique duplo na mesma conta some da contagem', () => {
+  const kept = collapsePagarmeRepeatIntents([
+    {
+      account_id: '10878',
+      amount_cents: 12700,
+      created_at: '2026-08-28T00:43:39.014Z',
+      details: { kind: 'subscription' }
+    },
+    {
+      account_id: '10878',
+      amount_cents: 12700,
+      created_at: '2026-08-28T00:43:44.567Z',
+      details: { kind: 'subscription' }
+    },
+    {
+      account_id: '747',
+      amount_cents: 7110,
+      created_at: '2026-08-28T01:44:47.935Z',
+      details: { kind: 'one_shot' }
+    },
+    {
+      account_id: '747',
+      amount_cents: 7110,
+      created_at: '2026-08-28T02:25:44.035Z',
+      details: { kind: 'one_shot' }
+    }
+  ]);
+  assert.equal(kept.length, 3);
+  assert.equal(kept.filter((row) => row.account_id === '10878').length, 1);
+  assert.equal(kept.filter((row) => row.account_id === '747').length, 2);
 });

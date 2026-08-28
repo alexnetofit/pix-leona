@@ -2,7 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { findDaysToSync, findSyncPlan, summarizeRange } from '../lib/revenue-daily.js';
-import { assignUniqueSubscribers, daysBetween, shiftDays } from '../lib/revenue-source.js';
+import {
+  assignUniqueSubscribers,
+  daysBetween,
+  extraUniqueFromAccountGroups,
+  preservedUniqueExtras,
+  shiftDays
+} from '../lib/revenue-source.js';
 
 function row(day, platform, overrides = {}) {
   return {
@@ -207,6 +213,20 @@ test('summarizeRange usa unique quando o snapshot já veio deduplicado', () => {
   assert.equal(summary.platforms.pagarme.active_subscribers.count, 35);
 });
 
+test('assignUniqueSubscribers soma conta extra do mesmo e-mail', () => {
+  const assigned = assignUniqueSubscribers({
+    guruCount: 2022,
+    paddleEmails: ['so-paddle@x.com'],
+    pagouEmails: [],
+    dlocalEmails: ['duas-contas@x.com'],
+    pagarmeEmails: ['outra@x.com'],
+    guruOverlapEmails: [],
+    extraUnique: 2
+  });
+
+  assert.equal(assigned.unique, 2022 + 1 + 1 + 1 + 2);
+});
+
 test('assignUniqueSubscribers tira da Pagar.me quem já está na dLocal', () => {
   const assigned = assignUniqueSubscribers({
     guruCount: 2098,
@@ -220,4 +240,19 @@ test('assignUniqueSubscribers tira da Pagar.me quem já está na dLocal', () => 
   assert.equal(assigned.pagarme, 1);
   assert.equal(assigned.dlocal, 2);
   assert.equal(assigned.unique, 2098 + 1 + 2 + 1);
+});
+
+test('extraUniqueFromAccountGroups conta a segunda conta do mesmo e-mail', () => {
+  const grouped = extraUniqueFromAccountGroups([
+    { email: 'g.adscris@gmail.com', account_id: '10974' },
+    { email: 'g.adscris@gmail.com', account_id: '11870' },
+    { email: 'so-uma@x.com', account_id: '1' }
+  ]);
+  assert.equal(grouped.extra, 1);
+  assert.deepEqual(grouped.emails, ['g.adscris@gmail.com']);
+});
+
+test('preservedUniqueExtras guarda o bônus Leona depois do cheap sync', () => {
+  assert.equal(preservedUniqueExtras(2306, 2304, 1), 1);
+  assert.equal(preservedUniqueExtras(2304, 2304, 1), 0);
 });
