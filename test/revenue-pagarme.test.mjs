@@ -101,6 +101,41 @@ test('estorno nao conta como venda paga', () => {
   }), false);
 });
 
+test('pedido Guru (UUID) nao entra no checkout', () => {
+  assert.equal(isPagarmeLeonaOrder({
+    code: 'a2738d7d-26b4-4574-9502-a0a6c338098e',
+    items: [{ description: 'Plano Starter - 3 conexões' }]
+  }), false);
+  assert.equal(isPagarmeLeonaOrder({
+    code: 'leona-1767-1-sub',
+    items: [{ description: 'Leona Flow — 1 conexão' }]
+  }), true);
+  assert.equal(isPagarmeLeonaOrder({
+    order: { code: 'leona-8841-2-sub' }
+  }), true);
+});
+
+test('assinatura nativa conta no recorrente', () => {
+  const snapshot = buildPagarmeSubscriberSnapshot({
+    subscriptions: [
+      { status: 'active', customer: { email: 'sub@x.com' } },
+      { status: 'canceled', customer: { email: 'fora@x.com' } }
+    ],
+    orders: [
+      {
+        code: 'leona-1-1-sub',
+        status: 'paid',
+        metadata: { kind: 'subscription' },
+        customer: { email: 'sub@x.com' },
+        charges: [{ status: 'paid' }]
+      }
+    ]
+  });
+  assert.equal(snapshot.recurring, 1);
+  assert.equal(snapshot.prepaid, 0);
+  assert.equal(snapshot.count, 1);
+});
+
 test('assinante unico: ciclo novo ganha do ajuste no mesmo e-mail', () => {
   const snapshot = buildPagarmeSubscriberSnapshot({
     orders: [
