@@ -3,10 +3,18 @@
  */
 import { applyCors } from '../lib/auth.js';
 import { logAssinaturaEvent } from '../lib/assinatura-log.js';
-import { extractPagarmeOrderId, extractPagarmePaymentLinkId, pagarmeWebhookLooksPaid } from '../lib/pagarme.js';
+import {
+  extractPagarmeCycleId,
+  extractPagarmeOrderId,
+  extractPagarmePaymentLinkId,
+  extractPagarmeSubscriptionId,
+  pagarmeInvoicePaid,
+  pagarmeWebhookLooksPaid
+} from '../lib/pagarme.js';
 import {
   findPagarmeAssinaturaIntent,
   processPagarmeAssinaturaPaid,
+  processPagarmeSubscriptionInvoicePaid,
   reconcilePendingPagarmeAssinatura
 } from '../lib/pagarme-assinatura.js';
 import {
@@ -27,9 +35,21 @@ export default async function handler(req, res) {
   const payload = req.body && typeof req.body === 'object' ? req.body : {};
   const paymentLinkId = extractPagarmePaymentLinkId(payload, req.query || {});
   const orderId = extractPagarmeOrderId(payload, req.query || {});
+  const subscriptionId = extractPagarmeSubscriptionId(payload, req.query || {});
+  const invoicePaid = pagarmeInvoicePaid(payload);
 
   let result;
-  if (paymentLinkId) {
+  if (invoicePaid && subscriptionId && await findPagarmeAssinaturaIntent(subscriptionId)) {
+    result = {
+      kind: 'assinatura',
+      ...(await processPagarmeSubscriptionInvoicePaid({
+        subscriptionId,
+        cycleId: extractPagarmeCycleId(payload),
+        req,
+        source: 'webhook'
+      }))
+    };
+  } else if (paymentLinkId) {
     const trilha = await findTrilhaCheckoutByPaymentLink(paymentLinkId);
     if (trilha) {
       result = { kind: 'trilha', ...(await fulfillPaidPaymentLink(paymentLinkId, { source: 'webhook', payload })) };
