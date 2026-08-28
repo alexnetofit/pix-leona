@@ -8,8 +8,10 @@ import { assertAccountAccess } from '../lib/leona.js';
 import {
   getPagarmeOrder,
   getPagarmePaymentLink,
+  getPagarmeSubscription,
   pagarmeConfigured,
-  pagarmeOrderLooksPaid
+  pagarmeOrderLooksPaid,
+  pagarmeSubscriptionActive
 } from '../lib/pagarme.js';
 import { createPagarmeAssinaturaCheckout } from '../lib/pagarme-assinatura.js';
 import { paymentLinkLooksPaid } from '../lib/trilha-fulfill.js';
@@ -48,6 +50,18 @@ export default async function handler(req, res) {
       route: '/api/pagarme-pay'
     });
     if (!access.ok) return res.status(access.status).json(access.body);
+    if (/^sub_/i.test(String(id))) {
+      const found = await getPagarmeSubscription(id);
+      if (!found.ok || !found.body?.id) {
+        return res.status(found.status || 404).json({ error: 'Assinatura não encontrada' });
+      }
+      return res.status(200).json({
+        id: found.body.id,
+        status: found.body.status || null,
+        subscription: true,
+        paid: pagarmeSubscriptionActive(found.body)
+      });
+    }
     if (/^or_/i.test(String(id))) {
       const found = await getPagarmeOrder(id);
       if (!found.ok || !found.body?.id) {
@@ -138,6 +152,7 @@ export default async function handler(req, res) {
     status: created.paid ? 'paid' : 'PENDING',
     paid: Boolean(created.paid),
     kind: created.oneShot ? 'one_shot' : 'subscription',
+    subscription: Boolean(created.subscription),
     pix: created.pix || null,
     qty: created.qty,
     amount_cents: created.amountCents,
