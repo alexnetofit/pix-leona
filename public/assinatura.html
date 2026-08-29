@@ -576,6 +576,7 @@
     </div>
 
     <script src="/pagou-pay-ui.js"></script>
+    <script src="/assinatura-qty.js"></script>
     <script>
         let _data = null;
         let _email = '';
@@ -845,6 +846,44 @@
                 subscriptions,
                 invoices
             };
+        }
+
+        function historySubscriptionsForProfile(guru, bp, allProfiles) {
+            if (!guru?.found || !Array.isArray(guru.subscriptions)) return [];
+            const ownId = guruIdOf(bp);
+            const siblingIds = (allProfiles || [])
+                .filter((p) => p && String(p.account_id) !== String(bp?.account_id) && p.guru_account_id)
+                .map((p) => String(p.guru_account_id));
+            return guru.subscriptions.filter((sub) => {
+                if (subMatchesGuruId(sub, ownId)) return true;
+                if (siblingIds.some((id) => subMatchesGuruId(sub, id))) return false;
+                if (!ownId) return true;
+                return false;
+            });
+        }
+
+        function historyInvoicesForProfile(guru, historySubs, bp) {
+            const ids = new Set((historySubs || []).map((s) => String(s.id)));
+            const ownId = guruIdOf(bp);
+            if (ownId) ids.add(ownId);
+            if (!ids.size || !Array.isArray(guru?.invoices)) return [];
+            return guru.invoices.filter((inv) =>
+                inv.subscription_id && ids.has(String(inv.subscription_id))
+            );
+        }
+
+        function expiredCheckoutQty(bp, guru, allProfiles) {
+            const historySubs = historySubscriptionsForProfile(guru, bp, allProfiles);
+            const resolve = globalThis.AssinaturaQty && globalThis.AssinaturaQty.resolveExpiredCheckoutQty;
+            if (typeof resolve === 'function') {
+                return resolve({
+                    leonaQty: bp?.starter_instances,
+                    subscriptions: historySubs,
+                    invoices: historyInvoicesForProfile(guru, historySubs, bp)
+                });
+            }
+            const n = Number(bp?.starter_instances);
+            return Number.isFinite(n) && n > 0 ? n : 1;
         }
 
         function hasGuruPendingInvoice(sub) {
@@ -1477,7 +1516,7 @@
                 content.innerHTML = `
                     <h1 class="page">Assinar</h1>
                     <p class="lede">Não encontramos uma assinatura para ${email}.</p>
-                    ${renderQtySelector(offers, email, 'none')}
+                    ${renderQtySelector(offers, email, 'none', null, expiredCheckoutQty(null, guru, []))}
                 `;
                 mountPendingPayForms();
                 return;
@@ -1545,10 +1584,10 @@
                     } else if (hasGuruAny) {
                         // Cenário 2: Leona vencida + Guru vencida/cancelada.
                         // Renovação: checkout Guru (replace) ou Paddle se Exterior.
-                        html += renderQtySelector(offers, email, `exp${i}`, bp.account_id);
+                        html += renderQtySelector(offers, email, `exp${i}`, bp.account_id, expiredCheckoutQty(bp, guru, allProfiles));
                     } else {
                         // Cenário 1: Leona inativa/vencida + sem Guru desta conta
-                        html += renderQtySelector(offers, email, `noguru${i}`, bp.account_id);
+                        html += renderQtySelector(offers, email, `noguru${i}`, bp.account_id, expiredCheckoutQty(bp, guru, allProfiles));
                     }
                 } else {
                     // Cenário 4: Leona ativa — upgrade/downgrade
@@ -1566,7 +1605,7 @@
                         // permite ajustar a qty pra cima ou pra baixo.
                         const days = daysUntilLeonaExpiry(bp);
                         html += renderRenewalAlert(bp, days);
-                        html += renderQtySelector(offers, email, `renew${i}`, bp.account_id, bp.starter_instances || 0);
+                        html += renderQtySelector(offers, email, `renew${i}`, bp.account_id, expiredCheckoutQty(bp, guru, allProfiles));
                     } else {
                         html += renderUpgradePanel(bp, i);
                     }
