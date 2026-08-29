@@ -38,6 +38,43 @@ test('sem assinatura usa o último pagamento aprovado', () => {
   }), 10);
 });
 
+test('último pagamento de upgrade usa o plano alvo, não o delta cobrado', () => {
+  // Guru: 10 → 12. A fatura é type=upgrade e o valor é só o pró-rata
+  // das 2 extras (ex.: R$ 36,87), mas offer_name continua "12 conexões".
+  assert.equal(resolveExpiredCheckoutQty({
+    leonaQty: 0,
+    subscriptions: [],
+    invoices: [
+      {
+        status: 'paid',
+        type: 'upgrade',
+        offer_name: 'Plano Starter - 12 conexões',
+        value: 36.87,
+        period_end: '2026-08-12'
+      },
+      {
+        status: 'paid',
+        type: 'cycle',
+        offer_name: 'Plano Starter - 10 conexões',
+        value: 790,
+        period_end: '2026-08-11'
+      }
+    ]
+  }), 12);
+});
+
+test('com sub cobrada, o plano da sub ganha do último upgrade', () => {
+  assert.equal(resolveExpiredCheckoutQty({
+    leonaQty: 0,
+    subscriptions: [
+      { offer_name: 'Plano Starter - 12 conexões', charged_times: 2, status_at: 20, cycle_end: '2026-08-12' }
+    ],
+    invoices: [
+      { status: 'paid', type: 'upgrade', offer_name: 'Plano Starter - 12 conexões', value: 36.87, period_end: '2026-08-12' }
+    ]
+  }), 12);
+});
+
 test('sem histórico continua em 1', () => {
   assert.equal(resolveExpiredCheckoutQty({}), 1);
   assert.equal(resolveExpiredCheckoutQty({ leonaQty: 0, subscriptions: [], invoices: [] }), 1);

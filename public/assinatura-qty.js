@@ -37,6 +37,8 @@
       if (qty) return qty;
     }
 
+    // Upgrade Guru cobra só o pró-rata (ex. 10→12 = R$ 36,87), mas o
+    // offer_name é o plano alvo ("12 conexões"), não o delta. Lemos o nome.
     const paid = [...invoices]
       .filter((inv) => String(inv.status || '').toLowerCase() === 'paid')
       .sort((a, b) => invoiceWhen(b).localeCompare(invoiceWhen(a)));
