@@ -1,6 +1,7 @@
 /**
  * POST /api/paddle-international-checkout
- * Checkout recorrente Paddle pra cliente de fora do Brasil (sem CPF).
+ * Checkout Paddle pra cliente de fora do Brasil (sem CPF).
+ * Assinatura nova = recorrente. Upgrade no ciclo aberto = avulso (pró-rata).
  */
 import { applyCors } from '../lib/auth.js';
 import { assertAccountAccess } from '../lib/leona.js';
@@ -8,7 +9,9 @@ import { logAssinaturaEvent } from '../lib/assinatura-log.js';
 import {
   buildPaddleInternationalTransaction,
   findStarterPriceId,
-  paddleInternationalReady
+  findStarterProductId,
+  paddleInternationalReady,
+  resolvePaddleInternationalCharge
 } from '../lib/geo-billing.js';
 import {
   createCustomer,
@@ -35,7 +38,7 @@ export default async function handler(req, res) {
   const leonaToken = process.env.LEONA_BILLING_TOKEN;
   if (!leonaToken) return res.status(500).json({ error: 'Configuração incompleta' });
 
-  const { account_id, email, qty, name } = req.body || {};
+  const { account_id, email, qty, name, kind, amount } = req.body || {};
   const accountId = account_id != null ? String(account_id).trim() : '';
   const qtyN = Math.max(1, Number(qty) || 0);
   if (!accountId) return res.status(400).json({ error: 'account_id obrigatório' });
@@ -51,6 +54,15 @@ export default async function handler(req, res) {
 
   const buyerEmail = access.profileEmail || String(email || '').trim().toLowerCase();
   const buyerName = String(name || access.profile?.user?.name || '').trim() || null;
+  const charge = resolvePaddleInternationalCharge({
+    qty: qtyN,
+    kind,
+    amount,
+    profile: access.profile
+  });
+  if (!charge.ok) {
+    return res.status(400).json({ error: charge.error });
+  }
 
   try {
     ensurePaddleEnv();
@@ -73,10 +85,13 @@ export default async function handler(req, res) {
     const origin = String(req.headers?.origin || 'https://client.leonaflow.com').replace(/\/+$/, '');
     const transaction = await createTransaction(buildPaddleInternationalTransaction({
       accountId,
-      qty: qtyN,
+      qty: charge.qty,
       customerId: customer.id,
       priceId,
-      checkoutUrl: `${origin}/checkout`
+      productId: findStarterProductId(products, process.env.PADDLE_STARTER_PRICE_ID),
+      checkoutUrl: `${origin}/checkout`,
+      kind: charge.oneShot ? 'one_shot' : 'subscription',
+      amountCents: charge.amountCents
     }));
 
     const qs = new URLSearchParams();
@@ -91,7 +106,10 @@ export default async function handler(req, res) {
       email: buyerEmail,
       account_id: accountId,
       details: {
-        qty: qtyN,
+        qty: charge.qty,
+        kind: charge.oneShot ? 'one_shot' : 'subscription',
+        amount_cents: charge.amountCents,
+        keep_cycle: Boolean(charge.keepCycle),
         customer_id: customer.id,
         transaction_id: transaction.id,
         price_id: priceId
@@ -103,7 +121,9 @@ export default async function handler(req, res) {
       transaction_id: transaction.id,
       customer_id: customer.id,
       account_id: accountId,
-      qty: qtyN
+      qty: charge.qty,
+      kind: charge.oneShot ? 'one_shot' : 'subscription',
+      amount_cents: charge.amountCents
     });
   } catch (err) {
     console.error('paddle-international-checkout:', err.message, err.body || '');

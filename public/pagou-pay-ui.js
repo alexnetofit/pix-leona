@@ -334,6 +334,8 @@
           account_id: c.accountId,
           email: c.email,
           qty: c.qty,
+          kind: c.kind === 'one_shot' ? 'one_shot' : 'subscription',
+          ...(Number(c.amount) > 0 ? { amount: c.amount } : {}),
           ...(name ? { name } : {})
         })
       });

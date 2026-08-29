@@ -6,7 +6,9 @@ import {
   countryFromAcceptLanguage,
   countryFromHeaders,
   findStarterPriceId,
+  findStarterProductId,
   paddleInternationalReady,
+  resolvePaddleInternationalCharge,
   suggestInternational
 } from '../lib/geo-billing.js';
 
@@ -72,4 +74,65 @@ test('1 conexão não aplica desconto de volume', () => {
     priceId: 'pri_starter'
   });
   assert.equal(body.discount, undefined);
+});
+
+test('acha o product_id Starter no catálogo', () => {
+  assert.equal(findStarterProductId([], null), null);
+  assert.equal(findStarterProductId([
+    { id: 'pro_flow', name: 'Leona Flow', prices: [{ id: 'pri_month' }] }
+  ], ''), 'pro_flow');
+  assert.equal(findStarterProductId([
+    { id: 'pro_other', name: 'Outro', prices: [{ id: 'pri_env' }] }
+  ], 'pri_env'), 'pro_other');
+});
+
+test('assinatura nova no exterior continua recorrente no valor cheio', () => {
+  const charge = resolvePaddleInternationalCharge({
+    qty: 8,
+    kind: 'subscription',
+    profile: { starter_instances: 0 }
+  });
+  assert.equal(charge.ok, true);
+  assert.equal(charge.oneShot, false);
+  assert.equal(charge.amountCents, null);
+});
+
+test('upgrade 7→8 no ciclo aberto cobra só o pró-rata, não R$ 632', () => {
+  const now = new Date('2026-08-29T12:00:00-03:00');
+  const charge = resolvePaddleInternationalCharge({
+    qty: 8,
+    kind: 'subscription',
+    profile: {
+      starter_instances: 7,
+      current_period_end: '2026-09-19T23:59:59-03:00'
+    },
+    now
+  });
+  assert.equal(charge.ok, true);
+  assert.equal(charge.oneShot, true);
+  assert.equal(charge.keepCycle, true);
+  assert.equal(charge.dueDate, '2026-09-19');
+  assert.ok(charge.amountCents > 0);
+  assert.ok(charge.amountCents < 20000, `pró-rata deveria ser ~R$ 55–60, veio ${charge.amountCents}`);
+  assert.notEqual(charge.amountCents, 63200);
+});
+
+test('transaction one_shot da Paddle é avulsa no valor do pró-rata', () => {
+  const body = buildPaddleInternationalTransaction({
+    accountId: '10864',
+    qty: 8,
+    customerId: 'ctm_1',
+    priceId: 'pri_starter',
+    productId: 'pro_starter',
+    kind: 'one_shot',
+    amountCents: 5530
+  });
+  assert.equal(body.items[0].quantity, 1);
+  assert.equal(body.items[0].price.unit_price.amount, '5530');
+  assert.equal(body.items[0].price.product_id, 'pro_starter');
+  assert.equal(body.items[0].price_id, undefined);
+  assert.equal(body.discount, undefined);
+  assert.equal(body.custom_data.kind, 'one_shot');
+  assert.equal(body.custom_data.qty, '8');
+  assert.equal(body.custom_data.amount_cents, '5530');
 });

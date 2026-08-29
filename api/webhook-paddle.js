@@ -23,6 +23,7 @@
 import crypto from 'crypto';
 import { updateLeonaBillingProfile, getLeonaBillingProfile } from '../lib/leona.js';
 import { findGuruActiveSubscriptionsByEmail, cancelGuruSubscription } from '../lib/guru.js';
+import { isOneShotKind } from '../lib/dlocal-go.js';
 
 export const config = {
   api: { bodyParser: false }
@@ -70,6 +71,36 @@ function toDueDate(iso) {
   const s = String(iso);
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
   try { return new Date(s).toISOString().slice(0, 10); } catch { return null; }
+}
+
+/**
+ * Ajuste avulso (pró-rata) manda qty alvo no custom_data e 1 item de valor.
+ * Sem isso o webhook leria quantity=1 e ainda puxaria due_date da Paddle.
+ */
+export function resolvePaddleCompletedSync({
+  items,
+  customData = {},
+  subscriptionQty = 0,
+  nextBilled = null
+} = {}) {
+  const oneShot = isOneShotKind(customData.kind);
+  const customQty = Number(customData.qty ?? customData.target_qty);
+  let qty = sumQuantities(items);
+  if (oneShot && Number.isFinite(customQty) && customQty > 0) {
+    qty = customQty;
+  } else if (Number(subscriptionQty) > 0) {
+    qty = Number(subscriptionQty);
+  }
+  const dueDate = oneShot ? null : toDueDate(nextBilled);
+  return {
+    oneShot,
+    qty,
+    payload: {
+      status: 'active',
+      ...(qty > 0 ? { starter_instances: qty } : {}),
+      ...(dueDate ? { due_date: dueDate } : {})
+    }
+  };
 }
 
 /**
@@ -261,17 +292,19 @@ export async function processPaddleEvent(event, opts = {}) {
 
   let payload = null;
   let migrationAnchorResult = null;
+  let oneShotUpgrade = false;
   switch (eventType) {
     case 'transaction.completed': {
+      const cd = data.custom_data || {};
       const subId = data.subscription_id || null;
-      let qty = sumQuantities(data.items);
-      const linkedSub = subId ? await fetchPaddleSubscription(subId, paddleApiKey) : null;
+      const preview = resolvePaddleCompletedSync({ items: data.items, customData: cd });
+      oneShotUpgrade = preview.oneShot;
+      const linkedSub = (!preview.oneShot && subId)
+        ? await fetchPaddleSubscription(subId, paddleApiKey)
+        : null;
       // Cobrança proporcional de upgrade: items da transaction trazem só o
       // delta (ex.: +6), não o total da assinatura (20).
-      if (linkedSub) {
-        const subQty = sumQuantities(linkedSub.items);
-        if (subQty > 0) qty = subQty;
-      }
+      const subscriptionQty = linkedSub ? sumQuantities(linkedSub.items) : 0;
 
       // Migração Guru→Paddle: a transaction marca migration:true em
       // custom_data. Antes de ler next_billed_at do Paddle, a gente
@@ -280,8 +313,7 @@ export async function processPaddleEvent(event, opts = {}) {
       //   2. attachar o tier discount recorrente
       // Aí o fetchPaddleSubscriptionNextBilled abaixo já devolve a
       // data correta pra sincronizar com o Leona.
-      const cd = data.custom_data || {};
-      if (cd.migration === true && subId) {
+      if (!preview.oneShot && cd.migration === true && subId) {
         migrationAnchorResult = await applyMigrationAnchor({
           subscriptionId: subId,
           anchorAt: cd.anchor_at_iso || cd.anchor_at || null,
@@ -291,13 +323,15 @@ export async function processPaddleEvent(event, opts = {}) {
       }
 
       const nextBilled = linkedSub?.next_billed_at
-        || (subId ? await fetchPaddleSubscriptionNextBilled(subId, paddleApiKey) : null);
-      const dueDate = toDueDate(nextBilled);
-      payload = {
-        status: 'active',
-        ...(qty > 0 ? { starter_instances: qty } : {}),
-        ...(dueDate ? { due_date: dueDate } : {})
-      };
+        || (!preview.oneShot && subId ? await fetchPaddleSubscriptionNextBilled(subId, paddleApiKey) : null);
+      const sync = resolvePaddleCompletedSync({
+        items: data.items,
+        customData: cd,
+        subscriptionQty,
+        nextBilled
+      });
+      oneShotUpgrade = sync.oneShot;
+      payload = sync.payload;
       break;
     }
     case 'subscription.activated':
@@ -353,7 +387,9 @@ export async function processPaddleEvent(event, opts = {}) {
 
   let guruCancel = null;
   const isActivationEvent = (eventType === 'transaction.completed' || eventType === 'subscription.activated');
-  if (isActivationEvent && guruToken) {
+  if (isActivationEvent && oneShotUpgrade) {
+    guruCancel = { skipped: true, reason: 'one_shot_keep_guru' };
+  } else if (isActivationEvent && guruToken) {
     try {
       const profile = await getLeonaBillingProfile(accountId, leonaToken);
       const profileEmail = profile?.user?.email || null;
