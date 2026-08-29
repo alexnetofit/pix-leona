@@ -1,7 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { qtyFromPlanName, resolveExpiredCheckoutQty } from '../lib/assinatura-qty.js';
+import {
+  qtyFromLeonaCode,
+  qtyFromPayment,
+  qtyFromPlanName,
+  resolveExpiredCheckoutQty
+} from '../lib/assinatura-qty.js';
+import { pagarmeOrderToPayment, paddleTxToPayment, shouldLoadAssinaturaPayments } from '../lib/assinatura-payments.js';
 
 test('lê a qty do nome da oferta', () => {
   assert.equal(qtyFromPlanName('Plano Starter - 12 conexões'), 12);
@@ -75,6 +81,99 @@ test('com sub cobrada, o plano da sub ganha do último upgrade', () => {
   }), 12);
 });
 
+test('Pagar.me upgrade lê o plano alvo no código, não o item.quantity=1', () => {
+  assert.equal(qtyFromLeonaCode('leona-11134-12-prorata'), 12);
+  assert.equal(qtyFromPayment({
+    status: 'paid',
+    code: 'leona-11134-12-prorata',
+    offer_name: 'Ajuste Leona — 12 conexões',
+    item_quantity: 1,
+    value: 36.87
+  }), 12);
+  assert.equal(resolveExpiredCheckoutQty({
+    leonaQty: 0,
+    invoices: [
+      { status: 'paid', offer_name: 'Plano Starter - 10 conexões', period_end: '2026-08-11' }
+    ],
+    payments: [
+      {
+        status: 'paid',
+        provider: 'pagarme',
+        code: 'leona-11134-12-prorata',
+        offer_name: 'Ajuste Leona — 12 conexões',
+        item_quantity: 1,
+        paid_at: '2026-08-12T12:00:00Z'
+      }
+    ]
+  }), 12);
+});
+
+test('Paddle one-shot usa custom_data.qty, não o item avulso', () => {
+  assert.equal(qtyFromPayment({
+    status: 'paid',
+    custom_data: { kind: 'one_shot', qty: '8' },
+    offer_name: 'Ajuste Leona — 8 conexões',
+    item_quantity: 1
+  }), 8);
+  assert.equal(resolveExpiredCheckoutQty({
+    leonaQty: 0,
+    payments: [{
+      status: 'paid',
+      provider: 'paddle',
+      custom_data: { kind: 'one_shot', qty: '8' },
+      offer_name: 'Ajuste Leona — 8 conexões',
+      item_quantity: 1,
+      paid_at: '2026-08-29T12:00:00Z'
+    }]
+  }), 8);
+});
+
+test('Paddle recorrente usa a quantity dos seats, não o nome "1 conexão"', () => {
+  assert.equal(qtyFromPayment({
+    status: 'paid',
+    custom_data: { qty: '8' },
+    offer_name: 'Leona Flow - 1 conexão',
+    item_quantity: 8
+  }), 8);
+});
+
+test('normaliza pedido Pagar.me real de ajuste', () => {
+  const row = pagarmeOrderToPayment({
+    status: 'paid',
+    code: 'leona-11134-2-prorata',
+    items: [{ description: 'Ajuste Leona — 2 conexões', quantity: 1, amount: 4023 }],
+    charges: [{ status: 'paid', paid_at: '2026-08-29T11:55:00Z' }]
+  }, ['11134']);
+  assert.equal(row.qty, 2);
+  assert.equal(row.account_id, '11134');
+  assert.equal(pagarmeOrderToPayment({
+    status: 'paid',
+    code: 'leona-11134-2-prorata',
+    items: [{ description: 'Ajuste Leona — 2 conexões', quantity: 1 }]
+  }, ['99999']), null);
+});
+
+test('normaliza transação Paddle paga e ignora draft', () => {
+  const paid = paddleTxToPayment({
+    status: 'completed',
+    billed_at: '2026-08-29T12:00:00Z',
+    custom_data: { kind: 'one_shot', qty: '8', leona_account_id: '10864' },
+    items: [{ quantity: 1, price_name: 'Ajuste Leona — 8 conexões' }]
+  }, ['10864']);
+  assert.equal(paid.qty, 8);
+  assert.equal(paddleTxToPayment({
+    status: 'draft',
+    custom_data: { kind: 'one_shot', qty: '8', leona_account_id: '10864' },
+    items: [{ quantity: 1, price_name: 'Ajuste Leona — 8 conexões' }]
+  }, ['10864']), null);
+});
+
+test('só busca Pagar.me/Paddle quando o slot Leona não resolve', () => {
+  assert.equal(shouldLoadAssinaturaPayments([{ starter_instances: 12 }]), false);
+  assert.equal(shouldLoadAssinaturaPayments([{ starter_instances: 0 }]), true);
+  assert.equal(shouldLoadAssinaturaPayments([]), true);
+});
+
 test('sem histórico continua em 1', () => {
   assert.equal(resolveExpiredCheckoutQty({}), 1);
   assert.equal(resolveExpiredCheckoutQty({ leonaQty: 0, subscriptions: [], invoices: [] }), 1);
@@ -88,9 +187,14 @@ test('script do browser devolve a mesma qty que o helper', async () => {
   runInNewContext(readFileSync(new URL('../public/assinatura-qty.js', import.meta.url), 'utf8'), ctx);
   const sample = {
     leonaQty: 0,
-    subscriptions: [
-      { offer_name: 'Plano Starter - 12 conexões', charged_times: 3, status_at: 20 }
-    ]
+    subscriptions: [],
+    payments: [{
+      status: 'paid',
+      code: 'leona-11134-12-prorata',
+      offer_name: 'Ajuste Leona — 12 conexões',
+      item_quantity: 1,
+      paid_at: '2026-08-12T12:00:00Z'
+    }]
   };
   assert.equal(ctx.AssinaturaQty.resolveExpiredCheckoutQty(sample), resolveExpiredCheckoutQty(sample));
 });

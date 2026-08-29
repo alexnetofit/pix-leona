@@ -872,14 +872,22 @@
             );
         }
 
-        function expiredCheckoutQty(bp, guru, allProfiles) {
+        function historyPaymentsForProfile(payments, bp) {
+            const id = bp?.account_id != null ? String(bp.account_id) : '';
+            if (!Array.isArray(payments)) return [];
+            if (!id) return payments;
+            return payments.filter((p) => !p.account_id || String(p.account_id) === id);
+        }
+
+        function expiredCheckoutQty(bp, guru, allProfiles, payments) {
             const historySubs = historySubscriptionsForProfile(guru, bp, allProfiles);
             const resolve = globalThis.AssinaturaQty && globalThis.AssinaturaQty.resolveExpiredCheckoutQty;
             if (typeof resolve === 'function') {
                 return resolve({
                     leonaQty: bp?.starter_instances,
                     subscriptions: historySubs,
-                    invoices: historyInvoicesForProfile(guru, historySubs, bp)
+                    invoices: historyInvoicesForProfile(guru, historySubs, bp),
+                    payments: historyPaymentsForProfile(payments, bp)
                 });
             }
             const n = Number(bp?.starter_instances);
@@ -1508,7 +1516,7 @@
 
         async function renderProfile(data, email) {
             const content = document.getElementById('content');
-            const { leona, guru, offers } = data;
+            const { leona, guru, offers, payments } = data;
 
             const profiles = getDisplayProfiles(data);
 
@@ -1516,7 +1524,7 @@
                 content.innerHTML = `
                     <h1 class="page">Assinar</h1>
                     <p class="lede">Não encontramos uma assinatura para ${email}.</p>
-                    ${renderQtySelector(offers, email, 'none', null, expiredCheckoutQty(null, guru, []))}
+                    ${renderQtySelector(offers, email, 'none', null, expiredCheckoutQty(null, guru, [], payments))}
                 `;
                 mountPendingPayForms();
                 return;
@@ -1584,10 +1592,10 @@
                     } else if (hasGuruAny) {
                         // Cenário 2: Leona vencida + Guru vencida/cancelada.
                         // Renovação: checkout Guru (replace) ou Paddle se Exterior.
-                        html += renderQtySelector(offers, email, `exp${i}`, bp.account_id, expiredCheckoutQty(bp, guru, allProfiles));
+                        html += renderQtySelector(offers, email, `exp${i}`, bp.account_id, expiredCheckoutQty(bp, guru, allProfiles, payments));
                     } else {
                         // Cenário 1: Leona inativa/vencida + sem Guru desta conta
-                        html += renderQtySelector(offers, email, `noguru${i}`, bp.account_id, expiredCheckoutQty(bp, guru, allProfiles));
+                        html += renderQtySelector(offers, email, `noguru${i}`, bp.account_id, expiredCheckoutQty(bp, guru, allProfiles, payments));
                     }
                 } else {
                     // Cenário 4: Leona ativa — upgrade/downgrade
@@ -1605,7 +1613,7 @@
                         // permite ajustar a qty pra cima ou pra baixo.
                         const days = daysUntilLeonaExpiry(bp);
                         html += renderRenewalAlert(bp, days);
-                        html += renderQtySelector(offers, email, `renew${i}`, bp.account_id, expiredCheckoutQty(bp, guru, allProfiles));
+                        html += renderQtySelector(offers, email, `renew${i}`, bp.account_id, expiredCheckoutQty(bp, guru, allProfiles, payments));
                     } else {
                         html += renderUpgradePanel(bp, i);
                     }

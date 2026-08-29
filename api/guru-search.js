@@ -1,5 +1,6 @@
 import { applyCors } from '../lib/auth.js';
 import { logAssinaturaEvent } from '../lib/assinatura-log.js';
+import { listAssinaturaPayments, shouldLoadAssinaturaPayments } from '../lib/assinatura-payments.js';
 
 const GURU_BASE = 'https://digitalmanager.guru/api/v2';
 const GURU_HEADERS = (token) => ({
@@ -408,6 +409,18 @@ export default async function handler(req, res) {
     }
 
     const bp = leonaPriority?.billing_profile || leona?.billing_profile || null;
+    const profiles = leona.billing_profiles || (bp ? [bp] : []);
+    let payments = [];
+    if (shouldLoadAssinaturaPayments(profiles)) {
+      payments = await listAssinaturaPayments({
+        email: emailClean,
+        accountIds: [
+          ...profiles.map((p) => p?.account_id),
+          accountIdRaw
+        ]
+      });
+    }
+
     logAssinaturaEvent(req, {
       action: 'view',
       provider: 'guru',
@@ -417,11 +430,12 @@ export default async function handler(req, res) {
         leona_status: bp?.subscription_status || null,
         starter: bp?.starter_instances ?? null,
         guru_statuses: (guru.subscriptions || []).map((s) => s.last_status || s.status),
-        invoices_open: (guru.invoices || []).filter((i) => i.status && i.status !== 'paid').length
+        invoices_open: (guru.invoices || []).filter((i) => i.status && i.status !== 'paid').length,
+        payments: payments.length
       }
     });
 
-    return res.status(200).json({ guru, leona, offers });
+    return res.status(200).json({ guru, leona, offers, payments });
 
   } catch (error) {
     console.error('guru-search error:', error);

@@ -10,18 +10,65 @@
     return Number.isFinite(n) && n > 0 ? n : null;
   }
 
+  function qtyFromLeonaCode(code) {
+    const raw = String(code || '').trim();
+    const dashed = raw.match(/^leona-(.+)-(\d+)-(prorata|sub)$/i);
+    if (dashed) {
+      const n = Number(dashed[2]);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    }
+    return null;
+  }
+
+  function paymentWhen(row) {
+    return String(
+      row?.paid_at
+      || row?.period_end
+      || row?.charge_at
+      || row?.billed_at
+      || row?.created_at
+      || ''
+    );
+  }
+
+  function qtyFromPayment(pay) {
+    pay = pay || {};
+    const explicit = Number(pay.qty ?? (pay.custom_data && pay.custom_data.qty));
+    if (Number.isFinite(explicit) && explicit > 0) return explicit;
+
+    const fromCode = qtyFromLeonaCode(pay.code);
+    if (fromCode) return fromCode;
+
+    const itemQty = Number(
+      pay.item_quantity
+      ?? (pay.items && pay.items[0] && pay.items[0].quantity)
+    );
+    if (Number.isFinite(itemQty) && itemQty > 1) return itemQty;
+
+    const item = (pay.items && pay.items[0]) || {};
+    return qtyFromPlanName(
+      pay.offer_name
+      || pay.product_name
+      || pay.description
+      || pay.price_name
+      || item.description
+      || item.price_name
+    );
+  }
+
   function subTime(sub) {
     return Number(sub?.status_at || sub?.started_at || 0) || 0;
   }
 
-  function invoiceWhen(inv) {
-    return String(inv?.period_end || inv?.charge_at || '');
+  function isPaid(row) {
+    return String(row?.status || '').toLowerCase() === 'paid';
   }
 
   function resolveExpiredCheckoutQty({
     leonaQty,
     subscriptions = [],
-    invoices = []
+    invoices = [],
+    payments = []
   } = {}) {
     const fromLeona = Number(leonaQty);
     if (Number.isFinite(fromLeona) && fromLeona > 0) return fromLeona;
@@ -37,18 +84,21 @@
       if (qty) return qty;
     }
 
-    // Upgrade Guru cobra só o pró-rata (ex. 10→12 = R$ 36,87), mas o
-    // offer_name é o plano alvo ("12 conexões"), não o delta. Lemos o nome.
-    const paid = [...invoices]
-      .filter((inv) => String(inv.status || '').toLowerCase() === 'paid')
-      .sort((a, b) => invoiceWhen(b).localeCompare(invoiceWhen(a)));
-    for (const inv of paid) {
-      const qty = qtyFromPlanName(inv.offer_name);
+    const paid = [...invoices, ...payments]
+      .filter(isPaid)
+      .sort((a, b) => paymentWhen(b).localeCompare(paymentWhen(a)));
+    for (const row of paid) {
+      const qty = qtyFromPayment(row);
       if (qty) return qty;
     }
 
     return 1;
   }
 
-  global.AssinaturaQty = { qtyFromPlanName, resolveExpiredCheckoutQty };
+  global.AssinaturaQty = {
+    qtyFromPlanName,
+    qtyFromLeonaCode,
+    qtyFromPayment,
+    resolveExpiredCheckoutQty
+  };
 })(typeof globalThis !== 'undefined' ? globalThis : window);
