@@ -114,7 +114,7 @@
     const state = {
       method: 'pix',
       region: 'br',
-      paddleReady: false,
+      dlocalReady: false,
       pagarmeReady: false,
       txId: null,
       pixCode: ''
@@ -138,8 +138,8 @@
     function hintText() {
       const intl = state.region === 'international';
       if (intl) {
-        return state.paddleReady
-          ? 'Cartão na Paddle, na sua moeda. Sem CPF.'
+        return state.dlocalReady
+          ? 'Cartão na dLocal, em dólar. Sem CPF.'
           : 'Pagamento internacional temporariamente indisponível. Fale com o suporte.';
       }
       if (state.method === 'card') {
@@ -170,7 +170,7 @@
       if (btn) {
         btn.dataset.region = state.region;
         btn.dataset.method = intl ? 'card' : state.method;
-        btn.disabled = intl ? !state.paddleReady : !state.pagarmeReady;
+        btn.disabled = intl ? !state.dlocalReady : !state.pagarmeReady;
         btn.textContent = payLabel(intl ? 'card' : state.method, kind(), state.region, checkout().amount);
       }
     }
@@ -325,9 +325,9 @@
       throw new Error(data.error || 'Pagamento não concluído');
     }
 
-    async function openPaddleCheckout(c) {
+    async function openDlocalCheckout(c) {
       const name = payerName(c);
-      const r = await fetch('/api/paddle-international-checkout', {
+      const r = await fetch('/api/dlocal-go-pay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -335,13 +335,15 @@
           email: c.email,
           qty: c.qty,
           kind: c.kind === 'one_shot' ? 'one_shot' : 'subscription',
-          ...(Number(c.amount) > 0 ? { amount: c.amount } : {}),
-          ...(name ? { name } : {})
+          region: 'international',
+          method: 'card',
+          ...(name ? { name } : {}),
+          ...(Number(c.amount) > 0 ? { amount: c.amount } : {})
         })
       });
       const data = await readJson(r);
       if (!r.ok || !data.checkout_url) {
-        throw new Error(data.error || 'Não foi possível abrir o checkout da Paddle');
+        throw new Error(data.error || 'Não foi possível abrir o checkout da dLocal');
       }
       location.href = data.checkout_url;
     }
@@ -366,8 +368,8 @@
       btn.textContent = 'Processando...';
       try {
         if (state.region === 'international') {
-          if (!state.paddleReady) throw new Error('Pagamento internacional indisponível. Fale com o suporte.');
-          await openPaddleCheckout(c);
+          if (!state.dlocalReady) throw new Error('Pagamento internacional indisponível. Fale com o suporte.');
+          await openDlocalCheckout(c);
           return;
         }
         if (!state.pagarmeReady) throw new Error('Pagamento indisponível. Tente de novo em instantes.');
@@ -392,7 +394,7 @@
     syncChrome();
 
     loadPayConfig().then((cfg) => {
-      state.paddleReady = !!cfg.paddle_ready;
+      state.dlocalReady = !!cfg.dlocal_ready;
       state.pagarmeReady = !!cfg.pagarme_ready;
       applyRegion(cfg.suggest_international ? 'international' : 'br');
     });
