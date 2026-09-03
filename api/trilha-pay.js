@@ -6,7 +6,7 @@ import { logAssinaturaEvent } from '../lib/assinatura-log.js';
 import { createPagarmePaymentLink, pagarmeConfigured } from '../lib/pagarme.js';
 import { resolveTrilhaAccess } from '../lib/trilha-access.js';
 import { resolveTrilhaRedeemEligibility } from '../lib/trilha-eligibility.js';
-import { buildTrilhaCartOrder, findTrilhaPrize, paymentLinkItems } from '../lib/trilha-order.js';
+import { buildTrilhaCartOrder, buildTrilhaPagarmePaymentLinkPayload, findTrilhaPrize } from '../lib/trilha-order.js';
 import { getLeonaLifetimeRevenue } from '../lib/leona.js';
 import {
   pickBrlLifetimeRevenue,
@@ -114,37 +114,13 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'E-mail da conta Leona inválido' });
   }
 
-  const customer = {
-    name: (name || 'Cliente Leona').slice(0, 64),
-    email: checkoutEmail
-  };
-  const payload = {
-    type: 'order',
-    name: `Trilha ${order.prizeIds.join('+')} #${resolvedAccountId}`.slice(0, 64),
-    max_paid_sessions: 1,
-    expires_in: 180,
-    payment_settings: {
-      accepted_payment_methods: ['pix', 'credit_card'],
-      pix_settings: { expires_in: 3600 },
-      credit_card_settings: {
-        operation_type: 'auth_and_capture',
-        installments_setup: {
-          interest_type: 'simple',
-          amount: order.totalCents,
-          max_installments: 1,
-          interest_rate: 0
-        }
-      }
-    },
-    customer_settings: { customer },
-    cart_settings: {
-      shipping_cost: 0,
-      items: paymentLinkItems(order.items)
-    },
-    flow_settings: {
-      success_url: trilhaPaidReturnUrl(resolvedAccountId, checkoutEmail)
-    }
-  };
+  const payload = buildTrilhaPagarmePaymentLinkPayload({
+    accountId: resolvedAccountId,
+    order,
+    customerName: name,
+    successUrl: trilhaPaidReturnUrl(resolvedAccountId, checkoutEmail)
+  });
+  const customer = payload.customer_settings.customer;
 
   const created = await createPagarmePaymentLink(payload);
   if (!created.ok || !created.body?.url) {
