@@ -86,7 +86,7 @@ export default async function handler(req, res) {
   for (const prizeId of prizeIds) {
     const prize = findTrilhaPrize(prizeId);
     if (!prize) continue;
-    if (prize.prizeFree && !acquired.has(prize.id) && redeemEligibility?.eligible === false) {
+    if (!acquired.has(prize.id) && redeemEligibility?.eligible === false) {
       if (!requestedAnticipate.has(prize.id)) {
         return res.status(403).json({ error: 'Resgate ainda não liberado (3 meses pagos)' });
       }

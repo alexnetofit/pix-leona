@@ -100,10 +100,11 @@ test('antecipação cobra o custo, sem o 29,90 e sem zerar na placa', () => {
 
   const withPlaque = buildTrilhaCartOrder({
     prizeIds: ['50k', '100k'],
-    anticipatedIds: ['50k']
+    anticipatedIds: ['50k', '100k']
   });
-  assert.equal(withPlaque.totalCents, 6750 + 29700);
+  assert.equal(withPlaque.totalCents, 6750 + 34650);
   assert.equal(withPlaque.items.find((item) => item.code === 'trilha-50k')?.amount, 6750);
+  assert.equal(withPlaque.items.find((item) => item.code === 'trilha-100k')?.amount, 34650);
 });
 
 test('placa no carrinho zera o 29,90 das outras', () => {

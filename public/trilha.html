@@ -1287,7 +1287,7 @@
           total += Math.max(extraQty(prize.id), 1) * (prize.extraUnitCents || 0);
           continue;
         }
-        if (anticipatedPrizeIds.has(prize.id) && prize.prizeFree) {
+        if (anticipatedPrizeIds.has(prize.id)) {
           total += prize.extraUnitCents || 0;
         } else if (!prize.prizeFree) total += prize.priceCents || 0;
         else if (!hasPlaque && !chargedFree) {
@@ -1600,7 +1600,7 @@
         const qty = Math.max(extraQty(prize.id), 1);
         return formatBrl((qty * (prize.extraUnitCents || 0)) / 100);
       }
-      if (anticipatedPrizeIds.has(prize.id) && prize.prizeFree) {
+      if (anticipatedPrizeIds.has(prize.id)) {
         return formatBrl((prize.extraUnitCents || 0) / 100);
       }
       if (!prize.prizeFree) return formatBrl((prize.priceCents || 0) / 100);
