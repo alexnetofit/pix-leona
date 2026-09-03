@@ -2520,8 +2520,12 @@
             const diffMs = periodEnd.getTime() - now.getTime();
             const diasRestantes = Math.max(0, Math.ceil(diffMs / 86400000));
             const diasNoCiclo = 30;
-            const proRata = (newValue - currentValue) * diasRestantes / diasNoCiclo;
-            return { proRata: Math.round(proRata * 100) / 100, diasRestantes, diasNoCiclo };
+            const diasCobrados = Math.min(diasRestantes, diasNoCiclo);
+            const monthlyDiff = newValue - currentValue;
+            let proRata = monthlyDiff * diasCobrados / diasNoCiclo;
+            if (monthlyDiff >= 0) proRata = Math.min(proRata, monthlyDiff);
+            else proRata = Math.max(proRata, monthlyDiff);
+            return { proRata: Math.round(proRata * 100) / 100, diasRestantes, diasNoCiclo, diasCobrados };
         }
 
         function showSimulationPanel(bpIdx, direction) {
@@ -2637,7 +2641,8 @@
             if (hasGuru) {
                 const activeSub = data.guru.subscriptions.find(s => s.status === 'active') || data.guru.subscriptions[0];
                 const subId = activeSub?.id;
-                const { proRata, diasRestantes, diasNoCiclo } = calcProRata(currentValue, newValue, periodEnd);
+                const { proRata, diasRestantes, diasNoCiclo, diasCobrados } = calcProRata(currentValue, newValue, periodEnd);
+                const billedDays = Number.isFinite(diasCobrados) ? diasCobrados : Math.min(diasRestantes, diasNoCiclo);
 
                 resultDiv.style.display = 'block';
                 resultDiv.innerHTML = `
@@ -2656,12 +2661,12 @@
                             <div style="background: var(--bg-secondary); padding: 14px; border-radius: 8px;">
                                 <div style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 10px; font-weight: 500;">Estimativa pro rata:</div>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid var(--border);">
-                                    <span style="color: var(--text-secondary);">Crédito não utilizado (${currentQty}x Starter, ${diasRestantes} dias)</span>
-                                    <span style="color: var(--error); font-weight: 600;">-${formatGuruCurrency(currentValue * diasRestantes / diasNoCiclo)}</span>
+                                    <span style="color: var(--text-secondary);">Crédito não utilizado (${currentQty}x Starter, ${billedDays} dias)</span>
+                                    <span style="color: var(--error); font-weight: 600;">-${formatGuruCurrency(currentValue * billedDays / diasNoCiclo)}</span>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid var(--border);">
-                                    <span style="color: var(--text-secondary);">Cobrança proporcional (${newQty}x Starter, ${diasRestantes} dias)</span>
-                                    <span style="color: var(--success); font-weight: 600;">+${formatGuruCurrency(newValue * diasRestantes / diasNoCiclo)}</span>
+                                    <span style="color: var(--text-secondary);">Cobrança proporcional (${newQty}x Starter, ${billedDays} dias)</span>
+                                    <span style="color: var(--success); font-weight: 600;">+${formatGuruCurrency(newValue * billedDays / diasNoCiclo)}</span>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; font-size: 1rem; padding-top: 10px; margin-top: 4px;">
                                     <span style="color: var(--text-primary); font-weight: 600;">Pro rata estimado:</span>
@@ -2676,7 +2681,8 @@
                     </div>
                 `;
             } else {
-                const { proRata, diasRestantes, diasNoCiclo } = calcProRata(currentValue, newValue, periodEnd);
+                const { proRata, diasRestantes, diasNoCiclo, diasCobrados } = calcProRata(currentValue, newValue, periodEnd);
+                const billedDays = Number.isFinite(diasCobrados) ? diasCobrados : Math.min(diasRestantes, diasNoCiclo);
                 const discountPct = newValue > 0 ? (1 - proRata / newValue) * 100 : 0;
                 let couponPct = Math.round(discountPct / 5) * 5;
                 couponPct = Math.max(5, Math.min(95, couponPct));
@@ -2727,12 +2733,12 @@
                             <div style="background: var(--bg-secondary); padding: 14px; border-radius: 8px;">
                                 <div style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 10px; font-weight: 500;">Cálculo pro rata:</div>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid var(--border);">
-                                    <span style="color: var(--text-secondary);">Crédito não utilizado (${currentQty}x Starter, ${diasRestantes} dias)</span>
-                                    <span style="color: var(--error); font-weight: 600;">-${formatGuruCurrency(currentValue * diasRestantes / diasNoCiclo)}</span>
+                                    <span style="color: var(--text-secondary);">Crédito não utilizado (${currentQty}x Starter, ${billedDays} dias)</span>
+                                    <span style="color: var(--error); font-weight: 600;">-${formatGuruCurrency(currentValue * billedDays / diasNoCiclo)}</span>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.9rem; padding: 8px 0; border-bottom: 1px solid var(--border);">
-                                    <span style="color: var(--text-secondary);">Cobrança proporcional (${newQty}x Starter, ${diasRestantes} dias)</span>
-                                    <span style="color: var(--success); font-weight: 600;">+${formatGuruCurrency(newValue * diasRestantes / diasNoCiclo)}</span>
+                                    <span style="color: var(--text-secondary);">Cobrança proporcional (${newQty}x Starter, ${billedDays} dias)</span>
+                                    <span style="color: var(--success); font-weight: 600;">+${formatGuruCurrency(newValue * billedDays / diasNoCiclo)}</span>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; font-size: 1rem; padding-top: 10px; margin-top: 4px;">
                                     <span style="color: var(--text-primary); font-weight: 600;">Pro rata exato:</span>

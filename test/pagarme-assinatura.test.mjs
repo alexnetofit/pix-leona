@@ -17,7 +17,31 @@ test('pró-rata 5→7 usa (delta × dias) / 30', () => {
   const end = '2026-09-11T23:59:59-03:00';
   const calc = calcLeonaProrata(leonaAmountReais(5), leonaAmountReais(7), end, now);
   assert.equal(calc.diasRestantes, 16);
+  assert.equal(calc.diasCobrados, 16);
   assert.equal(calc.proRata, 84.27);
+});
+
+test('pró-rata 1→3 com 31 dias restantes não passa de R$ 170', () => {
+  const now = new Date('2026-09-03T12:00:00-03:00');
+  const end = '2026-10-04T11:00:00-03:00';
+  const calc = calcLeonaProrata(leonaAmountReais(1), leonaAmountReais(3), end, now);
+  assert.equal(calc.diasRestantes, 31);
+  assert.equal(calc.diasCobrados, 30);
+  assert.equal(calc.proRata, 170);
+  assert.equal(calc.proRata, leonaAmountReais(3) - leonaAmountReais(1));
+});
+
+test('upgrade 1→3 no ciclo de 31 dias cobra o teto mensal', () => {
+  const now = new Date('2026-09-03T12:00:00-03:00');
+  const charge = resolvePagarmeAssinaturaCharge({
+    qty: 3,
+    kind: 'one_shot',
+    profile: { starter_instances: 1, current_period_end: '2026-10-04T11:00:00-03:00' },
+    now
+  });
+  assert.equal(charge.ok, true);
+  assert.equal(charge.oneShot, true);
+  assert.equal(charge.amountCents, 17000);
 });
 
 test('assinatura nova cobra o mês cheio', () => {
