@@ -1168,7 +1168,7 @@
                 },
                 onSubmit: (c) => {
                     logAssinatura('click_buy', {
-                        provider: c.region === 'international' ? 'dlocal' : 'pagarme',
+                        provider: c.region === 'international' ? 'paddle' : 'pagarme',
                         account_id: c.accountId,
                         email: c.email,
                         details: { qty: c.qty, offer: c.offer || null, value: c.amount || null, kind, region: c.region || 'br', method: c.method || null }

@@ -70,7 +70,7 @@
   <div class="wrap">
     <header><img src="/logo-leona.png" alt="Leona"></header>
     <h1>dLocal Go</h1>
-    <p class="lede">Cola esta URL no painel da dLocal. Depois do pagamento, a Leona ativa sozinha e cancela Guru/Paddle se existirem.</p>
+    <p class="lede">Cola esta URL no painel da dLocal. Checkout novo do exterior é na Paddle; esta página só gera cobrança no Brasil.</p>
 
     <div class="card">
       <h2>1. URL do webhook</h2>
@@ -109,8 +109,8 @@
         <label>Região</label>
         <select id="region">
           <option value="br">Brasil</option>
-          <option value="international">Exterior</option>
         </select>
+        <p class="status">Exterior vai pela Paddle na /assinatura. Esta página só gera checkout dLocal no Brasil.</p>
       </div>
       <div class="field">
         <label>Tipo</label>
@@ -139,7 +139,7 @@
     document.getElementById('email').value = params.get('email') || '';
     document.getElementById('accountId').value = params.get('account_id') || '';
     document.getElementById('qty').value = params.get('qty') || '1';
-    if (params.get('region') === 'international') document.getElementById('region').value = 'international';
+    document.getElementById('region').value = 'br';
     if (params.get('kind') === 'one_shot' || params.get('amount')) kind.value = 'one_shot';
     if (params.get('amount')) document.getElementById('amount').value = params.get('amount');
     amountField.style.display = kind.value === 'one_shot' ? '' : 'none';
