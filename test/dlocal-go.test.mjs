@@ -15,6 +15,7 @@ import {
   extractDlocalPaymentId,
   normalizeDlocalWebhookPayload,
   isCardMethod,
+  dlocalIntlRejection,
   isIntlRegion,
   isOneShotKind,
   isPixMethod,
@@ -124,6 +125,46 @@ test('classifica kind one_shot', () => {
   assert.equal(planDescriptionForQty(3), 'Leona Flow — 3 conexoes / mes');
   assert.equal(isIntlRegion('international'), true);
   assert.equal(isIntlRegion('br'), false);
+  assert.equal(dlocalIntlRejection('br'), null);
+  assert.equal(dlocalIntlRejection('international').status, 409);
+  assert.equal(dlocalIntlRejection('intl').body.code, 'INTL_USE_PADDLE');
+});
+
+test('dlocal-go-pay recusa region international sem criar plano USD', async () => {
+  process.env.LEONA_BILLING_TOKEN ||= 'test-token';
+  process.env.DLOCAL_GO_API_KEY ||= 'test-key';
+  process.env.DLOCAL_GO_SECRET_KEY ||= 'test-secret';
+  const { default: handler } = await import('../api/dlocal-go-pay.js');
+  const res = {
+    headers: {},
+    statusCode: 0,
+    body: null,
+    setHeader(k, v) { this.headers[k] = v; },
+    status(n) { this.statusCode = n; return this; },
+    json(b) { this.body = b; return this; },
+    end() { return this; }
+  };
+  await handler({
+    method: 'POST',
+    headers: {},
+    query: {},
+    body: { region: 'international', account_id: '15072', qty: 1, email: 'a@b.com' }
+  }, res);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.code, 'INTL_USE_PADDLE');
+});
+
+test('aba Exterior da /assinatura abre a Paddle, não a dLocal', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const ui = readFileSync(join(here, '../public/pagou-pay-ui.js'), 'utf8');
+  const page = readFileSync(join(here, '../public/assinatura.html'), 'utf8');
+  assert.match(ui, /\/api\/paddle-international-checkout/);
+  assert.match(ui, /\/api\/pagarme-pay/);
+  assert.match(ui, /Cartão na Paddle/);
+  assert.match(ui, /openPaddleCheckout/);
+  assert.doesNotMatch(ui, /openDlocalCheckout/);
+  assert.doesNotMatch(ui, /\/api\/dlocal-go-pay/);
+  assert.match(page, /c\.region === 'international' \? 'paddle' : 'pagarme'/);
 });
 
 test('converte BRL pra USD com o câmbio da dLocal', () => {

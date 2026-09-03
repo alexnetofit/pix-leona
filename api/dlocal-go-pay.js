@@ -20,6 +20,7 @@ import {
   getDlocalPayment,
   getDlocalUsdToBrlRate,
   isCardMethod,
+  dlocalIntlRejection,
   isIntlRegion,
   isOneShotKind,
   isPixMethod,
@@ -109,6 +110,8 @@ export default async function handler(req, res) {
   const accountId = account_id != null ? String(account_id).trim() : '';
   const qtyN = Math.max(1, Number(qty) || 0);
   const oneShot = isOneShotKind(kind);
+  const blockedIntl = dlocalIntlRejection(region);
+  if (blockedIntl) return res.status(blockedIntl.status).json(blockedIntl.body);
   const intl = isIntlRegion(region);
   const pix = !intl && isPixMethod(method);
   const card = isCardMethod(method);
