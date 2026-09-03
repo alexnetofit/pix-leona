@@ -39,6 +39,8 @@ test('grant só vale com account_id e e-mail certos', () => {
   assert.equal(isTrilhaRedeemGranted('15', 'outro@gmail.com'), false);
   assert.equal(isTrilhaRedeemGranted('99', 'praxedesconsultoriaoline@gmail.com'), false);
   assert.equal(isTrilhaRedeemGranted('', 'praxedesconsultoriaoline@gmail.com'), false);
+  assert.equal(isTrilhaRedeemGranted('24', 'Felipe.rubens@yahoo.com.br'), true);
+  assert.equal(isTrilhaRedeemGranted('24', 'outro@yahoo.com.br'), false);
 });
 
 test('grant Praxedes libera resgate no preço normal sem meses pagos', () => {
@@ -77,6 +79,18 @@ test('resolveTrilhaRedeemEligibility do grant não consulta Guru/Paddle', async 
   assert.equal(e.paid_months, TRILHA_MIN_PAID_MONTHS);
   assert.equal(e.sources.grant, true);
   assert.deepEqual(e.errors, []);
+});
+
+test('grant do Felipe libera resgate no preço da trilha', () => {
+  const e = buildTrilhaRedeemEligibility({
+    accountId: '24',
+    email: 'Felipe.rubens@yahoo.com.br',
+    paidMonths: 0
+  });
+  assert.equal(e.eligible, true);
+  assert.equal(e.granted, true);
+  assert.equal(e.paid_months, TRILHA_MIN_PAID_MONTHS);
+  assert.equal(e.missing_months, 0);
 });
 
 test('mergePaidCycleKeys une guru e paddle sem duplicar mesma chave', () => {
