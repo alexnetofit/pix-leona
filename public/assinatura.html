@@ -725,8 +725,12 @@
             const diffMs = periodEnd.getTime() - now.getTime();
             const diasRestantes = Math.max(0, Math.ceil(diffMs / 86400000));
             const diasNoCiclo = 30;
-            const proRata = (newValue - currentValue) * diasRestantes / diasNoCiclo;
-            return { proRata: Math.round(proRata * 100) / 100, diasRestantes, diasNoCiclo };
+            const diasCobrados = Math.min(diasRestantes, diasNoCiclo);
+            const monthlyDiff = newValue - currentValue;
+            let proRata = monthlyDiff * diasCobrados / diasNoCiclo;
+            if (monthlyDiff >= 0) proRata = Math.min(proRata, monthlyDiff);
+            else proRata = Math.max(proRata, monthlyDiff);
+            return { proRata: Math.round(proRata * 100) / 100, diasRestantes, diasNoCiclo, diasCobrados };
         }
 
         function adjustQty(idx, delta, currentQty) {
@@ -1326,16 +1330,17 @@
         }
 
         function openDlocalProrataUpgrade(resultDiv, {
-            accountId, currentQty, newQty, currentValue, newValue, proRata, diasRestantes, diasNoCiclo
+            accountId, currentQty, newQty, currentValue, newValue, proRata, diasRestantes, diasNoCiclo, diasCobrados
         }) {
+            const billedDays = Number.isFinite(diasCobrados) ? diasCobrados : Math.min(diasRestantes, diasNoCiclo);
             const slot = `up-${accountId || 'x'}-${newQty}`;
             _replaceStates[slot] = { accountId, qty: currentQty, payAmount: proRata };
             resultDiv.innerHTML = `
                 <div class="group">
                     <div class="row"><span class="label">Alteração</span><span class="value">${currentQty} → ${newQty}</span></div>
                     <div class="row"><span class="label">Novo valor mensal</span><span class="value">${fmtCurrency(newValue)}</span></div>
-                    <div class="row"><span class="label">Crédito (${currentQty}x, ${diasRestantes}d)</span><span class="value">-${fmtCurrency(currentValue * diasRestantes / diasNoCiclo)}</span></div>
-                    <div class="row"><span class="label">Cobrança (${newQty}x, ${diasRestantes}d)</span><span class="value">+${fmtCurrency(newValue * diasRestantes / diasNoCiclo)}</span></div>
+                    <div class="row"><span class="label">Crédito (${currentQty}x, ${billedDays}d)</span><span class="value">-${fmtCurrency(currentValue * billedDays / diasNoCiclo)}</span></div>
+                    <div class="row"><span class="label">Cobrança (${newQty}x, ${billedDays}d)</span><span class="value">+${fmtCurrency(newValue * billedDays / diasNoCiclo)}</span></div>
                     <div class="row"><span class="label">Pro rata</span><span class="value">${fmtCurrency(proRata)}</span></div>
                 </div>
                 <p class="hint">PIX ou cartão à vista (1x) na Pagar.me. O vencimento atual não muda. Depois a renovação fica ${fmtCurrency(newValue)}/mês com ${newQty} conexões.</p>
@@ -1768,7 +1773,7 @@
                 return;
             }
 
-            const { proRata, diasRestantes, diasNoCiclo } = calcProRata(currentValue, newValue, periodEnd);
+            const { proRata, diasRestantes, diasNoCiclo, diasCobrados } = calcProRata(currentValue, newValue, periodEnd);
             openDlocalProrataUpgrade(resultDiv, {
                 accountId: bp.account_id,
                 currentQty,
@@ -1777,7 +1782,8 @@
                 newValue,
                 proRata,
                 diasRestantes,
-                diasNoCiclo
+                diasNoCiclo,
+                diasCobrados
             });
         }
 
@@ -1808,7 +1814,7 @@
                     const newOffer = resolvePlan(offers, newQty);
                     if (bp && newOffer && bp.current_period_end && new Date(bp.current_period_end) > new Date()) {
                         const currentValue = currentOffer ? currentOffer.value : leonaAmountReais(currentQty);
-                        const { proRata, diasRestantes, diasNoCiclo } = calcProRata(currentValue, newOffer.value, bp.current_period_end);
+                        const { proRata, diasRestantes, diasNoCiclo, diasCobrados } = calcProRata(currentValue, newOffer.value, bp.current_period_end);
                         openDlocalProrataUpgrade(resultDiv, {
                             accountId: bp.account_id,
                             currentQty,
@@ -1817,7 +1823,8 @@
                             newValue: newOffer.value,
                             proRata,
                             diasRestantes,
-                            diasNoCiclo
+                            diasNoCiclo,
+                            diasCobrados
                         });
                         return;
                     }
