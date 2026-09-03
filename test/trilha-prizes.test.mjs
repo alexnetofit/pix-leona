@@ -82,6 +82,40 @@ test('prêmios de R$ 29,90 aparecem com o preço, não como GRÁTIS', () => {
   assert.equal(payload.prizes.find((p) => p.id === '250k').extraUnitCents, 5450);
 });
 
+test('grant de suporte libera resgate no preço normal, não no custo', () => {
+  const payload = buildTrilhaPayload({
+    accountId: '15',
+    profile: {
+      user: { name: 'Praxedes', email: 'praxedesconsultoriaoline@gmail.com' },
+      plan_summary: 'inactive',
+      subscription_status: 'inactive'
+    },
+    revenueValue: 20_200_000,
+    revenueSource: 'api',
+    redeemEligibility: {
+      eligible: true,
+      granted: true,
+      required_months: 3,
+      paid_months: 3,
+      missing_months: 0
+    }
+  });
+
+  const fifty = payload.prizes.find((p) => p.id === '50k');
+  const placa = payload.prizes.find((p) => p.id === '100k');
+  assert.equal(payload.summary.unlocked, payload.prizes.length);
+  assert.equal(fifty.status, 'available');
+  assert.equal(fifty.can_anticipate, false);
+  assert.equal(fifty.redeem_blocked, false);
+  assert.equal(fifty.displayCents, 2990);
+  assert.equal(fifty.cta, 'Resgatar');
+  assert.equal(placa.status, 'available');
+  assert.equal(placa.can_anticipate, false);
+  assert.equal(placa.displayCents, 29700);
+  assert.equal(placa.cta, 'Resgatar');
+  assert.equal(payload.prizes.every((p) => p.status === 'available'), true);
+});
+
 test('quem já adquiriu vê o preço da unidade extra', () => {
   const payload = buildTrilhaPayload({
     accountId: '1234',
