@@ -8,6 +8,7 @@ import {
   parseTrilhaDocument,
   parseTrilhaPhone,
   paymentLinkItems,
+  trilhaCardInstallments,
   trilhaPagarmeCustomer
 } from '../lib/trilha-order.js';
 
@@ -158,4 +159,31 @@ test('customer do checkout da Trilha não manda e-mail nem endereço', () => {
   assert.equal(payload.customer_settings.customer.address, undefined);
   assert.equal(payload.name, 'Trilha 50k #58');
   assert.deepEqual(payload.payment_settings.accepted_payment_methods, ['pix', 'credit_card']);
+});
+
+test('cartão parcela até 12x com juros: mil vira 12x de 100', () => {
+  const mil = trilhaCardInstallments(100000);
+  assert.equal(mil.length, 12);
+  assert.deepEqual(mil[0], { number: 1, total: 100000 });
+  assert.equal(mil[11].number, 12);
+  assert.equal(mil[11].total, 120000);
+  assert.equal(mil[11].total / 12, 10000);
+
+  const quinhentos = trilhaCardInstallments(50000);
+  assert.equal(quinhentos[0].total, 50000);
+  assert.equal(quinhentos[11].total, 60000);
+  assert.equal(quinhentos[11].total / 12, 5000);
+
+  const order = buildTrilhaCartOrder({ prizeIds: ['50k'] });
+  const payload = buildTrilhaPagarmePaymentLinkPayload({
+    accountId: '58',
+    order,
+    customerName: 'Cliente Leona',
+    successUrl: 'https://client.leonaflow.com/trilha'
+  });
+  const installments = payload.payment_settings.credit_card_settings.installments;
+  assert.equal(installments.length, 12);
+  assert.equal(installments[0].total, order.totalCents);
+  assert.equal(installments[11].total / 12, order.totalCents / 10);
+  assert.equal(payload.payment_settings.credit_card_settings.installments_setup, undefined);
 });
