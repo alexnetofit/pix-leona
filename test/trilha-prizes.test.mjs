@@ -47,7 +47,10 @@ test('buildTrilhaPayload bloqueia resgate sem 3 meses pagos', () => {
   assert.equal(payload.prizes.find(p => p.id === '50k').unlocked, true);
   assert.equal(payload.prizes.find(p => p.id === '50k').status, 'ineligible');
   assert.equal(payload.prizes.find(p => p.id === '50k').redeem_blocked, true);
+  assert.equal(payload.prizes.find(p => p.id === '50k').can_anticipate, true);
+  assert.equal(payload.prizes.find(p => p.id === '50k').anticipateCents, 6750);
   assert.equal(payload.prizes.find(p => p.id === '100k').status, 'available');
+  assert.equal(payload.prizes.find(p => p.id === '100k').can_anticipate, false);
   assert.equal(payload.prizes.find(p => p.id === '100k').cta, 'Resgatar');
   assert.equal(payload.prizes.filter(p => p.status === 'available').length, 1);
 });

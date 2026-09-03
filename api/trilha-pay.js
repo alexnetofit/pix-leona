@@ -6,7 +6,7 @@ import { logAssinaturaEvent } from '../lib/assinatura-log.js';
 import { createPagarmePaymentLink, pagarmeConfigured } from '../lib/pagarme.js';
 import { resolveTrilhaAccess } from '../lib/trilha-access.js';
 import { resolveTrilhaRedeemEligibility } from '../lib/trilha-eligibility.js';
-import { buildTrilhaCartOrder, paymentLinkItems } from '../lib/trilha-order.js';
+import { buildTrilhaCartOrder, findTrilhaPrize, paymentLinkItems } from '../lib/trilha-order.js';
 import { getLeonaLifetimeRevenue } from '../lib/leona.js';
 import {
   pickBrlLifetimeRevenue,
@@ -78,20 +78,33 @@ export default async function handler(req, res) {
     console.error('trilha-pay acquired:', error);
   }
 
+  const requestedAnticipate = new Set(
+    (Array.isArray(body.anticipated_ids) ? body.anticipated_ids : []).map((id) => String(id || '').trim()).filter(Boolean)
+  );
+  const acquired = new Set(acquiredIds);
+  const anticipatedIds = [];
+  for (const prizeId of prizeIds) {
+    const prize = findTrilhaPrize(prizeId);
+    if (!prize) continue;
+    if (prize.prizeFree && !acquired.has(prize.id) && redeemEligibility?.eligible === false) {
+      if (!requestedAnticipate.has(prize.id)) {
+        return res.status(403).json({ error: 'Resgate ainda não liberado (3 meses pagos)' });
+      }
+      anticipatedIds.push(prize.id);
+    }
+  }
+
   const order = buildTrilhaCartOrder({
     prizeIds,
     extras,
     bumps: body.bumps || {},
-    acquiredIds
+    acquiredIds,
+    anticipatedIds
   });
   if (!order.ok) return res.status(400).json({ error: order.error });
-  const acquired = new Set(acquiredIds);
   for (const prize of order.prizes) {
     if (revenueValue < prize.milestone) {
       return res.status(403).json({ error: `Meta de ${prize.label} ainda não foi atingida` });
-    }
-    if (prize.prizeFree && !acquired.has(prize.id) && redeemEligibility?.eligible === false) {
-      return res.status(403).json({ error: 'Resgate ainda não liberado (3 meses pagos)' });
     }
   }
 
@@ -168,7 +181,10 @@ export default async function handler(req, res) {
       status: 'pending',
       pontohub: {
         cart: {
-          prizes: Object.fromEntries(order.prizeIds.map((id) => [id, { extra: order.extrasByPrize[id] || 0 }]))
+          prizes: Object.fromEntries(order.prizeIds.map((id) => [id, {
+            extra: order.extrasByPrize[id] || 0,
+            anticipated: (order.anticipatedIds || []).includes(id)
+          }]))
         }
       }
     });
@@ -185,6 +201,7 @@ export default async function handler(req, res) {
       prize_ids: order.prizeIds,
       total_cents: order.totalCents,
       extras: order.extrasByPrize,
+      anticipated_ids: order.anticipatedIds,
       shipping_cents: order.shippingCents,
       bumps: order.bumps,
       payment_link_id: created.body.id

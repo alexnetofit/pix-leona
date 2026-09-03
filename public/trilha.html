@@ -399,6 +399,32 @@
       min-width: 180px;
     }
 
+    .prize-cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .prize-cta-row .btn {
+      width: auto;
+      flex: 1 1 140px;
+      padding: 10px 12px;
+      font-size: 0.8rem;
+    }
+
+    .btn-ghost {
+      background: rgba(255,255,255,0.04);
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+
+    .btn-anticipate {
+      background: rgba(251,191,36,0.12);
+      color: var(--gold);
+      border: 1px solid rgba(251,191,36,0.35);
+    }
+
     @media (max-width: 720px) {
       .prize-actions { text-align: left; min-width: 0; }
     }
@@ -1156,6 +1182,23 @@
     </div>
   </div>
 
+  <div class="overlay" id="anticipateOverlay" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="anticipateTitle">
+      <div class="modal-head">
+        <div>
+          <div class="eyebrow">Antecipação</div>
+          <h2 id="anticipateTitle">Antecipar premiação</h2>
+        </div>
+        <button class="close-btn" type="button" id="closeAnticipate" aria-label="Fechar">×</button>
+      </div>
+      <p class="note" id="anticipateCopy"></p>
+      <div class="prize-cta-row" style="margin-top:16px">
+        <button class="btn btn-ghost" type="button" id="anticipateCancel">Cancelar</button>
+        <button class="btn btn-primary" type="button" id="anticipateConfirm">Antecipar e adicionar</button>
+      </div>
+    </div>
+  </div>
+
   <div class="cart-bar" id="cartBar" hidden>
     <div class="cart-bar-copy">
       <strong id="cartBarCount">0 prêmios</strong>
@@ -1171,6 +1214,8 @@
     const app = document.getElementById('app');
     const accountPill = document.getElementById('accountPill');
     const overlay = document.getElementById('checkoutOverlay');
+    const anticipateOverlay = document.getElementById('anticipateOverlay');
+    const anticipateCopy = document.getElementById('anticipateCopy');
     const checkoutTitle = document.getElementById('checkoutTitle');
     const checkoutError = document.getElementById('checkoutError');
     const checkoutSummary = document.getElementById('checkoutSummary');
@@ -1180,6 +1225,8 @@
     const cartBarCount = document.getElementById('cartBarCount');
     const cartBarTotal = document.getElementById('cartBarTotal');
     const cartPrizeIds = new Set();
+    const anticipatedPrizeIds = new Set();
+    let pendingAnticipateId = null;
     let cartSeeded = false;
     let currentTab = 'prizes';
     let currentData = null;
@@ -1240,7 +1287,9 @@
           total += Math.max(extraQty(prize.id), 1) * (prize.extraUnitCents || 0);
           continue;
         }
-        if (!prize.prizeFree) total += prize.priceCents || 0;
+        if (anticipatedPrizeIds.has(prize.id) && prize.prizeFree) {
+          total += prize.extraUnitCents || 0;
+        } else if (!prize.prizeFree) total += prize.priceCents || 0;
         else if (!hasPlaque && !chargedFree) {
           total += prize.priceCents || 0;
           chargedFree = true;
@@ -1354,6 +1403,9 @@
           render(currentData);
         });
       });
+      document.querySelectorAll('[data-anticipate]').forEach((btn) => {
+        btn.addEventListener('click', () => openAnticipate(btn.dataset.anticipate));
+      });
       document.querySelectorAll('[data-qty]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const id = btn.dataset.prize;
@@ -1461,12 +1513,22 @@
           : prize.status === 'ineligible'
             ? 'Requisito pendente'
             : 'Bloqueado';
-      const canResgate = prize.status === 'available';
+      const anticipated = anticipatedPrizeIds.has(prize.id);
+      const canResgate = prize.status === 'available' || anticipated;
       const inCart = cartPrizeIds.has(prize.id);
       const reached = prize.unlocked;
       const continues = reached && prizes[index + 1]?.unlocked;
       const qty = extraQty(prize.id);
       const extraLabel = formatBrl((prize.extraUnitCents || 0) / 100);
+      const showAnticipate = prize.can_anticipate && !anticipated;
+      const priceLabel = anticipated
+        ? formatBrl((prize.extraUnitCents || prize.priceCents || 0) / 100)
+        : prize.priceFormatted;
+      const cta = canResgate
+        ? (inCart ? 'No carrinho' : prize.acquired ? 'Adicionar extra' : 'Adicionar')
+        : prize.status === 'ineligible'
+          ? '3 meses pagos necessários'
+          : 'Meta não atingida';
       return `
         <div class="prize-row ${reached ? 'reached' : ''} ${continues ? 'continue' : ''}">
           <div class="trail-col">
@@ -1489,10 +1551,17 @@
               }).join('')}</ul>
             </div>
             <div class="prize-actions">
-              <div class="price-tag">${esc(prize.priceFormatted)}</div>
-              <button class="btn ${inCart ? 'btn-cart' : 'btn-primary'}" data-cart="${esc(prize.id)}" ${canResgate ? '' : 'disabled'}>
-                ${canResgate ? (inCart ? 'No carrinho' : prize.acquired ? 'Adicionar extra' : 'Adicionar') : prize.status === 'ineligible' ? '3 meses pagos necessários' : 'Meta não atingida'}
-              </button>
+              <div class="price-tag">${esc(priceLabel)}</div>
+              ${showAnticipate ? `
+                <div class="prize-cta-row">
+                  <button class="btn btn-ghost" type="button" disabled>3 meses pagos necessários</button>
+                  <button class="btn btn-anticipate" type="button" data-anticipate="${esc(prize.id)}">Antecipar premiação</button>
+                </div>
+              ` : `
+                <button class="btn ${inCart ? 'btn-cart' : 'btn-primary'}" data-cart="${esc(prize.id)}" ${canResgate ? '' : 'disabled'}>
+                  ${cta}
+                </button>
+              `}
               <div class="qty-bump">
                 <div class="qty-bump-label">Unidades extras</div>
                 <div class="qty-row">
@@ -1530,6 +1599,9 @@
       if (prize.acquired) {
         const qty = Math.max(extraQty(prize.id), 1);
         return formatBrl((qty * (prize.extraUnitCents || 0)) / 100);
+      }
+      if (anticipatedPrizeIds.has(prize.id) && prize.prizeFree) {
+        return formatBrl((prize.extraUnitCents || 0) / 100);
       }
       if (!prize.prizeFree) return formatBrl((prize.priceCents || 0) / 100);
       const hasPlaque = selected.some((item) => !item.prizeFree && !item.acquired);
@@ -1644,8 +1716,36 @@
       overlay.setAttribute('aria-hidden', 'true');
     }
 
+    function closeAnticipate() {
+      pendingAnticipateId = null;
+      anticipateOverlay.classList.remove('open');
+      anticipateOverlay.setAttribute('aria-hidden', 'true');
+    }
+
+    function openAnticipate(prizeId) {
+      const prize = (currentData?.prizes || []).find((item) => item.id === prizeId);
+      if (!prize?.can_anticipate) return;
+      pendingAnticipateId = prizeId;
+      const cost = formatBrl((prize.extraUnitCents || prize.anticipateCents || 0) / 100);
+      anticipateCopy.innerHTML = `Antecipando, o <strong>${esc(prize.title)}</strong> sai pelo <strong>preço de custo</strong>, sem o desconto da trilha: <strong>${esc(cost)}</strong>.`;
+      anticipateOverlay.classList.add('open');
+      anticipateOverlay.setAttribute('aria-hidden', 'false');
+    }
+
+    function confirmAnticipate() {
+      if (!pendingAnticipateId) return;
+      anticipatedPrizeIds.add(pendingAnticipateId);
+      cartPrizeIds.add(pendingAnticipateId);
+      closeAnticipate();
+      render(currentData);
+    }
+
     document.getElementById('closeCheckout').addEventListener('click', closeCheckout);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) closeCheckout(); });
+    document.getElementById('closeAnticipate').addEventListener('click', closeAnticipate);
+    document.getElementById('anticipateCancel').addEventListener('click', closeAnticipate);
+    document.getElementById('anticipateConfirm').addEventListener('click', confirmAnticipate);
+    anticipateOverlay.addEventListener('click', (e) => { if (e.target === anticipateOverlay) closeAnticipate(); });
 
     document.addEventListener('click', (e) => {
       const tip = e.target.closest('.help-tip');
@@ -1690,7 +1790,8 @@
             email: accountEmail,
             prize_ids: selected.map((prize) => prize.id),
             extras,
-            bumps
+            bumps,
+            anticipated_ids: selected.map((prize) => prize.id).filter((id) => anticipatedPrizeIds.has(id))
           })
         });
         const data = await res.json().catch(() => ({}));

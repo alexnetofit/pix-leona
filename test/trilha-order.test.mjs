@@ -88,6 +88,24 @@ test('já resgatou 50k e pede 250k novo: extra + 29,90', () => {
   assert.equal(order.totalCents, 6750 * 2 + 2990);
 });
 
+test('antecipação cobra o custo, sem o 29,90 e sem zerar na placa', () => {
+  const only = buildTrilhaCartOrder({
+    prizeIds: ['50k'],
+    anticipatedIds: ['50k']
+  });
+  assert.equal(only.ok, true);
+  assert.equal(only.totalCents, 6750);
+  assert.deepEqual(only.anticipatedIds, ['50k']);
+  assert.equal(only.items.find((item) => item.code === 'trilha-50k')?.amount, 6750);
+
+  const withPlaque = buildTrilhaCartOrder({
+    prizeIds: ['50k', '100k'],
+    anticipatedIds: ['50k']
+  });
+  assert.equal(withPlaque.totalCents, 6750 + 29700);
+  assert.equal(withPlaque.items.find((item) => item.code === 'trilha-50k')?.amount, 6750);
+});
+
 test('placa no carrinho zera o 29,90 das outras', () => {
   const order = buildTrilhaCartOrder({
     prizeIds: ['50k', '100k', '250k'],
