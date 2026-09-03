@@ -1280,8 +1280,6 @@
       const selected = cartPrizes();
       if (!selected.length) return 0;
       let total = 0;
-      const hasPlaque = selected.some((prize) => !prize.prizeFree && !prize.acquired);
-      let chargedFree = false;
       for (const prize of selected) {
         if (prize.acquired) {
           total += Math.max(extraQty(prize.id), 1) * (prize.extraUnitCents || 0);
@@ -1289,10 +1287,8 @@
         }
         if (anticipatedPrizeIds.has(prize.id)) {
           total += prize.extraUnitCents || 0;
-        } else if (!prize.prizeFree) total += prize.priceCents || 0;
-        else if (!hasPlaque && !chargedFree) {
+        } else {
           total += prize.priceCents || 0;
-          chargedFree = true;
         }
         total += extraUnitsCents(prize);
       }
@@ -1595,7 +1591,7 @@
       return previewCartTotalCents();
     }
 
-    function cartLinePriceLabel(prize, selected) {
+    function cartLinePriceLabel(prize) {
       if (prize.acquired) {
         const qty = Math.max(extraQty(prize.id), 1);
         return formatBrl((qty * (prize.extraUnitCents || 0)) / 100);
@@ -1603,11 +1599,7 @@
       if (anticipatedPrizeIds.has(prize.id)) {
         return formatBrl((prize.extraUnitCents || 0) / 100);
       }
-      if (!prize.prizeFree) return formatBrl((prize.priceCents || 0) / 100);
-      const hasPlaque = selected.some((item) => !item.prizeFree && !item.acquired);
-      if (hasPlaque) return 'Grátis';
-      const firstFree = selected.find((item) => item.prizeFree && !item.acquired);
-      return firstFree?.id === prize.id ? formatBrl((prize.priceCents || 0) / 100) : 'Grátis';
+      return formatBrl((prize.priceCents || 0) / 100);
     }
 
     function updateCheckoutSummary() {
@@ -1619,7 +1611,7 @@
           ? `<div class="row bump"><span>${esc(prize.title)} extra × ${extras}</span><span>+ ${esc(formatBrl(extraUnitsCents(prize) / 100))}</span></div>`
           : '';
         return `
-          <div class="row"><span>${esc(prize.acquired ? `${prize.title} extra` : prize.title)}${prize.acquired && extras > 1 ? ` × ${extras}` : ''}</span><strong>${esc(cartLinePriceLabel(prize, selected))}</strong></div>
+          <div class="row"><span>${esc(prize.acquired ? `${prize.title} extra` : prize.title)}${prize.acquired && extras > 1 ? ` × ${extras}` : ''}</span><strong>${esc(cartLinePriceLabel(prize))}</strong></div>
           ${extraRow}
         `;
       }).join('');
