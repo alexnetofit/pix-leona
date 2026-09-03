@@ -8,7 +8,7 @@ import {
   pagarmePayerHasAddress,
   pagarmeWebhookLooksPaid
 } from '../lib/pagarme.js';
-import { mergeTrilhaPayer, paymentLinkLooksPaid } from '../lib/trilha-fulfill.js';
+import { mergeTrilhaPayer, paymentLinkLooksAbandoned, paymentLinkLooksPaid } from '../lib/trilha-fulfill.js';
 
 test('kit 50k usa o produto novo com pin', () => {
   const line = buildPontohubFulfillmentLines({ prizeId: '50k' })[0];
@@ -24,6 +24,17 @@ test('placa 100k usa só productId e productName, sem linkId', () => {
   assert.equal(lines[1].productName, lines[0].productName);
   assert.equal(lines.filter((l) => l.code === 'garrafa').length, 2);
   assert.equal(lines.find((l) => l.code === 'jaqueta').productId, '3089dcef-dfff-488e-af0c-9bd4f6d55102');
+});
+
+test('carrinho manda todos os prêmios e bumps numa leva', () => {
+  const lines = buildPontohubFulfillmentLines({
+    prizes: { '50k': { extra: 0 }, '100k': { extra: 1 }, '250k': { extra: 0 } },
+    bumps: { garrafa: 1 }
+  });
+  assert.equal(lines.filter((l) => l.code === '50k').length, 1);
+  assert.equal(lines.filter((l) => l.code === '100k').length, 2);
+  assert.equal(lines.filter((l) => l.code === '250k').length, 1);
+  assert.equal(lines.filter((l) => l.code === 'garrafa').length, 1);
 });
 
 test('pins compartilham productId e mandam productName distinto', () => {
@@ -65,6 +76,8 @@ test('extrai pl_ do webhook da Pagar.me', () => {
   assert.equal(pagarmeWebhookLooksPaid({ type: 'order.created' }), false);
   assert.equal(paymentLinkLooksPaid({ total_paid_sessions: 1 }), true);
   assert.equal(paymentLinkLooksPaid({ status: 'active', total_paid_sessions: 0 }), false);
+  assert.equal(paymentLinkLooksAbandoned({ status: 'expired', total_paid_sessions: 0 }), true);
+  assert.equal(paymentLinkLooksAbandoned({ status: 'finished', total_paid_sessions: 1 }), false);
 });
 
 test('extrai cliente e endereço do order.paid da Pagar.me', () => {

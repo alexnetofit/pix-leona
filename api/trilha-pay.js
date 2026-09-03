@@ -6,13 +6,24 @@ import { logAssinaturaEvent } from '../lib/assinatura-log.js';
 import { createPagarmePaymentLink, pagarmeConfigured } from '../lib/pagarme.js';
 import { resolveTrilhaAccess } from '../lib/trilha-access.js';
 import { resolveTrilhaRedeemEligibility } from '../lib/trilha-eligibility.js';
-import { buildTrilhaOrder, paymentLinkItems } from '../lib/trilha-order.js';
+import { buildTrilhaCartOrder, paymentLinkItems } from '../lib/trilha-order.js';
 import { getLeonaLifetimeRevenue } from '../lib/leona.js';
 import {
   pickBrlLifetimeRevenue,
   resolveTrilhaRevenue
 } from '../lib/trilha-prizes.js';
-import { saveTrilhaCheckout } from '../lib/trilha-fulfill.js';
+import { purchasedPrizeIdsFromCheckouts } from '../lib/trilha-account-orders.js';
+import { expireAbandonedTrilhaCheckouts, listTrilhaAccountCheckouts, saveTrilhaCheckout } from '../lib/trilha-fulfill.js';
+
+function trilhaPaidReturnUrl(accountId, email) {
+  const base = (process.env.TRILHA_PUBLIC_URL || 'https://client.leonaflow.com/trilha').replace(/\/+$/, '');
+  const qs = new URLSearchParams({
+    id: String(accountId),
+    email: String(email || ''),
+    paid: '1'
+  });
+  return `${base}?${qs}`;
+}
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -28,7 +39,12 @@ export default async function handler(req, res) {
   const body = req.body || {};
   const accountId = String(body.account_id || body.id || '').trim();
   const email = String(body.email || '').trim();
-  const prizeId = String(body.prize_id || '').trim();
+  const prizeIds = Array.isArray(body.prize_ids) && body.prize_ids.length
+    ? body.prize_ids.map((id) => String(id || '').trim()).filter(Boolean)
+    : (body.prize_id ? [String(body.prize_id).trim()] : []);
+  const extras = body.extras && typeof body.extras === 'object' && !Array.isArray(body.extras)
+    ? body.extras
+    : (body.prize_id ? { [String(body.prize_id)]: body.extra_qty } : {});
 
   const access = await resolveTrilhaAccess({ accountId, email, leonaToken });
   if (!access.ok) return res.status(access.status).json(access.body);
@@ -55,17 +71,28 @@ export default async function handler(req, res) {
     apiRevenue ?? profileRevenue
   );
 
-  const order = buildTrilhaOrder({
-    prizeId,
-    extraQty: body.extra_qty,
-    bumps: body.bumps || {}
+  let acquiredIds = [];
+  try {
+    acquiredIds = purchasedPrizeIdsFromCheckouts(await listTrilhaAccountCheckouts(resolvedAccountId));
+  } catch (error) {
+    console.error('trilha-pay acquired:', error);
+  }
+
+  const order = buildTrilhaCartOrder({
+    prizeIds,
+    extras,
+    bumps: body.bumps || {},
+    acquiredIds
   });
   if (!order.ok) return res.status(400).json({ error: order.error });
-  if (revenueValue < order.prize.milestone) {
-    return res.status(403).json({ error: 'Meta deste prêmio ainda não foi atingida' });
-  }
-  if (order.prize.prizeFree && redeemEligibility?.eligible === false) {
-    return res.status(403).json({ error: 'Resgate ainda não liberado (3 meses pagos)' });
+  const acquired = new Set(acquiredIds);
+  for (const prize of order.prizes) {
+    if (revenueValue < prize.milestone) {
+      return res.status(403).json({ error: `Meta de ${prize.label} ainda não foi atingida` });
+    }
+    if (prize.prizeFree && !acquired.has(prize.id) && redeemEligibility?.eligible === false) {
+      return res.status(403).json({ error: 'Resgate ainda não liberado (3 meses pagos)' });
+    }
   }
 
   const name = String(access.profile.user?.name || '').trim();
@@ -80,7 +107,7 @@ export default async function handler(req, res) {
   };
   const payload = {
     type: 'order',
-    name: `Trilha ${order.prize.id} #${resolvedAccountId}`.slice(0, 64),
+    name: `Trilha ${order.prizeIds.join('+')} #${resolvedAccountId}`.slice(0, 64),
     max_paid_sessions: 1,
     expires_in: 180,
     payment_settings: {
@@ -100,6 +127,9 @@ export default async function handler(req, res) {
     cart_settings: {
       shipping_cost: 0,
       items: paymentLinkItems(order.items)
+    },
+    flow_settings: {
+      success_url: trilhaPaidReturnUrl(resolvedAccountId, checkoutEmail)
     }
   };
 
@@ -111,11 +141,17 @@ export default async function handler(req, res) {
       provider: 'pagarme',
       email: checkoutEmail,
       account_id: resolvedAccountId,
-      details: { prize_id: prizeId, status: created.status, error: created.body }
+      details: { prize_ids: order.prizeIds, status: created.status, error: created.body }
     });
     return res.status(502).json({
       error: created.body?.message || created.body?.error || 'Falha ao criar checkout na Pagar.me'
     });
+  }
+
+  try {
+    await expireAbandonedTrilhaCheckouts(resolvedAccountId);
+  } catch (error) {
+    console.error('trilha-pay expire abandoned:', error);
   }
 
   try {
@@ -129,7 +165,12 @@ export default async function handler(req, res) {
       name: customer.name,
       payment_link_id: created.body.id,
       checkout_url: created.body.url,
-      status: 'pending'
+      status: 'pending',
+      pontohub: {
+        cart: {
+          prizes: Object.fromEntries(order.prizeIds.map((id) => [id, { extra: order.extrasByPrize[id] || 0 }]))
+        }
+      }
     });
   } catch (err) {
     console.error('trilha-pay: falha ao gravar checkout', err.message);
@@ -141,9 +182,10 @@ export default async function handler(req, res) {
     email: checkoutEmail,
     account_id: resolvedAccountId,
     details: {
-      prize_id: order.prize.id,
+      prize_ids: order.prizeIds,
       total_cents: order.totalCents,
-      extras: order.extras,
+      extras: order.extrasByPrize,
+      shipping_cents: order.shippingCents,
       bumps: order.bumps,
       payment_link_id: created.body.id
     }

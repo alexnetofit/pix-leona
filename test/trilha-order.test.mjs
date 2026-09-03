@@ -1,17 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  TRILHA_SHIPPING_CENTS,
+  buildTrilhaCartOrder,
   buildTrilhaOrder,
   parseTrilhaDocument,
   parseTrilhaPhone,
   paymentLinkItems
 } from '../lib/trilha-order.js';
 
-test('pedido 50k cobra só o frete', () => {
+test('pedido 50k cobra R$ 29,90 do prêmio, sem linha de frete', () => {
   const order = buildTrilhaOrder({ prizeId: '50k' });
   assert.equal(order.ok, true);
   assert.equal(order.totalCents, 2990);
-  assert.equal(order.items[0].name.startsWith('Frete'), true);
+  assert.equal(order.shippingCents, 0);
+  assert.equal(order.freeShipping, true);
+  assert.equal(order.items[0].code, 'trilha-50k');
+  assert.equal(order.items[0].amount, 2990);
+  assert.equal(order.items.some((item) => item.code === 'trilha-frete'), false);
 });
 
 test('placa 100k + 1 extra + jaqueta', () => {
@@ -43,7 +49,70 @@ test('CPF e telefone', () => {
 
 test('itens do payment link usam default_quantity', () => {
   const order = buildTrilhaOrder({ prizeId: '250k', extraQty: 2 });
-  const items = paymentLinkItems(order.items);
-  assert.equal(items[1].default_quantity, 2);
-  assert.equal(items[1].amount, 5450);
+  const extra = paymentLinkItems(order.items).find((item) => item.code.endsWith('-extra'));
+  assert.equal(extra.default_quantity, 2);
+  assert.equal(extra.amount, 5450);
+});
+
+test('carrinho junta prêmios grátis e cobra R$ 29,90 uma vez', () => {
+  const order = buildTrilhaCartOrder({ prizeIds: ['50k', '250k', '500k'] });
+  assert.equal(order.ok, true);
+  assert.equal(order.shippingCents, 0);
+  assert.equal(order.freeShipping, true);
+  assert.equal(order.totalCents, TRILHA_SHIPPING_CENTS);
+  assert.equal(order.items.filter((item) => item.amount === TRILHA_SHIPPING_CENTS).length, 1);
+  assert.equal(order.items.find((item) => item.code === 'trilha-50k')?.amount, 2990);
+  assert.equal(order.items.find((item) => item.code === 'trilha-250k')?.amount, 0);
+  assert.equal(order.items.find((item) => item.code === 'trilha-500k')?.amount, 0);
+  assert.equal(order.items.some((item) => item.code === 'trilha-frete'), false);
+});
+
+test('quem já resgatou só paga o custo da unidade extra', () => {
+  const order = buildTrilhaCartOrder({
+    prizeIds: ['50k'],
+    acquiredIds: ['50k']
+  });
+  assert.equal(order.ok, true);
+  assert.equal(order.totalCents, 6750);
+  assert.equal(order.items[0].code, 'trilha-50k-extra');
+  assert.equal(order.items.some((item) => item.amount === 2990), false);
+});
+
+test('já resgatou 50k e pede 250k novo: extra + 29,90', () => {
+  const order = buildTrilhaCartOrder({
+    prizeIds: ['50k', '250k'],
+    extras: { '50k': 2 },
+    acquiredIds: ['50k']
+  });
+  assert.equal(order.ok, true);
+  assert.equal(order.totalCents, 6750 * 2 + 2990);
+});
+
+test('placa no carrinho zera o 29,90 das outras', () => {
+  const order = buildTrilhaCartOrder({
+    prizeIds: ['50k', '100k', '250k'],
+    bumps: { garrafa: 1 }
+  });
+  assert.equal(order.ok, true);
+  assert.equal(order.freeShipping, true);
+  assert.equal(order.shippingCents, 0);
+  assert.equal(order.totalCents, 29700 + 3750);
+  assert.deepEqual(order.prizeIds, ['50k', '100k', '250k']);
+  const pin50 = order.items.find((item) => item.code === 'trilha-50k');
+  const pin250 = order.items.find((item) => item.code === 'trilha-250k');
+  const placa = order.items.find((item) => item.code === 'trilha-100k');
+  assert.equal(pin50?.amount, 0);
+  assert.equal(pin250?.amount, 0);
+  assert.match(pin50.name, /incluso/i);
+  assert.match(pin250.name, /incluso/i);
+  assert.equal(placa?.amount, 29700);
+  assert.equal(order.items.some((item) => item.code === 'trilha-frete'), false);
+  const linkItems = paymentLinkItems(order.items);
+  assert.equal(linkItems.some((item) => item.code === 'trilha-50k'), false);
+  assert.equal(linkItems.some((item) => item.code === 'trilha-250k'), false);
+  const placaLink = linkItems.find((item) => item.code === 'trilha-100k');
+  assert.equal(placaLink.amount, 29700);
+  assert.match(placaLink.name, /50k/);
+  assert.match(placaLink.name, /250k/);
+  assert.match(placaLink.description, /Inclusos:.*Pin 50k.*Pin 250k/i);
 });

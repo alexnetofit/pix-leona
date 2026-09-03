@@ -58,7 +58,7 @@ test('pickBrlLifetimeRevenue usa só BRL', () => {
   assert.equal(pickBrlLifetimeRevenue({ revenue_by_currency: {} }), null);
 });
 
-test('prêmios de R$ 29,90 aparecem como GRÁTIS com frete', () => {
+test('prêmios de R$ 29,90 aparecem com o preço, não como GRÁTIS', () => {
   const payload = buildTrilhaPayload({
     accountId: '1234',
     profile: { user: { name: 'Demo' }, plan_summary: '1 Starter', subscription_status: 'active' },
@@ -68,8 +68,8 @@ test('prêmios de R$ 29,90 aparecem como GRÁTIS com frete', () => {
   const fifty = payload.prizes.find((p) => p.id === '50k');
   const placa = payload.prizes.find((p) => p.id === '100k');
   assert.equal(fifty.prizeFree, true);
-  assert.equal(fifty.priceFormatted, 'GRÁTIS');
-  assert.equal(fifty.shippingLabel, 'Frete: R$ 29,90');
+  assert.match(fifty.priceFormatted, /29/);
+  assert.equal(fifty.shippingLabel, 'Frete grátis');
   assert.equal(fifty.priceCents, 2990);
   assert.equal(placa.prizeFree, false);
   assert.match(placa.priceFormatted, /297/);
@@ -77,4 +77,19 @@ test('prêmios de R$ 29,90 aparecem como GRÁTIS com frete', () => {
   assert.equal(fifty.extraUnitCents, 6750);
   assert.equal(placa.extraUnitCents, 34650);
   assert.equal(payload.prizes.find((p) => p.id === '250k').extraUnitCents, 5450);
+});
+
+test('quem já adquiriu vê o preço da unidade extra', () => {
+  const payload = buildTrilhaPayload({
+    accountId: '1234',
+    profile: { user: { name: 'Demo' }, plan_summary: '1 Starter', subscription_status: 'active' },
+    revenueValue: 267_000,
+    revenueSource: 'mock',
+    purchasedPrizeIds: ['50k']
+  });
+  const fifty = payload.prizes.find((p) => p.id === '50k');
+  assert.equal(fifty.acquired, true);
+  assert.equal(fifty.displayCents, 6750);
+  assert.match(fifty.priceFormatted, /67/);
+  assert.equal(payload.prizes.find((p) => p.id === '100k').acquired, false);
 });

@@ -3,6 +3,12 @@ import { getLeonaLifetimeRevenue } from '../lib/leona.js';
 import { resolveTrilhaRedeemEligibility } from '../lib/trilha-eligibility.js';
 import { resolveTrilhaAccess } from '../lib/trilha-access.js';
 import {
+  attachPontohubTracking,
+  presentTrilhaOrders,
+  purchasedPrizeIdsFromCheckouts
+} from '../lib/trilha-account-orders.js';
+import { listTrilhaAccountCheckouts } from '../lib/trilha-fulfill.js';
+import {
   buildTrilhaPayload,
   pickBrlLifetimeRevenue,
   resolveTrilhaRevenue
@@ -46,6 +52,20 @@ export default async function handler(req, res) {
       apiRevenue ?? profileRevenue
     );
 
+    let checkouts = [];
+    try {
+      checkouts = await listTrilhaAccountCheckouts(resolvedAccountId);
+    } catch (error) {
+      console.error('trilha orders:', error);
+    }
+    const purchasedPrizeIds = purchasedPrizeIdsFromCheckouts(checkouts);
+    let orders = presentTrilhaOrders(checkouts);
+    try {
+      orders = await attachPontohubTracking(orders);
+    } catch (error) {
+      console.error('trilha tracking:', error);
+    }
+
     return res.status(200).json(buildTrilhaPayload({
       accountId: resolvedAccountId,
       profile,
@@ -53,6 +73,8 @@ export default async function handler(req, res) {
       revenueSource,
       redeemEligibility,
       demo,
+      purchasedPrizeIds,
+      orders,
       revenueByCurrency: lifetime?.revenue_by_currency || null,
       revenueComputedAt: lifetime?.computed_at || null
     }));
