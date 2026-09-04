@@ -49,7 +49,8 @@ export default async function handler(req, res) {
     const profileRevenue = profile.total_revenue ?? profile.lifetime_revenue ?? profile.revenue ?? null;
     const { value: revenueValue, source: revenueSource } = resolveTrilhaRevenue(
       resolvedAccountId,
-      apiRevenue ?? profileRevenue
+      apiRevenue ?? profileRevenue,
+      profileEmail
     );
 
     let checkouts = [];

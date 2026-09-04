@@ -13,6 +13,19 @@ test('resolveTrilhaRevenue usa mock para conta 1234', () => {
   assert.equal(r.source, 'mock');
 });
 
+test('grant de faturamento soma 85k só com conta e e-mail certos', () => {
+  const email = 'directorquotealfredangelo@gmail.com';
+  const granted = resolveTrilhaRevenue('5409', 136_888.1, email);
+  assert.equal(granted.value, 221_888.1);
+  assert.equal(granted.source, 'api+grant');
+  const wrongEmail = resolveTrilhaRevenue('5409', 136_888.1, 'outro@gmail.com');
+  assert.equal(wrongEmail.value, 136_888.1);
+  assert.equal(wrongEmail.source, 'api');
+  const bernardo = resolveTrilhaRevenue('3039', 224_304.99, 'bernardopicinatto.tfg@gmail.com');
+  assert.equal(bernardo.value, 236_382.99);
+  assert.equal(bernardo.source, 'api+grant');
+});
+
 test('buildTrilhaPayload desbloqueia marcos até 250k com 267k', () => {
   const payload = buildTrilhaPayload({
     accountId: '1234',

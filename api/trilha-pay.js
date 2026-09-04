@@ -68,7 +68,8 @@ export default async function handler(req, res) {
     ?? null;
   const { value: revenueValue } = resolveTrilhaRevenue(
     resolvedAccountId,
-    apiRevenue ?? profileRevenue
+    apiRevenue ?? profileRevenue,
+    profileEmail
   );
 
   let acquiredIds = [];
