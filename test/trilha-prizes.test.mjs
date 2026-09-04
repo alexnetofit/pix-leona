@@ -24,6 +24,25 @@ test('grant de faturamento soma 85k só com conta e e-mail certos', () => {
   const bernardo = resolveTrilhaRevenue('3039', 224_304.99, 'bernardopicinatto.tfg@gmail.com');
   assert.equal(bernardo.value, 236_382.99);
   assert.equal(bernardo.source, 'api+grant');
+  const ronaldinho100k = resolveTrilhaRevenue('1618', 100_000, 'ronaldinholuchetti@gmail.com');
+  assert.equal(ronaldinho100k.value, 197_051.20);
+  assert.equal(ronaldinho100k.source, 'api+grant');
+  const ronaldinhoCresceu = resolveTrilhaRevenue('1618', 120_000, 'ronaldinholuchetti@gmail.com');
+  assert.equal(ronaldinhoCresceu.value, 217_051.20);
+});
+
+test('bonus do Ronaldinho desbloqueia 50k e continua somando', () => {
+  const email = 'ronaldinholuchetti@gmail.com';
+  const now = resolveTrilhaRevenue('1618', 65.86, email);
+  assert.equal(now.value, 65.86 + 97_051.20);
+  const payload = buildTrilhaPayload({
+    accountId: '1618',
+    profile: { user: { name: 'Ronaldo', email }, plan_summary: '12 Starter', subscription_status: 'active' },
+    revenueValue: now.value,
+    revenueSource: now.source
+  });
+  assert.equal(payload.prizes.find((p) => p.id === '50k').unlocked, true);
+  assert.equal(payload.prizes.find((p) => p.id === '100k').unlocked, false);
 });
 
 test('buildTrilhaPayload desbloqueia marcos até 250k com 267k', () => {
