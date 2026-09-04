@@ -344,10 +344,11 @@
         /* ---------- kpi cards ---------- */
         .mini-grid {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 14px;
             margin-top: 14px;
         }
+        .mini-card-full { grid-column: 1 / -1; }
         .mini-card {
             position: relative;
             overflow: hidden;
@@ -875,15 +876,9 @@
             </div>
 
             <div class="mini-grid">
-                <div class="mini-card green">
-                    <div class="mini-head"><span class="mini-label">Líquido</span><span class="mini-icon">✓</span></div>
-                    <div class="mini-value" id="miniNet">—</div>
-                    <div class="mini-foot"><span class="mini-delta" id="miniNetDelta"></span></div>
-                </div>
-                <div class="mini-card orange">
+                <div class="mini-card orange mini-card-full">
                     <div class="mini-head"><span class="mini-label">Assinantes ativos</span><span class="mini-icon">●</span></div>
                     <div class="mini-value" id="activeSubsValue">—</div>
-                    <div class="mini-foot"><span class="mini-sub">Guru + Paddle + Pagou + dLocal + Pagar.me</span></div>
                 </div>
                 <div class="mini-card">
                     <div class="mini-head"><span class="mini-label">Vendas</span><span class="mini-icon">↗</span></div>
@@ -1456,7 +1451,7 @@
             wrap.hidden = false;
         }
 
-        const DELTA_IDS = ['grossDelta', 'miniNetDelta', 'miniSalesDelta', 'miniRefundsDelta'];
+        const DELTA_IDS = ['grossDelta', 'miniSalesDelta', 'miniRefundsDelta'];
         function clearDeltas() {
             DELTA_IDS.forEach(id => document.getElementById(id).classList.remove('visible'));
         }
@@ -1511,9 +1506,6 @@
                 format: formatBRL,
                 hint: hintFor('bruto', formatBRL(pa.gross))
             });
-            setDelta('miniNetDelta', a.net, pa.net, {
-                hint: hintFor('líquido', formatBRL(pa.net))
-            });
             setDelta('miniSalesDelta', a.count, pa.count, {
                 hint: hintFor('vendas', pa.count)
             });
@@ -1556,7 +1548,6 @@
             document.getElementById('netSub').textContent = `${taxa.toFixed(1).replace('.', ',')}%`;
             document.getElementById('grossSub').textContent = String(a.count || 0);
 
-            document.getElementById('miniNet').textContent = formatBRL(a.net);
             document.getElementById('activeSubsValue').textContent = String(body.active_subscribers?.count ?? '—');
             document.getElementById('miniSales').textContent = String(a.count || 0);
             document.getElementById('miniRefunds').textContent = formatBRL(ref.gross);
