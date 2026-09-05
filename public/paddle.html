@@ -1423,10 +1423,12 @@
 
                     ${(sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due') ? `
                         <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
-                            <a href="#" id="portal-link-${idx}" onclick="openPaymentPortal(event, '${escapeHtml(sub.id)}', ${idx})"
-                               style="color: var(--paddle); font-size: 0.85rem; font-weight: 500; text-decoration: none;">
-                                Atualizar método de pagamento →
-                            </a>
+                            <button type="button" class="btn btn-paddle" id="portal-link-${idx}"
+                                onclick="openPaymentPortal(event, '${escapeHtml(sub.id)}', ${idx})"
+                                style="width:100%;">
+                                Trocar cartão
+                            </button>
+                            <p style="margin:8px 0 0; color:var(--text-muted); font-size:0.8rem;">Não cobra agora. Só atualiza o cartão da renovação.</p>
                         </div>
                     ` : ''}
 

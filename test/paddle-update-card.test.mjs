@@ -99,11 +99,14 @@ test('findManagedPaddleSubscription ignora sub de outra conta e pega a ativa', a
 
 test('/assinatura e /paddle têm o botão Trocar cartão ligado', () => {
   const assinatura = readFileSync(join(here, '../public/assinatura.html'), 'utf8');
-  const paddle = readFileSync(join(here, '../public/paddle-next.html'), 'utf8');
+  const paddleNext = readFileSync(join(here, '../public/paddle-next.html'), 'utf8');
+  const paddle = readFileSync(join(here, '../public/paddle.html'), 'utf8');
   assert.match(assinatura, /Trocar cartão/);
   assert.match(assinatura, /openPaddleCardUpdate/);
   assert.match(assinatura, /\/api\/paddle-update-card/);
+  assert.match(paddleNext, /Trocar cartão/);
+  assert.match(paddleNext, /action: 'update_payment_method'/);
+  assert.doesNotMatch(paddleNext, /paymentBtn'\)\.classList\.add\('hidden'\)/);
   assert.match(paddle, /Trocar cartão/);
-  assert.match(paddle, /action: 'update_payment_method'/);
-  assert.doesNotMatch(paddle, /paymentBtn'\)\.classList\.add\('hidden'\)/);
+  assert.match(paddle, /openPaymentPortal/);
 });
