@@ -826,23 +826,7 @@ export default async function handler(req, res) {
       const data = await r.json();
       if (!r.ok) return res.status(r.status).json(data);
 
-      let leonaSync = null;
-      if (sync_leona && leonaToken && eff === 'immediately') {
-        const accId = await resolveLeonaAccountId(
-          { accountId: actingAccountId, email: actingEmail, subscriptionId: subscription_id },
-          paddleToken,
-          leonaToken
-        );
-        if (accId) {
-          const result = await updateLeonaBillingProfile(accId, {
-            status: 'canceled',
-            starter_instances: 0
-          }, leonaToken);
-          leonaSync = { account_id: accId, ok: result.ok, error: result.body?.error };
-        }
-      }
-
-      return res.status(200).json({ ...data, leona_sync: leonaSync });
+      return res.status(200).json({ ...data, leona_sync: { skipped: true, reason: 'cancel_does_not_touch_leona' } });
     }
 
     if (action === 'pause') {
