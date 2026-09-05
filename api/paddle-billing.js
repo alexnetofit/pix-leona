@@ -2,6 +2,7 @@ import { applyCors } from '../lib/auth.js';
 import { getLeonaBillingProfile } from '../lib/leona.js';
 import {
   cancelPaddleSubscriptionAtPeriodEnd,
+  createPaddleUpdatePaymentUrl,
   executePaddleQuantityChange,
   getPaddleBillingOverview,
   PaddleBillingError,
@@ -75,6 +76,10 @@ export default async function handler(req, res) {
         session.account_id,
         profile
       );
+      return res.status(200).json(result);
+    }
+    if (action === 'update_payment_method') {
+      const result = await createPaddleUpdatePaymentUrl(session.account_id, profile);
       return res.status(200).json(result);
     }
     return res.status(400).json({ error: 'Ação inválida' });

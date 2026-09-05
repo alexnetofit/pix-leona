@@ -161,7 +161,7 @@
           O cancelamento padrão mantém o acesso até o fim do período já pago.
         </p>
         <div class="actions">
-          <button id="paymentBtn" class="secondary">Atualizar pagamento</button>
+          <button id="paymentBtn" class="secondary">Trocar cartão</button>
           <button id="cancelBtn" class="danger">Cancelar no fim do ciclo</button>
         </div>
       </section>
@@ -225,7 +225,6 @@
 
       const hasSubscription = Boolean(billing.paddle_subscription_id);
       $('manageCard').classList.toggle('hidden', !hasSubscription);
-      $('paymentBtn').classList.add('hidden');
       $('loading').classList.add('hidden');
       $('error').classList.add('hidden');
       $('app').classList.remove('hidden');
@@ -295,6 +294,24 @@
       }
     }
 
+    async function updatePayment() {
+      setBusy(true);
+      $('message').textContent = '';
+      try {
+        const result = await post('/api/paddle-billing', { action: 'update_payment_method' });
+        if (result.update_payment_method) {
+          location.href = result.update_payment_method;
+          return;
+        }
+        throw new Error('Não consegui abrir a troca de cartão.');
+      } catch (error) {
+        $('message').textContent = error.message;
+        $('message').className = 'small error';
+      } finally {
+        setBusy(false);
+      }
+    }
+
     async function cancelAtPeriodEnd() {
       if (!confirm('Cancelar a assinatura no fim do período já pago?')) return;
       setBusy(true);
@@ -316,6 +333,7 @@
     $('previewBtn').onclick = preview;
     $('cardBtn').onclick = () => execute('card');
     $('pixBtn').onclick = () => execute('pix');
+    $('paymentBtn').onclick = updatePayment;
     $('cancelBtn').onclick = cancelAtPeriodEnd;
 
     (async () => {
