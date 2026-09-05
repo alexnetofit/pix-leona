@@ -1395,6 +1395,15 @@
             mountPayForm(payId, 'one_shot');
         }
 
+        function invoiceReadyForPayment(inv) {
+            if (globalThis.AssinaturaQty && typeof AssinaturaQty.invoiceReadyForPayment === 'function') {
+                return AssinaturaQty.invoiceReadyForPayment(inv, todayStrUTC());
+            }
+            const status = String(inv?.status || '').toLowerCase();
+            if (status !== 'waiting_payment' && status !== 'pending') return false;
+            return !(inv?.charge_at && inv.charge_at > todayStrUTC());
+        }
+
         function findPendingInvoice(guru) {
             if (!guru.found || !guru.subscriptions) return null;
             for (const sub of guru.subscriptions) {
@@ -1423,7 +1432,7 @@
                     ? 'Pagamento pendente do seu upgrade'
                     : 'Próxima renovação';
             const today = todayStrUTC();
-            const isFutureCycle = inv.type === 'cycle' && inv.charge_at && inv.charge_at > today;
+            const isFutureCycle = Boolean(inv.charge_at && inv.charge_at > today);
             const valueFmt = `R$ ${Number(inv.value).toFixed(2)}`;
             const chargeAtFmt = inv.charge_at ? formatDate(inv.charge_at) : null;
             const currentQty = bp ? (Number(bp.starter_instances) || 0) : 0;
@@ -1431,17 +1440,20 @@
             if (isFutureCycle) {
                 const slotId = `cyc-${bp?.account_id || 'x'}`;
                 _qtySelStates[slotId] = null;
+                const canPayNow = inv.type === 'cycle';
                 return `
-                    <p class="lede">${typeLabel}. O link da Guru só libera no dia da cobrança às 10h.</p>
+                    <p class="lede">${typeLabel}. ${canPayNow ? 'O link da Guru só libera no dia da cobrança às 10h.' : 'Não precisa pagar agora — a Guru só cobra no dia da renovação.'}</p>
                     <div class="group" style="margin-bottom:16px;">
                         <div class="row"><span class="label">Próxima cobrança</span><span class="value">${chargeAtFmt || '—'}</span></div>
                         <div class="row"><span class="label">Valor</span><span class="value">${valueFmt}</span></div>
                     </div>
+                    ${canPayNow ? `
                     <button class="pay" id="replaceOpenBtn-${slotId}" type="button"
                         onclick="openReplaceSelector('${slotId}', ${bp?.account_id ? `'${String(bp.account_id).replace(/'/g, "\\'")}'` : 'null'}, ${currentQty})">
                         Pagar agora
                     </button>
                     <div id="replacePanel-${slotId}"></div>
+                    ` : ''}
                 `;
             }
 
@@ -1741,9 +1753,7 @@
                 // "replace": gera um link de checkout novo com a qty menor; ao
                 // pagar, o webhook-guru re-vincula a conta, ajusta a Leona pra
                 // nova qty e cancela a sub antiga (matando a fatura antiga).
-                const hasOpenInvoice = activeSub?.current_invoice
-                    && (activeSub.current_invoice.status === 'waiting_payment'
-                        || activeSub.current_invoice.status === 'pending');
+                const hasOpenInvoice = invoiceReadyForPayment(activeSub?.current_invoice);
 
                 if (hasOpenInvoice && bp.account_id) {
                     const replaceSlot = `down-${bp.account_id}-${bpIdx}`;
