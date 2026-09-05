@@ -1479,6 +1479,49 @@
             `;
         }
 
+        function renderPaddleCardButton(bp) {
+            const paddle = _data?.paddle;
+            if (!paddle?.subscription_id) return '';
+            const accountId = String(bp?.account_id || '').replace(/'/g, "\\'");
+            return `
+                <button class="pay" type="button" onclick="openPaddleCardUpdate('${accountId}', this)">
+                    Trocar cartão
+                </button>
+                <p class="hint">Não cobra agora. Só atualiza o cartão da renovação na Paddle.</p>
+            `;
+        }
+
+        async function openPaddleCardUpdate(accountId, btn) {
+            if (!btn) return;
+            const original = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = 'Abrindo…';
+            try {
+                logAssinatura('click_update_card', {
+                    provider: 'paddle',
+                    account_id: accountId || null,
+                    email: _email
+                });
+                const r = await fetch('/api/paddle-update-card', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: _email,
+                        account_id: accountId || undefined
+                    })
+                });
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok || !data.update_payment_method) {
+                    throw new Error(data.error || 'Não consegui abrir a troca de cartão.');
+                }
+                window.location.href = data.update_payment_method;
+            } catch (err) {
+                btn.disabled = false;
+                btn.textContent = original;
+                alert(err.message || 'Não consegui abrir a troca de cartão.');
+            }
+        }
+
         function renderUpgradePanel(bp, idx) {
             const currentQty = bp.starter_instances || 0;
             return `
@@ -1586,6 +1629,7 @@
                 const hasGuruAny = accountGuru.found && accountGuru.subscriptions.length > 0;
 
                 html += renderProfileCard(bp, i, profiles.length);
+                html += renderPaddleCardButton(bp);
 
                 if (expired) {
                     if (processingGuruSub) {

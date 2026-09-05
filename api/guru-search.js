@@ -1,6 +1,7 @@
 import { applyCors } from '../lib/auth.js';
 import { logAssinaturaEvent } from '../lib/assinatura-log.js';
 import { listAssinaturaPayments, shouldLoadAssinaturaPayments } from '../lib/assinatura-payments.js';
+import { findManagedPaddleSubscription } from '../lib/paddle-client.js';
 
 const GURU_BASE = 'https://digitalmanager.guru/api/v2';
 const GURU_HEADERS = (token) => ({
@@ -410,15 +411,29 @@ export default async function handler(req, res) {
 
     const bp = leonaPriority?.billing_profile || leona?.billing_profile || null;
     const profiles = leona.billing_profiles || (bp ? [bp] : []);
+    const accountIds = [
+      ...profiles.map((p) => p?.account_id),
+      accountIdRaw
+    ];
     let payments = [];
     if (shouldLoadAssinaturaPayments(profiles)) {
       payments = await listAssinaturaPayments({
         email: emailClean,
-        accountIds: [
-          ...profiles.map((p) => p?.account_id),
-          accountIdRaw
-        ]
+        accountIds
       });
+    }
+
+    let paddle = null;
+    if (process.env.PADDLE_API_KEY) {
+      if (!process.env.PADDLE_ENVIRONMENT) process.env.PADDLE_ENVIRONMENT = 'production';
+      try {
+        paddle = await findManagedPaddleSubscription({
+          email: emailClean,
+          accountIds
+        });
+      } catch (err) {
+        console.error('guru-search paddle lookup', err.message);
+      }
     }
 
     logAssinaturaEvent(req, {
@@ -431,11 +446,12 @@ export default async function handler(req, res) {
         starter: bp?.starter_instances ?? null,
         guru_statuses: (guru.subscriptions || []).map((s) => s.last_status || s.status),
         invoices_open: (guru.invoices || []).filter((i) => i.status && i.status !== 'paid').length,
-        payments: payments.length
+        payments: payments.length,
+        paddle_subscription_id: paddle?.subscription_id || null
       }
     });
 
-    return res.status(200).json({ guru, leona, offers, payments });
+    return res.status(200).json({ guru, leona, offers, payments, paddle });
 
   } catch (error) {
     console.error('guru-search error:', error);
