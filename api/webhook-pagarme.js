@@ -58,7 +58,7 @@ export default async function handler(req, res) {
             result = { kind: 'assinatura', processed: false, ignored: true };
           }
         } else if (pagarmeWebhookLooksPaid(payload)) {
-          const assinatura = await reconcilePendingPagarmeAssinatura({ max: 20, payload, req });
+          const assinatura = await reconcilePendingPagarmeAssinatura({ max: 20, req });
           result = { kind: 'reconcile', assinatura, processed: Boolean(assinatura?.processed) };
         } else {
           result = { kind: null, processed: false, error: 'checkout não encontrado' };
@@ -70,7 +70,7 @@ export default async function handler(req, res) {
       result = { kind: 'assinatura', ...(await processPagarmeSubscriptionRenewal(subscriptionId, { payload, req, source: 'webhook' })) };
     } else if (pagarmeWebhookLooksPaid(payload)) {
       const trilha = await reconcilePendingTrilhaCheckouts({ max: 20, payload });
-      const assinatura = await reconcilePendingPagarmeAssinatura({ max: 20, payload, req });
+      const assinatura = await reconcilePendingPagarmeAssinatura({ max: 20, req });
       result = { kind: 'reconcile', trilha, assinatura, processed: Boolean(trilha?.ok || assinatura?.processed) };
     } else {
       return res.status(200).json({ received: true, processed: false, ignored: payload.type || null });

@@ -23,6 +23,7 @@ import {
   buildPagarmeAssinaturaPaymentLinkPayload,
   inferQtyFromPagarmeSubscription,
   pagarmeAssinaturaLinkCustomer,
+  pagarmePayloadIsAboutCheckout,
   resolvePagarmeAssinaturaCharge,
   subscriptionDueDate
 } from '../lib/pagarme-assinatura.js';
@@ -252,6 +253,20 @@ test('webhook de fatura e charge.paid renovam assinatura', () => {
   assert.equal(subscriptionDueDate({
     current_cycle: { end_at: '2026-10-06T23:59:59Z' }
   }), '2026-10-06');
+});
+
+test('pedido pago de um cliente não serve de prova para o checkout de outro', () => {
+  const pago = { type: 'order.paid', data: { id: 'or_do_joao', status: 'paid' } };
+  // Sem isso, o reconcile disparado por esse webhook liberava toda intent
+  // pendente que passasse no loop usando o pedido do João como prova.
+  assert.equal(pagarmePayloadIsAboutCheckout(pago, 'or_do_joao'), true);
+  assert.equal(pagarmePayloadIsAboutCheckout(pago, 'or_da_maria'), false);
+  assert.equal(pagarmePayloadIsAboutCheckout(pago, 'pl_da_maria'), false);
+  assert.equal(pagarmePayloadIsAboutCheckout({}, 'or_da_maria'), false);
+  assert.equal(pagarmePayloadIsAboutCheckout(pago, ''), false);
+
+  const link = { type: 'order.paid', data: { id: 'or_x', checkout: { id: 'pl_do_joao' } } };
+  assert.equal(pagarmePayloadIsAboutCheckout(link, 'pl_do_joao'), true);
 });
 
 test('pedido pago sem assinatura na Pagar.me não quebra o webhook', () => {
