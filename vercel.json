@@ -37,6 +37,10 @@
     {
       "path": "/api/cron/trilha-reconcile",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/pagarme-reconcile",
+      "schedule": "*/10 * * * *"
     }
   ],
   "functions": {
@@ -47,6 +51,12 @@
       "maxDuration": 60
     },
     "api/cron/trilha-reconcile.js": {
+      "maxDuration": 60
+    },
+    "api/cron/pagarme-reconcile.js": {
+      "maxDuration": 60
+    },
+    "api/webhook-pagarme.js": {
       "maxDuration": 60
     },
     "api/webhook-guru.js": {
