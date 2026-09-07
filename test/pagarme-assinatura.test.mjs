@@ -7,10 +7,37 @@ import {
   pagarmeDigitalCustomer,
   pagarmeOrderLooksPaid
 } from '../lib/pagarme.js';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   buildPagarmeAssinaturaOrderPayload,
+  parseLeonaPagarmeOrderCode,
   resolvePagarmeAssinaturaCharge
 } from '../lib/pagarme-assinatura.js';
+
+test('código do pedido Pagar.me vira conta + qty + tipo', () => {
+  assert.deepEqual(parseLeonaPagarmeOrderCode('leona-15949-1-sub'), {
+    accountId: '15949',
+    qty: 1,
+    kind: 'sub'
+  });
+  assert.deepEqual(parseLeonaPagarmeOrderCode('leona-7631-11-prorata'), {
+    accountId: '7631',
+    qty: 11,
+    kind: 'prorata'
+  });
+  assert.equal(parseLeonaPagarmeOrderCode('leona-2977-15-renew-20260906'), null);
+});
+
+test('webhook só marca evento Pagar.me depois de ativar a Leona', () => {
+  const src = readFileSync(fileURLToPath(new URL('../lib/pagarme-assinatura.js', import.meta.url)), 'utf8');
+  const start = src.indexOf('export async function processPagarmeAssinaturaPaid');
+  const end = src.indexOf('export function parseLeonaPagarmeOrderCode');
+  const fn = src.slice(start, end);
+  assert.ok(fn.includes('activateLeonaAndCancelLegacy'));
+  assert.ok(fn.indexOf('activateLeonaAndCancelLegacy') < fn.indexOf('rememberEvent'));
+  assert.equal(fn.includes('duplicate: true'), false);
+});
 
 test('pró-rata 5→7 usa (delta × dias) / 30', () => {
   const now = new Date('2026-08-27T12:00:00-03:00');

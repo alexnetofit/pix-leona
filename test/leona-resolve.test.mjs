@@ -2,9 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   isLeonaProfileActivelyPaid,
+  leonaHeaders,
   listActiveLeonaAccountsByEmail,
   resolveLeonaAccount
 } from '../lib/leona.js';
+
+test('leonaHeaders manda User-Agent n8n pra passar no Cloudflare', () => {
+  assert.equal(leonaHeaders('tok')['User-Agent'], 'n8n');
+});
 
 test('resolveLeonaAccount prioriza ID e só cai no e-mail se o ID não achar', async () => {
   const calls = [];
