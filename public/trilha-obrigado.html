@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pedido confirmado — Trilha Leona</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="description" content="Seu pedido da Trilha Leona foi confirmado. Veja o prazo de envio e onde acompanhar o rastreio.">
+  <style>
+    :root {
+      --bg: #07060b;
+      --card: #161222;
+      --border: rgba(255,255,255,0.08);
+      --text: #f4f0fa;
+      --muted: #9d93b0;
+      --accent: #8b5cf6;
+      --accent-2: #22d3ee;
+      --success: #34d399;
+      --shadow: 0 24px 80px rgba(0,0,0,0.45);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(circle at 15% 0%, rgba(139,92,246,0.18), transparent 35%),
+        radial-gradient(circle at 85% 10%, rgba(34,211,238,0.12), transparent 30%),
+        radial-gradient(circle at 50% 100%, rgba(251,191,36,0.08), transparent 40%);
+      pointer-events: none;
+    }
+
+    .wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 28px 20px 80px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 28px;
+    }
+
+    .brand img { height: 36px; width: auto; }
+
+    .card {
+      background: linear-gradient(135deg, rgba(139,92,246,0.14), rgba(34,211,238,0.06));
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 28px;
+      box-shadow: var(--shadow);
+    }
+
+    .eyebrow {
+      color: var(--success);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      font-size: clamp(1.6rem, 4vw, 2.2rem);
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      margin-bottom: 10px;
+    }
+
+    .lead {
+      color: var(--muted);
+      font-size: 1rem;
+      max-width: 46ch;
+    }
+
+    .ship-notice {
+      background: rgba(239,68,68,0.12);
+      border: 1px solid rgba(239,68,68,0.42);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      margin: 24px 0 0;
+      display: grid;
+      gap: 6px;
+    }
+
+    .ship-notice strong { color: #fecaca; font-size: 0.95rem; }
+    .ship-notice p { color: #f4c7c7; font-size: 0.9rem; }
+
+    .steps {
+      margin-top: 22px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .steps h2 {
+      font-size: 1.05rem;
+      letter-spacing: -0.02em;
+    }
+
+    .steps ol {
+      color: var(--muted);
+      padding-left: 20px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .steps li strong { color: var(--text); }
+
+    .guide {
+      margin-top: 22px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+    }
+
+    .guide img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .guide p {
+      padding: 14px 16px 16px;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="topbar">
+      <div class="brand">
+        <img src="/logo-leona-branca.png" alt="Leona">
+      </div>
+    </header>
+
+    <section class="card">
+      <div class="eyebrow">Pedido confirmado</div>
+      <h1>Obrigado! Seu pedido já está com a gente.</h1>
+      <p class="lead">Recebemos o pagamento. As peças entram em produção e, assim que ficarem prontas, o envio sai na hora.</p>
+
+      <aside class="ship-notice" role="status">
+        <strong>Primeiro lote em produção</strong>
+        <p>Este primeiro lote está sendo produzido de uma vez, então o envio pode levar cerca de 30 dias úteis. Depois disso, os próximos saem no ritmo normal. Agradecemos a paciência.</p>
+      </aside>
+
+      <div class="steps">
+        <h2>Como acompanhar</h2>
+        <ol>
+          <li>Abra de novo a <strong>Trilha de Premiação</strong> pelo mesmo link que você usou.</li>
+          <li>Clique na aba <strong>Pedidos e rastreio</strong>.</li>
+          <li>O código de rastreio aparece ali quando a fábrica enviar.</li>
+        </ol>
+      </div>
+
+      <figure class="guide">
+        <img src="/trilha/pedidos-rastreio-guia.png" alt="Na Trilha, clique na aba Pedidos e rastreio para ver o status e o código de rastreio do pedido.">
+        <p>É nesta aba que o pedido e o rastreio ficam. Se ainda não aparecer, aguarde alguns instantes após o pagamento.</p>
+      </figure>
+    </section>
+  </div>
+</body>
+</html>

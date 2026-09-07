@@ -71,6 +71,11 @@ test('player monta endereço pelos campos separados', () => {
 test('extrai pl_ do webhook da Pagar.me', () => {
   assert.equal(extractPagarmePaymentLinkId({ data: { id: 'pl_abc' } }), 'pl_abc');
   assert.equal(extractPagarmePaymentLinkId({ data: { id: 'or_xxx', payment_link: { id: 'pl_from_order' } } }), 'pl_from_order');
+  assert.equal(extractPagarmePaymentLinkId({ type: 'order.paid', data: { id: 'or_xxx', code: 'pl_from_code' } }), 'pl_from_code');
+  assert.equal(extractPagarmePaymentLinkId({
+    type: 'charge.paid',
+    data: { id: 'ch_xxx', order: { id: 'or_xxx', code: 'pl_from_order_code' } }
+  }), 'pl_from_order_code');
   assert.equal(extractPagarmePaymentLinkId({ id: 'or_xxx' }), null);
   assert.equal(pagarmeWebhookLooksPaid({ type: 'order.paid' }), true);
   assert.equal(pagarmeWebhookLooksPaid({ type: 'order.created' }), false);

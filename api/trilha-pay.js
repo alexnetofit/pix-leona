@@ -6,7 +6,7 @@ import { logAssinaturaEvent } from '../lib/assinatura-log.js';
 import { createPagarmePaymentLink, pagarmeConfigured } from '../lib/pagarme.js';
 import { resolveTrilhaAccess } from '../lib/trilha-access.js';
 import { resolveTrilhaRedeemEligibility } from '../lib/trilha-eligibility.js';
-import { buildTrilhaCartOrder, buildTrilhaPagarmePaymentLinkPayload, findTrilhaPrize } from '../lib/trilha-order.js';
+import { buildTrilhaCartOrder, buildTrilhaPagarmePaymentLinkPayload, findTrilhaPrize, trilhaThankYouUrl } from '../lib/trilha-order.js';
 import { getLeonaLifetimeRevenue } from '../lib/leona.js';
 import {
   pickBrlLifetimeRevenue,
@@ -14,16 +14,6 @@ import {
 } from '../lib/trilha-prizes.js';
 import { purchasedPrizeIdsFromCheckouts } from '../lib/trilha-account-orders.js';
 import { expireAbandonedTrilhaCheckouts, listTrilhaAccountCheckouts, saveTrilhaCheckout } from '../lib/trilha-fulfill.js';
-
-function trilhaPaidReturnUrl(accountId, email) {
-  const base = (process.env.TRILHA_PUBLIC_URL || 'https://client.leonaflow.com/trilha').replace(/\/+$/, '');
-  const qs = new URLSearchParams({
-    id: String(accountId),
-    email: String(email || ''),
-    paid: '1'
-  });
-  return `${base}?${qs}`;
-}
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -119,7 +109,7 @@ export default async function handler(req, res) {
     accountId: resolvedAccountId,
     order,
     customerName: name,
-    successUrl: trilhaPaidReturnUrl(resolvedAccountId, checkoutEmail)
+    successUrl: trilhaThankYouUrl({ accountId: resolvedAccountId, email: checkoutEmail })
   });
   const customer = payload.customer_settings.customer;
 

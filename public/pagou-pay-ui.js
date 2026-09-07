@@ -75,22 +75,6 @@
             </div>
           </div>
         </div>
-        <div id="cardFields-${id}" style="display:none;margin-top:16px;">
-          <div class="group">
-            <div class="field">
-              <label>Número do cartão</label>
-              <input id="cardNumber-${id}" type="text" inputmode="numeric" autocomplete="cc-number" placeholder="•••• •••• •••• ••••">
-            </div>
-            <div class="field">
-              <label>Validade</label>
-              <input id="cardExpiry-${id}" type="text" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/AA">
-            </div>
-            <div class="field">
-              <label>CVV</label>
-              <input id="cardCvv-${id}" type="text" inputmode="numeric" autocomplete="cc-csc" placeholder="000">
-            </div>
-          </div>
-        </div>
         <button class="pay" id="payBtn-${id}" type="button">Pagar no PIX</button>
         <div class="err" id="err-${id}"></div>
         <p class="hint" id="payHint-${id}">${hint}</p>
@@ -144,8 +128,8 @@
       }
       if (state.method === 'card') {
         return kind() === 'one_shot'
-          ? 'Cartão à vista (1x). Sem endereço — a placa é que pede entrega.'
-          : 'Cartão à vista. Sem endereço. A liberação vale 30 dias.';
+          ? 'O cartão é preenchido no checkout da Stone. Sem endereço. À vista (1x).'
+          : 'O cartão é preenchido no checkout da Stone. Sem endereço. A liberação vale 30 dias.';
       }
       return kind() === 'one_shot'
         ? 'PIX à vista (1x). Sem endereço — a placa é que pede entrega.'
@@ -162,8 +146,6 @@
       const documentField = document.getElementById(`documentField-${id}`);
       if (methodField) methodField.style.display = intl ? 'none' : '';
       if (documentField) documentField.style.display = intl ? 'none' : '';
-      const cardFields = document.getElementById(`cardFields-${id}`);
-      if (cardFields) cardFields.style.display = !intl && state.method === 'card' ? 'block' : 'none';
       const hint = el(id, 'payHint');
       if (hint) hint.textContent = hintText();
       const btn = el(id, 'payBtn');
@@ -204,22 +186,6 @@
     function payerName(c) {
       const typed = String(el(id, 'name')?.value || '').trim();
       return typed || String(c.name || '').trim();
-    }
-
-    function readCard(c) {
-      const number = digits(el(id, 'cardNumber')?.value);
-      const exp = digits(el(id, 'cardExpiry')?.value);
-      const cvv = digits(el(id, 'cardCvv')?.value);
-      if (number.length < 13 || exp.length < 4 || cvv.length < 3) return null;
-      let year = Number(exp.slice(2));
-      if (year < 100) year += 2000;
-      return {
-        number,
-        holder_name: payerName(c),
-        exp_month: Number(exp.slice(0, 2)),
-        exp_year: year,
-        cvv
-      };
     }
 
     function hideChrome() {
@@ -284,13 +250,13 @@
       return digits(el(id, 'document')?.value);
     }
 
-    async function payPagarme(c) {
+    async function payPagarme(c, lockedMethod) {
       const name = payerName(c);
       const document = payerDocument();
       if (document.length !== 11 && document.length !== 14) {
         throw new Error('Informe um CPF ou CNPJ válido');
       }
-      const method = state.method === 'card' ? 'credit_card' : 'pix';
+      const method = (lockedMethod || state.method) === 'card' ? 'credit_card' : 'pix';
       const body = {
         account_id: c.accountId,
         email: c.email,
@@ -301,11 +267,6 @@
         ...(name ? { name } : {}),
         ...(Number(c.amount) > 0 ? { amount: c.amount } : {})
       };
-      if (method === 'credit_card') {
-        const card = readCard(c);
-        if (!card) throw new Error('Preencha os dados do cartão');
-        body.card = card;
-      }
       const r = await fetch('/api/pagarme-pay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -317,12 +278,14 @@
         showOk();
         return;
       }
-      if (method === 'pix') {
-        if (!data.pix?.qr_code) throw new Error('PIX gerado sem código. Tente de novo.');
-        showPix(data);
+      if (method === 'credit_card') {
+        const url = data.checkout_url || data.url;
+        if (!url) throw new Error('Checkout da Stone sem link. Tente de novo.');
+        location.href = url;
         return;
       }
-      throw new Error(data.error || 'Pagamento não concluído');
+      if (!data.pix?.qr_code) throw new Error('PIX gerado sem código. Tente de novo.');
+      showPix(data);
     }
 
     async function openPaddleCheckout(c) {
@@ -358,20 +321,21 @@
         showErr('Escolha um plano disponível.');
         return;
       }
-      const method = state.region === 'international' ? 'card' : state.method;
+      const region = state.region;
+      const method = region === 'international' ? 'card' : state.method;
       if (typeof ctx.onSubmit === 'function') {
-        ctx.onSubmit({ ...c, region: state.region, method });
+        ctx.onSubmit({ ...c, region, method });
       }
       btn.disabled = true;
       btn.textContent = 'Processando...';
       try {
-        if (state.region === 'international') {
+        if (region === 'international') {
           if (!state.paddleReady) throw new Error('Pagamento internacional indisponível. Fale com o suporte.');
           await openPaddleCheckout(c);
           return;
         }
         if (!state.pagarmeReady) throw new Error('Pagamento indisponível. Tente de novo em instantes.');
-        await payPagarme(c);
+        await payPagarme(c, method);
       } catch (err) {
         showErr(err.message);
         btn.disabled = false;

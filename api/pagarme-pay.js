@@ -11,25 +11,12 @@ import {
   pagarmeConfigured,
   pagarmeOrderLooksPaid
 } from '../lib/pagarme.js';
-import { createPagarmeAssinaturaCheckout } from '../lib/pagarme-assinatura.js';
+import {
+  createPagarmeAssinaturaCheckout,
+  processPagarmeAssinaturaPaid,
+  reconcilePendingPagarmeAssinatura
+} from '../lib/pagarme-assinatura.js';
 import { paymentLinkLooksPaid } from '../lib/trilha-fulfill.js';
-
-function readCard(body = {}) {
-  const raw = body.card && typeof body.card === 'object' ? body.card : {};
-  const number = String(raw.number || '').replace(/\D/g, '');
-  const holder = String(raw.holder_name || body.name || '').trim();
-  const expiry = String(raw.exp || raw.expiry || '').replace(/\D/g, '');
-  let expMonth = Number(raw.exp_month);
-  let expYear = Number(raw.exp_year);
-  if ((!expMonth || !expYear) && expiry.length >= 4) {
-    expMonth = Number(expiry.slice(0, 2));
-    expYear = Number(expiry.slice(2));
-  }
-  if (expYear && expYear < 100) expYear += 2000;
-  const cvv = String(raw.cvv || '').replace(/\D/g, '');
-  if (number.length < 13 || !holder || !expMonth || !expYear || cvv.length < 3) return null;
-  return { number, holder_name: holder, exp_month: expMonth, exp_year: expYear, cvv };
-}
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -39,8 +26,7 @@ export default async function handler(req, res) {
   if (!pagarmeConfigured()) return res.status(500).json({ error: 'PAGARME_KEY não configurada' });
 
   if (req.method === 'GET') {
-    const { id, account_id, email } = req.query || {};
-    if (!id) return res.status(400).json({ error: 'id obrigatório' });
+    const { id, account_id, email, reconcile } = req.query || {};
     const access = await assertAccountAccess({
       accountId: account_id,
       queryEmail: email,
@@ -48,39 +34,57 @@ export default async function handler(req, res) {
       route: '/api/pagarme-pay'
     });
     if (!access.ok) return res.status(access.status).json(access.body);
+
+    if (String(reconcile || '') === '1') {
+      const result = await reconcilePendingPagarmeAssinatura({
+        max: 8,
+        req,
+        accountId: String(access.profile.account_id ?? account_id)
+      });
+      return res.status(200).json({ ok: true, reconciled: true, ...result });
+    }
+
+    if (!id) return res.status(400).json({ error: 'id obrigatório' });
     if (/^or_/i.test(String(id))) {
       const found = await getPagarmeOrder(id);
       if (!found.ok || !found.body?.id) {
         return res.status(found.status || 404).json({ error: 'Cobrança não encontrada' });
       }
+      const paid = pagarmeOrderLooksPaid(found.body);
+      if (paid) {
+        await processPagarmeAssinaturaPaid(id, { payload: found.body, req, source: 'poll' });
+      }
       return res.status(200).json({
         id: found.body.id,
         status: found.body.status || null,
-        paid: pagarmeOrderLooksPaid(found.body)
+        paid
       });
     }
     const found = await getPagarmePaymentLink(id);
     if (!found.ok || !found.body?.id) {
       return res.status(found.status || 404).json({ error: 'Checkout não encontrado' });
     }
+    const paid = paymentLinkLooksPaid(found.body);
+    if (paid) {
+      await processPagarmeAssinaturaPaid(id, { payload: found.body, req, source: 'poll' });
+    }
     return res.status(200).json({
       id: found.body.id,
       status: found.body.status || null,
-      paid: paymentLinkLooksPaid(found.body),
+      paid,
       checkout_url: found.body.url || null
     });
   }
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
 
-  const { account_id, email, qty, amount, kind, name, method, card_token, document } = req.body || {};
+  const { account_id, email, qty, amount, kind, name, method, document } = req.body || {};
   const accountId = account_id != null ? String(account_id).trim() : '';
   if (!accountId) return res.status(400).json({ error: 'account_id obrigatório' });
   const payMethod = String(method || 'pix').toLowerCase() === 'card'
     || String(method || '').toLowerCase() === 'credit_card'
     ? 'credit_card'
     : 'pix';
-  const card = payMethod === 'credit_card' && !card_token ? readCard(req.body || {}) : null;
 
   const access = await assertAccountAccess({
     accountId,
@@ -99,8 +103,6 @@ export default async function handler(req, res) {
     amount,
     profile: access.profile,
     method: payMethod,
-    cardToken: card_token || null,
-    card,
     document
   });
 
@@ -128,7 +130,8 @@ export default async function handler(req, res) {
       kind: created.oneShot ? 'one_shot' : 'subscription',
       payment_id: created.id,
       method: payMethod,
-      paid: Boolean(created.paid)
+      paid: Boolean(created.paid),
+      checkout_url: created.checkout_url || created.url || null
     }
   });
 
@@ -141,6 +144,7 @@ export default async function handler(req, res) {
     pix: created.pix || null,
     qty: created.qty,
     amount_cents: created.amountCents,
-    offer_name: created.productName
+    offer_name: created.productName,
+    checkout_url: created.checkout_url || created.url || null
   });
 }

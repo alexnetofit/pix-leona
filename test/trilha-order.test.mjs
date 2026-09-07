@@ -9,7 +9,8 @@ import {
   parseTrilhaPhone,
   paymentLinkItems,
   trilhaCardInstallments,
-  trilhaPagarmeCustomer
+  trilhaPagarmeCustomer,
+  trilhaThankYouUrl
 } from '../lib/trilha-order.js';
 
 test('pedido 50k cobra R$ 29,90 do prêmio, sem linha de frete', () => {
@@ -152,13 +153,14 @@ test('customer do checkout da Trilha não manda e-mail nem endereço', () => {
     accountId: '58',
     order,
     customerName: 'Gabriel Mesquiari de Lima',
-    successUrl: 'https://client.leonaflow.com/trilha?id=58&paid=1'
+    successUrl: 'https://client.leonaflow.com/trilha-obrigado?id=58&email=gabriel@example.com'
   });
   assert.deepEqual(payload.customer_settings.customer, { name: 'Gabriel Mesquiari de Lima' });
   assert.equal(payload.customer_settings.customer.email, undefined);
   assert.equal(payload.customer_settings.customer.address, undefined);
   assert.equal(payload.name, 'Trilha 50k #58');
   assert.deepEqual(payload.payment_settings.accepted_payment_methods, ['pix', 'credit_card']);
+  assert.equal(payload.flow_settings.success_url, 'https://client.leonaflow.com/trilha-obrigado?id=58&email=gabriel@example.com');
 });
 
 test('cartão parcela até 12x com juros: mil vira 12x de 100', () => {
@@ -186,4 +188,19 @@ test('cartão parcela até 12x com juros: mil vira 12x de 100', () => {
   assert.equal(installments[0].total, order.totalCents);
   assert.equal(installments[11].total / 12, order.totalCents / 10);
   assert.equal(payload.payment_settings.credit_card_settings.installments_setup, undefined);
+});
+
+test('retorno do checkout vai para a página de obrigado', () => {
+  assert.equal(
+    trilhaThankYouUrl({
+      accountId: '58',
+      email: 'gabriel@example.com',
+      publicUrl: 'https://client.leonaflow.com/trilha'
+    }),
+    'https://client.leonaflow.com/trilha-obrigado?id=58&email=gabriel%40example.com'
+  );
+  assert.equal(
+    trilhaThankYouUrl({ publicUrl: 'https://client.leonaflow.com/trilha' }),
+    'https://client.leonaflow.com/trilha-obrigado'
+  );
 });

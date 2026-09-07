@@ -192,6 +192,22 @@
         .pay:hover, .btn-primary:hover, .btn-orange:hover { background: #0077ed; }
         .pay:disabled, .btn-primary:disabled, .btn-orange:disabled { opacity: 0.4; cursor: default; }
 
+        .btn-secondary-full {
+            width: 100%;
+            border: 0;
+            border-radius: 980px;
+            padding: 14px 18px;
+            margin: 8px 0 16px;
+            font: inherit;
+            font-size: 17px;
+            font-weight: 500;
+            color: #1d1d1f;
+            background: #e8e8ed;
+            cursor: pointer;
+        }
+        .btn-secondary-full:hover { background: #dcdce0; }
+        .btn-secondary-full:disabled { opacity: 0.4; cursor: default; }
+
         [id^="card-element"] {
             background: #fff;
             border-radius: 12px;
@@ -571,6 +587,37 @@
             <div class="modal-actions">
                 <button onclick="closeConfirmModal()">Cancelar</button>
                 <button id="confirmModalOk" class="danger" onclick="confirmModalConfirm()">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="cardChangeModal" class="modal-overlay" onclick="if(event.target===this)closeCardChangeModal()">
+        <div class="modal-card">
+            <h3>Trocar cartão</h3>
+            <p>O novo cartão substitui o atual na Pagar.me. A próxima cobrança usa este cartão.</p>
+            <p id="cardChangeCurrent" class="hint" style="text-align:left;margin-top:0;"></p>
+            <div class="group" style="margin-top:12px;">
+                <div class="field">
+                    <label>Nome no cartão</label>
+                    <input id="cardChangeName" type="text" autocomplete="cc-name" placeholder="Como no cartão">
+                </div>
+                <div class="field">
+                    <label>Número do cartão</label>
+                    <input id="cardChangeNumber" type="text" inputmode="numeric" autocomplete="cc-number" placeholder="•••• •••• •••• ••••">
+                </div>
+                <div class="field">
+                    <label>Validade</label>
+                    <input id="cardChangeExpiry" type="text" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/AA">
+                </div>
+                <div class="field">
+                    <label>CVV</label>
+                    <input id="cardChangeCvv" type="text" inputmode="numeric" autocomplete="cc-csc" placeholder="000">
+                </div>
+            </div>
+            <div class="err" id="cardChangeErr"></div>
+            <div class="modal-actions">
+                <button type="button" onclick="closeCardChangeModal()">Cancelar</button>
+                <button type="button" class="danger" id="cardChangeSave" onclick="submitCardChange()">Salvar cartão</button>
             </div>
         </div>
     </div>
@@ -955,7 +1002,7 @@
             return Math.ceil(diffMs / 86400000);
         }
 
-        function needsRenewalAlert(bp, guru) {
+        function needsRenewalAlert(bp, guru, pagarme) {
             // Cenario 6: Leona ainda ativa, mas perto de vencer, e nao ha
             // sub Guru ativa-valida pra renovar automaticamente.
             //
@@ -965,6 +1012,7 @@
             // pra eles, "sem Guru ativa" e estado normal e quem renova e
             // o gateway proprio.
             if (isLeonaExpired(bp)) return false;
+            if (pagarme && pagarme.can_change_card) return false;
             const days = daysUntilLeonaExpiry(bp);
             if (days === null || days > 5) return false;
             const hasGuruHistory = guru && guru.found && Array.isArray(guru.subscriptions) && guru.subscriptions.length > 0;
@@ -1034,6 +1082,12 @@
             content.innerHTML = `<div class="loading-state"><div class="spinner"></div><p style="color: var(--text-secondary); margin-top: 16px;">Carregando dados...</p></div>`;
 
             try {
+                if (email || accountIdParam) {
+                    const q = new URLSearchParams({ reconcile: '1' });
+                    if (accountIdParam) q.set('account_id', accountIdParam);
+                    if (email) q.set('email', email);
+                    await fetch('/api/pagarme-pay?' + q.toString()).catch(() => null);
+                }
                 const body = {};
                 if (email) body.email = email;
                 if (accountIdParam) body.account_id = accountIdParam;
@@ -1112,6 +1166,50 @@
             const starter = Number(bp.starter_instances) || 0;
             const pro = Number(bp.pro_instances) || 0;
             return starter + pro;
+        }
+
+        function showPagarmeCardButton(bp, accountGuru, pagarme) {
+            if (!bp || isLeonaExpired(bp)) return false;
+            if (findActiveValidGuruSub(accountGuru)) return false;
+            return !!(pagarme && pagarme.can_change_card);
+        }
+
+        function isPagarmeBilling(pagarme) {
+            return !!(pagarme && (pagarme.is_pagarme_billing || pagarme.has_subscription));
+        }
+
+        function renderPagarmeDowngradeNotice(currentQty, newQty, newValue) {
+            return `
+                <div style="background: var(--bg-card); padding: 20px; border-radius: 14px; border: 1px solid rgba(245,158,11,0.3);">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                        <span style="color: var(--text-secondary);">Alteração:</span>
+                        <span style="color: var(--orange); font-weight: 700;">⬇️ DOWNGRADE (-${currentQty - newQty})</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                        <span style="color: var(--text-secondary);">Conexões:</span>
+                        <span style="font-weight: 600;">${currentQty} → ${newQty}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                        <span style="color: var(--text-secondary);">Próxima renovação:</span>
+                        <span style="color: var(--orange); font-weight: 700;">${fmtCurrency(newValue)}</span>
+                    </div>
+                    <div style="background: rgba(245,158,11,0.08); padding: 12px; border-radius: 10px; color: var(--text-secondary); font-size: 0.85rem; line-height: 1.5;">
+                        O ciclo atual já foi pago. Não cobramos nem estornamos nada agora. Na próxima renovação, pague o plano de <strong>${newQty}</strong> conex${newQty !== 1 ? 'ões' : 'ão'} (${fmtCurrency(newValue)}).
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderPagarmeCardAction(bp, pagarme) {
+            if (!bp?.account_id) return '';
+            const accountId = String(bp.account_id).replace(/'/g, "\\'");
+            const last = pagarme?.last4
+                ? `${pagarme.brand || 'Cartão'} •••• ${pagarme.last4}`
+                : '';
+            return `
+                ${last ? `<div class="group" style="margin-bottom:16px;"><div class="row"><span class="label">Cartão</span><span class="value">${last}</span></div></div>` : ''}
+                <button class="btn-secondary-full" type="button" id="trocarCartaoBtn" onclick="openCardChangeModal('${accountId}')">Trocar cartão</button>
+            `;
         }
 
         function renderProfileCard(bp, idx, total) {
@@ -1630,6 +1728,9 @@
 
                 html += renderProfileCard(bp, i, profiles.length);
                 html += renderPaddleCardButton(bp);
+                if (!expired && showPagarmeCardButton(bp, accountGuru, data.pagarme)) {
+                    html += renderPagarmeCardAction(bp, data.pagarme);
+                }
 
                 if (expired) {
                     if (processingGuruSub) {
@@ -1653,7 +1754,7 @@
                         html += renderPendingInvoice(pendingInvoice, bp);
                     }
 
-                    if (needsRenewalAlert(bp, accountGuru)) {
+                    if (needsRenewalAlert(bp, accountGuru, data.pagarme)) {
                         // Cenario 6: Leona ainda ativa, mas perto de vencer e
                         // sem renovacao Guru garantida (cliente teve sub Guru
                         // no passado mas nenhuma esta active+valida agora).
@@ -1745,6 +1846,9 @@
                     && (activeSub.current_invoice.status === 'waiting_payment'
                         || activeSub.current_invoice.status === 'pending');
 
+                const pagarme = data.pagarme || {};
+                const pagarmeBilling = isPagarmeBilling(pagarme) && !canExecute;
+
                 if (hasOpenInvoice && bp.account_id) {
                     const replaceSlot = `down-${bp.account_id}-${bpIdx}`;
                     _replaceStates[replaceSlot] = { accountId: bp.account_id, qty: currentQty };
@@ -1773,6 +1877,38 @@
                             <div id="replacePanel-${replaceSlot}" style="margin-top: 14px;"></div>
                         </div>
                     `;
+                    return;
+                }
+
+                if (pagarmeBilling && pagarme.has_subscription) {
+                    const accountId = String(bp.account_id || '').replace(/'/g, "\\'");
+                    resultDiv.innerHTML = `
+                        <div style="background: var(--bg-card); padding: 20px; border-radius: 14px; border: 1px solid rgba(245,158,11,0.3);">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                                <span style="color: var(--text-secondary);">Alteração:</span>
+                                <span style="color: var(--orange); font-weight: 700;">⬇️ DOWNGRADE (-${diff})</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="color: var(--text-secondary);">Conexões:</span>
+                                <span style="font-weight: 600;">${currentQty} → ${newQty}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                                <span style="color: var(--text-secondary);">Próxima cobrança:</span>
+                                <span style="color: var(--orange); font-weight: 700;">${fmtCurrency(newValue)}</span>
+                            </div>
+                            <div style="background: var(--orange-soft); padding: 12px; border-radius: 10px; color: var(--orange); font-size: 0.85rem; margin-bottom: 14px;">
+                                <strong>Importante:</strong> antes de confirmar, abra o painel da Leona e <u>exclua manualmente</u> as conexões que NÃO quer manter, deixando apenas <strong>${newQty}</strong> ativa${newQty !== 1 ? 's' : ''}.
+                            </div>
+                            <button class="btn-orange" id="downBtn-${bpIdx}" style="width: 100%; padding: 14px;" onclick="askPagarmeDowngradeConfirm('${accountId}', ${currentQty}, ${newQty}, ${bpIdx})">
+                                Confirmar downgrade para ${newQty} conex${newQty !== 1 ? 'ões' : 'ão'}
+                            </button>
+                        </div>
+                    `;
+                    return;
+                }
+
+                if (pagarmeBilling) {
+                    resultDiv.innerHTML = renderPagarmeDowngradeNotice(currentQty, newQty, newValue);
                     return;
                 }
 
@@ -1924,6 +2060,138 @@
             }
         }
 
+        let _cardChangeAccountId = null;
+
+        function digitsOnly(value) {
+            return String(value || '').replace(/\D/g, '');
+        }
+
+        function openCardChangeModal(accountId) {
+            _cardChangeAccountId = accountId || null;
+            const pagarme = _data?.pagarme || {};
+            const current = document.getElementById('cardChangeCurrent');
+            current.textContent = pagarme.last4
+                ? `Cartão atual: ${pagarme.brand || 'Cartão'} •••• ${pagarme.last4}`
+                : 'Informe o novo cartão para salvar na Pagar.me.';
+            document.getElementById('cardChangeName').value = _buyerName || '';
+            document.getElementById('cardChangeNumber').value = '';
+            document.getElementById('cardChangeExpiry').value = '';
+            document.getElementById('cardChangeCvv').value = '';
+            const err = document.getElementById('cardChangeErr');
+            err.style.display = 'none';
+            err.textContent = '';
+            document.getElementById('cardChangeModal').classList.add('open');
+            logAssinatura('click_change_card', { provider: 'pagarme', account_id: accountId });
+        }
+
+        function closeCardChangeModal() {
+            document.getElementById('cardChangeModal').classList.remove('open');
+            _cardChangeAccountId = null;
+        }
+
+        function readCardChangeFields() {
+            const number = digitsOnly(document.getElementById('cardChangeNumber').value);
+            const expiry = digitsOnly(document.getElementById('cardChangeExpiry').value);
+            const cvv = digitsOnly(document.getElementById('cardChangeCvv').value);
+            const holder = String(document.getElementById('cardChangeName').value || '').trim();
+            if (number.length < 13 || expiry.length < 4 || cvv.length < 3 || !holder) return null;
+            let year = Number(expiry.slice(2));
+            if (year < 100) year += 2000;
+            return {
+                number,
+                holder_name: holder,
+                exp_month: Number(expiry.slice(0, 2)),
+                exp_year: year,
+                cvv
+            };
+        }
+
+        async function tokenizePagarmeCard(card) {
+            const cfg = await fetch('/api/pagou-config').then((r) => r.json()).catch(() => ({}));
+            const publicKey = cfg.pagarme_public_key;
+            if (!publicKey) return { card };
+            const r = await fetch('https://api.pagar.me/core/v5/tokens?appId=' + encodeURIComponent(publicKey), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'card',
+                    card: {
+                        number: card.number,
+                        holder_name: card.holder_name,
+                        exp_month: card.exp_month,
+                        exp_year: card.exp_year,
+                        cvv: card.cvv
+                    }
+                })
+            });
+            const data = await r.json().catch(() => ({}));
+            if (!r.ok || !data.id) {
+                throw new Error(data.message || 'Não foi possível validar o cartão');
+            }
+            return { card_token: data.id };
+        }
+
+        async function submitCardChange() {
+            const err = document.getElementById('cardChangeErr');
+            const btn = document.getElementById('cardChangeSave');
+            const showErr = (msg) => {
+                err.textContent = msg;
+                err.style.display = 'block';
+            };
+            const card = readCardChangeFields();
+            if (!card || !_cardChangeAccountId) {
+                showErr('Preencha os dados do cartão');
+                return;
+            }
+            btn.disabled = true;
+            btn.textContent = 'Salvando...';
+            showErr('');
+            err.style.display = 'none';
+            try {
+                const tokenized = await tokenizePagarmeCard(card);
+                const r = await fetch('/api/pagarme-card', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        account_id: _cardChangeAccountId,
+                        email: _email,
+                        ...tokenized
+                    })
+                });
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok || !data.success) {
+                    throw new Error(data.error || 'Não foi possível trocar o cartão');
+                }
+                if (_data) {
+                    _data.pagarme = {
+                        ...(_data.pagarme || {}),
+                        can_change_card: true,
+                        last4: data.last4 || _data.pagarme?.last4 || null,
+                        brand: data.brand || _data.pagarme?.brand || null
+                    };
+                }
+                closeCardChangeModal();
+                await renderProfile(_data, _email);
+            } catch (e) {
+                showErr(e.message || 'Não foi possível trocar o cartão');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Salvar cartão';
+            }
+        }
+
+        document.getElementById('cardChangeNumber')?.addEventListener('input', (e) => {
+            const d = digitsOnly(e.target.value).slice(0, 19);
+            e.target.value = d.replace(/(\d{4})(?=\d)/g, '$1 ').trim();
+        });
+        document.getElementById('cardChangeExpiry')?.addEventListener('input', (e) => {
+            const d = digitsOnly(e.target.value).slice(0, 4);
+            e.target.value = d.length > 2 ? d.slice(0, 2) + '/' + d.slice(2) : d;
+        });
+        document.getElementById('cardChangeCvv')?.addEventListener('input', (e) => {
+            e.target.value = digitsOnly(e.target.value).slice(0, 4);
+        });
+
         let _confirmModalAction = null;
 
         function openConfirmModal({ title, bodyHtml, okText, onConfirm }) {
@@ -1953,6 +2221,59 @@
                 await fn();
             } finally {
                 closeConfirmModal();
+            }
+        }
+
+        function askPagarmeDowngradeConfirm(accountId, currentQty, newQty, bpIdx) {
+            logAssinatura('click_downgrade', {
+                provider: 'pagarme',
+                account_id: accountId,
+                details: { from: currentQty, to: newQty }
+            });
+            openConfirmModal({
+                title: 'Confirmar downgrade',
+                bodyHtml: `
+                    <p>Você está reduzindo de <strong>${currentQty}</strong> para <strong>${newQty}</strong> conex${newQty !== 1 ? 'ões' : 'ão'}.</p>
+                    <p style="color: var(--orange);"><strong>Antes de confirmar:</strong> abra o painel da Leona e exclua as conexões que NÃO quer manter.</p>
+                    <p style="color: var(--text-muted); font-size: 0.82rem;">A próxima cobrança no cartão já sai no valor menor. Sem estorno do ciclo atual.</p>
+                `,
+                okText: 'Já organizei, confirmar',
+                onConfirm: () => executePagarmeDowngrade(accountId, newQty, bpIdx)
+            });
+        }
+
+        async function executePagarmeDowngrade(accountId, newQty, bpIdx) {
+            const resultDiv = document.getElementById(`simResult-${bpIdx}`);
+            const btn = document.getElementById(`downBtn-${bpIdx}`);
+            if (btn) { btn.disabled = true; btn.textContent = 'Executando...'; }
+            try {
+                const r = await fetch('/api/pagarme-downgrade', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ account_id: accountId, email: _email, qty: newQty })
+                });
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok || !data.ok) {
+                    resultDiv.innerHTML = `<div class="alert alert-warning"><strong>Não foi possível executar o downgrade</strong> ${data.error || ''}</div>`;
+                    return;
+                }
+                const leonaOk = data.leona_sync && data.leona_sync.ok;
+                resultDiv.innerHTML = `
+                    <div style="background: var(--bg-card); padding: 20px; border-radius: 14px; border: 1px solid rgba(16,185,129,0.3);">
+                        <div style="color: var(--success); font-weight: 700; margin-bottom: 12px; font-size: 1.05rem;">✅ Downgrade feito na Pagar.me</div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span style="color: var(--text-secondary);">Novo plano</span>
+                            <span style="font-weight: 600;">${newQty} conex${newQty !== 1 ? 'ões' : 'ão'}</span>
+                        </div>
+                        <div style="margin-top: 14px; padding: 12px; border-radius: 10px; background: ${leonaOk ? 'rgba(16,185,129,0.1)' : 'var(--orange-soft)'}; color: ${leonaOk ? 'var(--success)' : 'var(--orange)'}; font-size: 0.88rem;">
+                            ${leonaOk
+                                ? `✓ Conta Leona sincronizada (${data.leona_sync.starter_instances} starter)`
+                                : `⚠️ Pagar.me atualizada, mas a Leona não sincronizou. Fale com o suporte.`}
+                        </div>
+                    </div>
+                `;
+            } catch (err) {
+                resultDiv.innerHTML = `<div class="alert alert-error">Erro: ${err.message}</div>`;
             }
         }
 

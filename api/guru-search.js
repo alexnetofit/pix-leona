@@ -2,6 +2,7 @@ import { applyCors } from '../lib/auth.js';
 import { logAssinaturaEvent } from '../lib/assinatura-log.js';
 import { listAssinaturaPayments, shouldLoadAssinaturaPayments } from '../lib/assinatura-payments.js';
 import { findManagedPaddleSubscription } from '../lib/paddle-client.js';
+import { loadPagarmeCardContext } from '../lib/pagarme-card.js';
 
 const GURU_BASE = 'https://digitalmanager.guru/api/v2';
 const GURU_HEADERS = (token) => ({
@@ -415,13 +416,12 @@ export default async function handler(req, res) {
       ...profiles.map((p) => p?.account_id),
       accountIdRaw
     ];
-    let payments = [];
-    if (shouldLoadAssinaturaPayments(profiles)) {
-      payments = await listAssinaturaPayments({
-        email: emailClean,
-        accountIds
-      });
-    }
+    const [payments, pagarme] = await Promise.all([
+      shouldLoadAssinaturaPayments(profiles)
+        ? listAssinaturaPayments({ email: emailClean, accountIds })
+        : Promise.resolve([]),
+      loadPagarmeCardContext({ email: emailClean, guru })
+    ]);
 
     let paddle = null;
     if (process.env.PADDLE_API_KEY) {
@@ -447,11 +447,12 @@ export default async function handler(req, res) {
         guru_statuses: (guru.subscriptions || []).map((s) => s.last_status || s.status),
         invoices_open: (guru.invoices || []).filter((i) => i.status && i.status !== 'paid').length,
         payments: payments.length,
-        paddle_subscription_id: paddle?.subscription_id || null
+        paddle_subscription_id: paddle?.subscription_id || null,
+        pagarme_card: Boolean(pagarme?.can_change_card)
       }
     });
 
-    return res.status(200).json({ guru, leona, offers, payments, paddle });
+    return res.status(200).json({ guru, leona, offers, payments, paddle, pagarme });
 
   } catch (error) {
     console.error('guru-search error:', error);
