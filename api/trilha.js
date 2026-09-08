@@ -4,6 +4,7 @@ import { resolveTrilhaRedeemEligibility } from '../lib/trilha-eligibility.js';
 import { resolveTrilhaAccess } from '../lib/trilha-access.js';
 import {
   attachPontohubTracking,
+  extraUnitsPurchasedFromCheckouts,
   presentTrilhaOrders,
   purchasedPrizeIdsFromCheckouts
 } from '../lib/trilha-account-orders.js';
@@ -11,6 +12,7 @@ import { listTrilhaAccountCheckouts } from '../lib/trilha-fulfill.js';
 import {
   buildTrilhaPayload,
   pickBrlLifetimeRevenue,
+  remainingCheapExtraUnits,
   resolveTrilhaRevenue
 } from '../lib/trilha-prizes.js';
 
@@ -60,6 +62,11 @@ export default async function handler(req, res) {
       console.error('trilha orders:', error);
     }
     const purchasedPrizeIds = purchasedPrizeIdsFromCheckouts(checkouts);
+    const cheapExtraRemaining = remainingCheapExtraUnits(
+      resolvedAccountId,
+      profileEmail,
+      extraUnitsPurchasedFromCheckouts(checkouts)
+    );
     let orders = presentTrilhaOrders(checkouts);
     try {
       orders = await attachPontohubTracking(orders);
@@ -75,6 +82,7 @@ export default async function handler(req, res) {
       redeemEligibility,
       demo,
       purchasedPrizeIds,
+      cheapExtraRemaining,
       orders,
       revenueByCurrency: lifetime?.revenue_by_currency || null,
       revenueComputedAt: lifetime?.computed_at || null

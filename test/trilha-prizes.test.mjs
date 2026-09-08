@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import {
   buildTrilhaPayload,
   pickBrlLifetimeRevenue,
+  remainingCheapExtraUnits,
   resolveTrilhaRevenue,
-  formatRevenueDisplay
+  formatRevenueDisplay,
+  trilhaCheapExtraGrantQty
 } from '../lib/trilha-prizes.js';
 
 test('resolveTrilhaRevenue usa mock para conta 1234', () => {
@@ -188,4 +190,26 @@ test('quem já adquiriu vê o preço da unidade extra', () => {
   assert.equal(fifty.displayCents, 6750);
   assert.match(fifty.priceFormatted, /67/);
   assert.equal(payload.prizes.find((p) => p.id === '100k').acquired, false);
+});
+
+test('Yuri ganha 1 extra no preço da trilha depois de já ter resgatado tudo', () => {
+  assert.equal(trilhaCheapExtraGrantQty('2884', 'yuriautomacoes@gmail.com'), 1);
+  assert.equal(trilhaCheapExtraGrantQty('2884', 'outro@gmail.com'), 0);
+  assert.equal(remainingCheapExtraUnits('2884', 'yuriautomacoes@gmail.com', 0), 1);
+  assert.equal(remainingCheapExtraUnits('2884', 'yuriautomacoes@gmail.com', 1), 0);
+
+  const payload = buildTrilhaPayload({
+    accountId: '2884',
+    profile: { user: { name: 'Yuri', email: 'yuriautomacoes@gmail.com' } },
+    revenueValue: 2_742_052,
+    revenueSource: 'api',
+    purchasedPrizeIds: ['50k', '100k', '250k', '500k', '1m', '2m'],
+    cheapExtraRemaining: 1
+  });
+  const fifty = payload.prizes.find((p) => p.id === '50k');
+  assert.equal(payload.cheap_extra_remaining, 1);
+  assert.equal(fifty.acquired, true);
+  assert.equal(fifty.cheap_extra, true);
+  assert.equal(fifty.displayCents, 2990);
+  assert.equal(fifty.cta, 'Resgatar extra');
 });

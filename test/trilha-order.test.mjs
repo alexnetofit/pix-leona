@@ -70,6 +70,31 @@ test('carrinho cobra R$ 29,90 em cada pin, não uma vez só', () => {
   assert.equal(order.items.some((item) => item.code === 'trilha-frete'), false);
 });
 
+test('grant de extra no preço da trilha cobra 29,90 no 50k já resgatado', () => {
+  const order = buildTrilhaCartOrder({
+    prizeIds: ['50k'],
+    acquiredIds: ['50k'],
+    cheapExtraRemaining: 1
+  });
+  assert.equal(order.ok, true);
+  assert.equal(order.totalCents, 2990);
+  assert.equal(order.items[0].code, 'trilha-50k-extra-trilha');
+  assert.equal(order.items[0].amount, 2990);
+});
+
+test('segunda unidade extra depois do grant volta ao custo', () => {
+  const order = buildTrilhaCartOrder({
+    prizeIds: ['50k'],
+    extras: { '50k': 2 },
+    acquiredIds: ['50k'],
+    cheapExtraRemaining: 1
+  });
+  assert.equal(order.ok, true);
+  assert.equal(order.totalCents, 2990 + 6750);
+  assert.equal(order.items.find((item) => item.code === 'trilha-50k-extra-trilha')?.quantity, 1);
+  assert.equal(order.items.find((item) => item.code === 'trilha-50k-extra')?.amount, 6750);
+});
+
 test('quem já resgatou só paga o custo da unidade extra', () => {
   const order = buildTrilhaCartOrder({
     prizeIds: ['50k'],
