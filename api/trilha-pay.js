@@ -10,9 +10,10 @@ import { buildTrilhaCartOrder, buildTrilhaPagarmePaymentLinkPayload, findTrilhaP
 import { getLeonaLifetimeRevenue } from '../lib/leona.js';
 import {
   pickBrlLifetimeRevenue,
+  remainingCheapExtraUnits,
   resolveTrilhaRevenue
 } from '../lib/trilha-prizes.js';
-import { purchasedPrizeIdsFromCheckouts } from '../lib/trilha-account-orders.js';
+import { extraUnitsPurchasedFromCheckouts, purchasedPrizeIdsFromCheckouts } from '../lib/trilha-account-orders.js';
 import { expireAbandonedTrilhaCheckouts, listTrilhaAccountCheckouts, saveTrilhaCheckout } from '../lib/trilha-fulfill.js';
 
 export default async function handler(req, res) {
@@ -63,8 +64,15 @@ export default async function handler(req, res) {
   );
 
   let acquiredIds = [];
+  let cheapExtraRemaining = 0;
   try {
-    acquiredIds = purchasedPrizeIdsFromCheckouts(await listTrilhaAccountCheckouts(resolvedAccountId));
+    const checkouts = await listTrilhaAccountCheckouts(resolvedAccountId);
+    acquiredIds = purchasedPrizeIdsFromCheckouts(checkouts);
+    cheapExtraRemaining = remainingCheapExtraUnits(
+      resolvedAccountId,
+      profileEmail,
+      extraUnitsPurchasedFromCheckouts(checkouts)
+    );
   } catch (error) {
     console.error('trilha-pay acquired:', error);
   }
@@ -90,7 +98,8 @@ export default async function handler(req, res) {
     extras,
     bumps: body.bumps || {},
     acquiredIds,
-    anticipatedIds
+    anticipatedIds,
+    cheapExtraRemaining
   });
   if (!order.ok) return res.status(400).json({ error: order.error });
   for (const prize of order.prizes) {

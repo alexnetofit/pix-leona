@@ -3,11 +3,25 @@ import assert from 'node:assert/strict';
 import {
   presentTrilhaOrders,
   presentTrilhaShipping,
+  extraUnitsPurchasedFromCheckouts,
   purchasedPrizeIdsFromCheckouts,
   resolveFactoryState,
   uniqueTrackingCodes
 } from '../lib/trilha-account-orders.js';
 import { normalizeTrilhaAddress } from '../lib/trilha-fulfill.js';
+
+test('extras comprados ignoram o primeiro resgate de cada prêmio', () => {
+  assert.equal(extraUnitsPurchasedFromCheckouts([
+    {
+      status: 'fulfilled',
+      pontohub: { cart: { prizes: { '50k': { extra: 0 }, '100k': { extra: 0 }, '2m': { extra: 0 } } } }
+    }
+  ]), 0);
+  assert.equal(extraUnitsPurchasedFromCheckouts([
+    { status: 'paid', prize_id: '50k', extra_qty: 2 },
+    { status: 'pending', prize_id: '50k', extra_qty: 9 }
+  ]), 2);
+});
 
 test('só pedido pago/enviado conta como adquirido', () => {
   const ids = purchasedPrizeIdsFromCheckouts([

@@ -1276,6 +1276,29 @@
       </span>`;
     }
 
+    function cheapExtraLeft() {
+      return Math.max(0, Number(currentData?.cheap_extra_remaining) || 0);
+    }
+
+    function acquiredUnitsCents(prize, qty) {
+      let left = cheapExtraLeft();
+      for (const other of cartPrizes()) {
+        if (other.id === prize.id) break;
+        if (!other.acquired) continue;
+        left -= Math.min(Math.max(extraQty(other.id), 1), Math.max(0, left));
+      }
+      let total = 0;
+      for (let i = 0; i < qty; i++) {
+        if (left > 0) {
+          total += prize.priceCents || 0;
+          left -= 1;
+        } else {
+          total += prize.extraUnitCents || prize.priceCents || 0;
+        }
+      }
+      return total;
+    }
+
     function calcSegmentProgress(revenue, next) {
       if (!next) return 100;
       const prev = currentData?.prizes?.filter(p => p.milestone < next.milestone).pop();
@@ -1303,7 +1326,7 @@
       let total = 0;
       for (const prize of selected) {
         if (prize.acquired) {
-          total += Math.max(extraQty(prize.id), 1) * (prize.extraUnitCents || 0);
+          total += acquiredUnitsCents(prize, Math.max(extraQty(prize.id), 1));
           continue;
         }
         if (anticipatedPrizeIds.has(prize.id)) {
@@ -1541,13 +1564,13 @@
       const reached = prize.unlocked;
       const continues = reached && prizes[index + 1]?.unlocked;
       const qty = extraQty(prize.id);
-      const extraLabel = formatBrl((prize.extraUnitCents || 0) / 100);
+      const extraLabel = formatBrl(((prize.cheap_extra ? prize.priceCents : prize.extraUnitCents) || 0) / 100);
       const showAnticipate = prize.can_anticipate && !anticipated;
       const priceLabel = anticipated
         ? formatBrl((prize.extraUnitCents || prize.priceCents || 0) / 100)
         : prize.priceFormatted;
       const cta = canResgate
-        ? (inCart ? 'No carrinho' : prize.acquired ? 'Adicionar extra' : 'Adicionar')
+        ? (inCart ? 'No carrinho' : prize.acquired ? (prize.cta || 'Adicionar extra') : 'Adicionar')
         : prize.status === 'ineligible'
           ? '3 meses pagos necessários'
           : 'Meta não atingida';
@@ -1587,7 +1610,7 @@
               <div class="qty-bump">
                 <div class="qty-bump-label">Unidades extras</div>
                 <div class="qty-row">
-                  <div class="qty-copy">${prize.acquired ? 'Custo de produção' : 'Unidades extras'}<br><strong>${esc(extraLabel)}</strong> cada${extraPriceHintHtml()}</div>
+                  <div class="qty-copy">${prize.acquired ? (prize.cheap_extra ? 'Preço da trilha' : 'Custo de produção') : 'Unidades extras'}<br><strong>${esc(extraLabel)}</strong> cada${prize.cheap_extra ? '' : extraPriceHintHtml()}</div>
                   <div class="qty-stepper">
                     <button type="button" data-qty="-1" data-prize="${esc(prize.id)}" ${qty <= 0 || !canResgate ? 'disabled' : ''}>−</button>
                     <span>${qty}</span>
@@ -1620,7 +1643,7 @@
     function cartLinePriceLabel(prize) {
       if (prize.acquired) {
         const qty = Math.max(extraQty(prize.id), 1);
-        return formatBrl((qty * (prize.extraUnitCents || 0)) / 100);
+        return formatBrl(acquiredUnitsCents(prize, qty) / 100);
       }
       if (anticipatedPrizeIds.has(prize.id)) {
         return formatBrl((prize.extraUnitCents || 0) / 100);
@@ -1666,7 +1689,7 @@
               <img src="${esc(prize.image || '')}" alt="${esc(prize.title)}" loading="lazy">
               <div class="bump-copy">
                 <strong>${esc(prize.title)}</strong>
-                <span>Unidade extra · ${esc(extraLabel)} cada${extraPriceHintHtml('start')}</span>
+                <span>Unidade extra · ${esc(formatBrl(((prize.cheap_extra ? prize.priceCents : prize.extraUnitCents) || 0) / 100))} cada${prize.cheap_extra ? '' : extraPriceHintHtml('start')}</span>
               </div>
               <div class="qty-stepper">
                 <button type="button" data-extra="${esc(prize.id)}" data-delta="-1" ${qty <= 0 ? 'disabled' : ''}>−</button>
