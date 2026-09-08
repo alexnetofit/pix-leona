@@ -69,8 +69,8 @@ export default async function handler(req, res) {
         && account.pending_downgrade_effective_at
         && new Date(account.pending_downgrade_effective_at).getTime() <= Date.now();
       const revoked = ['canceled', 'paused'].includes(subscription.status);
-      const shouldProject = (revoked && account.entitled_quantity !== 0)
-        || downgradeMatured;
+      const projectPaused = subscription.status === 'paused' && account.entitled_quantity !== 0;
+      const shouldProject = projectPaused || downgradeMatured;
       const entitledQuantity = revoked
         ? 0
         : (downgradeMatured ? financialQuantity : account.entitled_quantity);
@@ -78,7 +78,7 @@ export default async function handler(req, res) {
       if (shouldProject) {
         await enqueuePaddleLeonaOutbox({
           leona_account_id: account.leona_account_id,
-          desired_payload: revoked
+          desired_payload: projectPaused
             ? { status: 'inactive', starter_instances: 0, due_date: brtYesterday() }
             : {
                 status: 'active',
