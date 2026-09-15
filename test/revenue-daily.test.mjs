@@ -4,6 +4,7 @@ import test from 'node:test';
 import { findDaysToSync, findSyncPlan, summarizeRange } from '../lib/revenue-daily.js';
 import {
   assignUniqueSubscribers,
+  cheapSnapshotUnique,
   daysBetween,
   extraUniqueFromAccountGroups,
   preservedUniqueExtras,
@@ -255,4 +256,19 @@ test('extraUniqueFromAccountGroups conta a segunda conta do mesmo e-mail', () =>
 test('preservedUniqueExtras guarda o bônus Leona depois do cheap sync', () => {
   assert.equal(preservedUniqueExtras(2306, 2304, 1), 1);
   assert.equal(preservedUniqueExtras(2304, 2304, 1), 0);
+});
+
+test('cheapSnapshotUnique não soma Guru bruto com Pagar.me bruto', () => {
+  const next = {
+    guru: { count: 1028 },
+    paddle: { count: 102 },
+    pagou: { count: 82 },
+    dlocal: { count: 85 },
+    pagarme: { count: 1282 }
+  };
+  assert.equal(cheapSnapshotUnique({ existingUnique: 2410, next, intentExtra: 3 }), 2410);
+  assert.equal(
+    cheapSnapshotUnique({ existingUnique: null, next, intentExtra: 2, leonaExtra: 1 }),
+    1028 + 102 + 82 + 85 + 1282 + 3
+  );
 });

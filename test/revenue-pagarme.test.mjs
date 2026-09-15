@@ -8,6 +8,8 @@ import {
   isPagarmeLeonaOrder,
   isPagarmeOneShotOrder,
   isPagarmeRefundedOrder,
+  mergePagarmeOrdersById,
+  pagarmeChunkWindows,
   pagarmeGrossCents,
   pagarmeListDateWindow,
   pagarmeNetCents,
@@ -71,6 +73,23 @@ test('janela da listagem cobre a virada UTC', () => {
     createdSince: '2026-08-26',
     createdUntil: '2026-08-29'
   });
+});
+
+test('snapshot da Pagar.me fatia a janela pra não cortar em 80 páginas', () => {
+  assert.deepEqual(pagarmeChunkWindows('2026-08-14', '2026-08-28', 7), [
+    { createdSince: '2026-08-14T00:00:00.000Z', createdUntil: '2026-08-21T00:00:00.000Z' },
+    { createdSince: '2026-08-21T00:00:00.000Z', createdUntil: '2026-08-28T00:00:00.000Z' }
+  ]);
+  assert.deepEqual(pagarmeChunkWindows('2026-08-14', '2026-08-14', 7), []);
+});
+
+test('merge da Pagar.me junta API com intent sem duplicar o mesmo id', () => {
+  const merged = mergePagarmeOrdersById(
+    [{ id: 'or_1', code: 'leona-1-1-sub' }],
+    [{ id: 'or_1', code: 'leona-1-1-sub' }, { id: 'pl_2', code: 'pl_2' }]
+  );
+  assert.equal(merged.length, 2);
+  assert.equal(merged[1].id, 'pl_2');
 });
 
 test('intent da assinatura vira pedido Leona mesmo quando o id e pl_', () => {
