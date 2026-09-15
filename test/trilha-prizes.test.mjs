@@ -43,6 +43,14 @@ test('grant de faturamento soma 85k só com conta e e-mail certos', () => {
   assert.equal(prod44.source, 'api+grant');
   const prod44Errado = resolveTrilhaRevenue('830', 10_000, 'outro@gmail.com');
   assert.equal(prod44Errado.value, 10_000);
+  const multicursos = resolveTrilhaRevenue('1508', 0, 'multicursossuporte@gmail.com');
+  assert.equal(multicursos.value, 2_100_000);
+  assert.equal(multicursos.source, 'api+grant');
+  const multicursosCresceu = resolveTrilhaRevenue('1508', 12_500, 'Multicursossuporte@gmail.com');
+  assert.equal(multicursosCresceu.value, 2_112_500);
+  assert.equal(multicursosCresceu.source, 'api+grant');
+  const multicursosErrado = resolveTrilhaRevenue('1508', 0, 'outro@gmail.com');
+  assert.equal(multicursosErrado.value, 0);
 });
 
 test('bonus do Ronaldinho desbloqueia 50k e 100k e continua somando', () => {
@@ -58,6 +66,29 @@ test('bonus do Ronaldinho desbloqueia 50k e 100k e continua somando', () => {
   assert.equal(payload.prizes.find((p) => p.id === '50k').unlocked, true);
   assert.equal(payload.prizes.find((p) => p.id === '100k').unlocked, true);
   assert.equal(payload.prizes.find((p) => p.id === '250k').unlocked, false);
+});
+
+test('bonus de 2,1M do Multicursos desbloqueia todos os marcos e continua somando', () => {
+  const email = 'multicursossuporte@gmail.com';
+  const now = resolveTrilhaRevenue('1508', 0, email);
+  assert.equal(now.value, 2_100_000);
+  const payload = buildTrilhaPayload({
+    accountId: '1508',
+    profile: { user: { name: 'pablo leao', email }, plan_summary: '6 Starter', subscription_status: 'active' },
+    revenueValue: now.value,
+    revenueSource: now.source,
+    redeemEligibility: {
+      eligible: true,
+      granted: true,
+      required_months: 3,
+      paid_months: 3,
+      missing_months: 0
+    }
+  });
+  assert.equal(payload.prizes.every((p) => p.unlocked), true);
+  assert.equal(payload.prizes.every((p) => p.status === 'available'), true);
+  assert.equal(payload.prizes.every((p) => p.can_anticipate === false), true);
+  assert.equal(payload.revenue.next_milestone, null);
 });
 
 test('bonus de 2M do João Lucas desbloqueia todos os marcos e continua somando', () => {
