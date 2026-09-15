@@ -1644,8 +1644,9 @@
                 String(pagarmeSubscribers.count ?? '—');
             document.getElementById('pagarmeNote').textContent =
                 `${pagarmeApproved.count || 0} venda(s) do checkout · ` +
-                `${pagarmeSubscribers.count || 0} pagante(s) da /assinatura em ` +
-                `${pagarmeSubscribers.prepaid_window_days || 32} dias (card bruto; o total de cima é único)`;
+                `${pagarmeSubscribers.recurring || pagarmeSubscribers.count || 0} ciclo(s) em ` +
+                `${pagarmeSubscribers.prepaid_window_days || 32} dias · ` +
+                `${pagarmeSubscribers.prepaid || 0} ajuste(s)/avulso(s) fora do único`;
 
             document.getElementById('approvedCount').textContent = String(a.count || 0);
             document.getElementById('refundedCount').textContent = String(ref.count || 0);
