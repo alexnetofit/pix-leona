@@ -899,7 +899,7 @@
                 <div class="mini-card orange mini-card-subs">
                     <div class="mini-head"><span class="mini-label">Assinantes ativos</span><span class="mini-icon">●</span></div>
                     <div class="mini-value" id="activeSubsValue">—</div>
-                    <div class="mini-foot mini-foot-platforms"><span class="mini-sub">Guru + Paddle + Pagou + dLocal + Pagar.me</span></div>
+                    <div class="mini-foot mini-foot-platforms"><span class="mini-sub">únicos · quem migrou de gateway não conta duas vezes</span></div>
                 </div>
                 <div class="mini-card">
                     <div class="mini-head"><span class="mini-label">Vendas</span><span class="mini-icon">↗</span></div>
@@ -1644,7 +1644,8 @@
                 String(pagarmeSubscribers.count ?? '—');
             document.getElementById('pagarmeNote').textContent =
                 `${pagarmeApproved.count || 0} venda(s) do checkout · ` +
-                `${pagarmeSubscribers.count || 0} pagante(s) em ${pagarmeSubscribers.prepaid_window_days || 32} dias`;
+                `${pagarmeSubscribers.count || 0} pagante(s) da /assinatura em ` +
+                `${pagarmeSubscribers.prepaid_window_days || 32} dias (card bruto; o total de cima é único)`;
 
             document.getElementById('approvedCount').textContent = String(a.count || 0);
             document.getElementById('refundedCount').textContent = String(ref.count || 0);
