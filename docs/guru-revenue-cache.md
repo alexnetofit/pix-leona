@@ -100,11 +100,10 @@ mes anterior e mais curto, a data gruda no ultimo dia dele: 31/mar compara com
   único com pagamento `paid` nos últimos 32 dias (recorrente e avulso
   entram iguais; renovação mensal já recai nessa janela).
 - **Pagar.me**: o bruto do dia vem da API Stone (code `leona-…` / `pl_` da
-  `/assinatura`). Assinante do **card** = e-mail único com pedido `paid` nos
-  últimos 32 dias, juntando a API (fatiada pra não cortar em 80 páginas) e as
-  intents do Supabase. Quem ainda está na Guru **não some** desse card — o
-  total único é que deduplica. Cobrança UUID da Guru não entra (já está no
-  card Guru).
+  `/assinatura`). Assinante = e-mail com **ciclo novo** (`-sub` / `pl_` /
+  assinatura nativa) nos últimos 32 dias. Ajuste pró-rata e compra de
+  tokens entram no faturamento, mas **não** viram cabeça — ou já estão na
+  Guru/Paddle ou não são assinatura. Cobrança UUID da Guru não entra.
 - `active_subscribers` e snapshot do momento da sincronizacao, nao fluxo do dia.
   Fica gravado no dia em que foi coletado e a tela usa o mais recente; dias de
   carga historica ficam com `null`.

@@ -8,6 +8,7 @@ import {
   isPagarmeLeonaOrder,
   isPagarmeOneShotOrder,
   isPagarmeRefundedOrder,
+  isPagarmeTokenOrder,
   mergePagarmeOrdersById,
   pagarmeChunkWindows,
   pagarmeGrossCents,
@@ -200,7 +201,32 @@ test('assinante unico: ciclo novo ganha do ajuste no mesmo e-mail', () => {
   });
   assert.equal(snapshot.recurring, 1);
   assert.equal(snapshot.prepaid, 1);
-  assert.equal(snapshot.count, 2);
+  assert.equal(snapshot.count, 1);
+  assert.deepEqual(snapshot.emails, ['a@x.com']);
+});
+
+test('token e só pró-rata não viram assinante da Pagar.me', () => {
+  assert.equal(isPagarmeTokenOrder({ code: 'leona-tokens-14232-1000-150926011213-e21fe98a' }), true);
+  const snapshot = buildPagarmeSubscriberSnapshot({
+    orders: [
+      {
+        code: 'leona-tokens-1-1000-x',
+        status: 'paid',
+        customer: { email: 'token@x.com' },
+        charges: [{ status: 'paid' }]
+      },
+      {
+        code: 'leona-9-2-prorata',
+        status: 'paid',
+        metadata: { kind: 'one_shot' },
+        customer: { email: 'ajuste@x.com' },
+        charges: [{ status: 'paid' }]
+      }
+    ]
+  });
+  assert.equal(snapshot.count, 0);
+  assert.equal(snapshot.prepaid, 1);
+  assert.deepEqual(snapshot.emails, []);
 });
 
 test('clique duplo na mesma conta some da contagem', () => {
