@@ -76,9 +76,18 @@ test('bonus de 2,1M do Multicursos desbloqueia todos os marcos e continua somand
     accountId: '1508',
     profile: { user: { name: 'pablo leao', email }, plan_summary: '6 Starter', subscription_status: 'active' },
     revenueValue: now.value,
-    revenueSource: now.source
+    revenueSource: now.source,
+    redeemEligibility: {
+      eligible: true,
+      granted: true,
+      required_months: 3,
+      paid_months: 3,
+      missing_months: 0
+    }
   });
   assert.equal(payload.prizes.every((p) => p.unlocked), true);
+  assert.equal(payload.prizes.every((p) => p.status === 'available'), true);
+  assert.equal(payload.prizes.every((p) => p.can_anticipate === false), true);
   assert.equal(payload.revenue.next_milestone, null);
 });
 
