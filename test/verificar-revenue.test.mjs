@@ -23,7 +23,7 @@ test('revenueBrlFromLifetime usa só BRL', () => {
   assert.equal(revenueBrlFromLifetime(null), 0);
 });
 
-test('presentVerificarResult soma o lifetime de todas as contas', () => {
+test('presentVerificarResult devolve só o faturamento somado', () => {
   const a = presentVerificarAccount(
     { account_id: 1, user: { name: 'A', email: 'a@x.com' }, subscription_status: 'active', plan_summary: '1 Starter' },
     { revenue_by_currency: { BRL: 100 } }
@@ -32,15 +32,17 @@ test('presentVerificarResult soma o lifetime de todas as contas', () => {
     { account_id: 2, user: { name: 'A', email: 'a@x.com' }, subscription_status: 'inactive', plan_summary: '—' },
     { revenue_by_currency: { BRL: 50.5 } }
   );
-  const result = presentVerificarResult('A@X.com', [a, b]);
-  assert.equal(result.email, 'a@x.com');
-  assert.equal(result.found, true);
-  assert.equal(result.total_brl, 150.5);
-  assert.match(result.total_formatted, /150/);
-  assert.equal(result.accounts.length, 2);
+  assert.deepEqual(Object.keys(a), ['revenue_brl']);
+  const result = presentVerificarResult([a, b]);
+  assert.deepEqual(Object.keys(result).sort(), ['faturamento', 'faturamento_formatado']);
+  assert.equal(result.faturamento, 150.5);
+  assert.match(result.faturamento_formatado, /150/);
+  assert.equal(result.email, undefined);
+  assert.equal(result.accounts, undefined);
+  assert.equal(result.found, undefined);
 });
 
-test('lookupVerificarRevenue soma contas do 409 e devolve 404 se não achar', async () => {
+test('lookupVerificarRevenue soma contas do 409 e devolve 404 sem dados extras', async () => {
   const prev = globalThis.fetch;
   globalThis.fetch = async (url) => {
     const href = String(url);
@@ -69,14 +71,15 @@ test('lookupVerificarRevenue soma contas do 409 e devolve 404 se não achar', as
   const found = await lookupVerificarRevenue('a@x.com', 'tok');
   assert.equal(found.ok, true);
   assert.equal(found.status, 200);
-  assert.equal(found.body.total_brl, 230);
-  assert.equal(found.body.accounts.length, 2);
+  assert.deepEqual(Object.keys(found.body).sort(), ['faturamento', 'faturamento_formatado']);
+  assert.equal(found.body.faturamento, 230);
+  assert.equal(found.body.accounts, undefined);
+  assert.equal(found.body.email, undefined);
 
   globalThis.fetch = async () => ({ ok: false, status: 404, json: async () => ({ error: 'Conta não encontrada' }) });
   const missing = await lookupVerificarRevenue('sumiu@x.com', 'tok');
   assert.equal(missing.status, 404);
-  assert.equal(missing.body.found, false);
-  assert.equal(missing.body.total_brl, 0);
+  assert.deepEqual(missing.body, { error: 'Conta não encontrada' });
 
   globalThis.fetch = prev;
 });
