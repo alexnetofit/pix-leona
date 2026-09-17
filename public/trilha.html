@@ -425,6 +425,47 @@
       border: 1px solid rgba(251,191,36,0.35);
     }
 
+    .btn-group {
+      background: rgba(52,211,153,0.12);
+      color: #bbf7d0;
+      border: 1px solid rgba(52,211,153,0.4);
+      width: 100%;
+      margin-bottom: 10px;
+    }
+
+    .group-help {
+      display: none;
+      margin-top: 14px;
+    }
+
+    .group-help.show { display: block; }
+
+    .group-help p {
+      color: #fca5a5;
+      font-size: 0.86rem;
+      margin: 0 0 12px;
+    }
+
+    .group-ok {
+      display: none;
+      margin: 0;
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(52,211,153,0.35);
+      background: rgba(52,211,153,0.1);
+      color: #bbf7d0;
+      font-size: 0.92rem;
+    }
+
+    .group-ok.show { display: block; }
+
+    a.btn {
+      display: block;
+      text-align: center;
+      text-decoration: none;
+      box-sizing: border-box;
+    }
+
     @media (max-width: 720px) {
       .prize-actions { text-align: left; min-width: 0; }
     }
@@ -1220,6 +1261,31 @@
     </div>
   </div>
 
+  <div class="overlay" id="group100kOverlay" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="group100kTitle">
+      <div class="modal-head">
+        <div>
+          <div class="eyebrow">Cúpula dos 100k</div>
+          <h2 id="group100kTitle">Entrar no grupo</h2>
+        </div>
+        <button class="close-btn" type="button" id="closeGroup100k" aria-label="Fechar">×</button>
+      </div>
+      <form id="group100kForm">
+        <label>
+          Com qual whatsapp deseja entrar no grupo.
+          <input id="group100kPhone" name="whatsapp" type="tel" inputmode="tel" autocomplete="tel" placeholder="11 98784-6444" required>
+        </label>
+        <p class="form-error" id="group100kError" hidden></p>
+        <button class="btn btn-primary" type="submit" id="group100kSubmit" style="margin-top:16px">Entrar</button>
+      </form>
+      <p class="group-ok" id="group100kOk">Pronto. Esse WhatsApp foi puxado para o grupo.</p>
+      <div class="group-help" id="group100kHelp">
+        <p id="group100kHelpText"></p>
+        <a class="btn btn-primary" id="group100kHelpBtn" href="#" target="_blank" rel="noopener">Pedir ajuda</a>
+      </div>
+    </div>
+  </div>
+
   <div class="cart-bar" id="cartBar" hidden>
     <div class="cart-bar-copy">
       <strong id="cartBarCount">0 prêmios</strong>
@@ -1242,6 +1308,15 @@
     const checkoutSummary = document.getElementById('checkoutSummary');
     const orderBumpsEl = document.getElementById('orderBumps');
     const checkoutSubmit = document.getElementById('checkoutSubmit');
+    const group100kOverlay = document.getElementById('group100kOverlay');
+    const group100kForm = document.getElementById('group100kForm');
+    const group100kPhone = document.getElementById('group100kPhone');
+    const group100kSubmit = document.getElementById('group100kSubmit');
+    const group100kError = document.getElementById('group100kError');
+    const group100kOk = document.getElementById('group100kOk');
+    const group100kHelp = document.getElementById('group100kHelp');
+    const group100kHelpText = document.getElementById('group100kHelpText');
+    const group100kHelpBtn = document.getElementById('group100kHelpBtn');
     const cartBar = document.getElementById('cartBar');
     const cartBarCount = document.getElementById('cartBarCount');
     const cartBarTotal = document.getElementById('cartBarTotal');
@@ -1448,6 +1523,9 @@
           render(currentData);
         });
       });
+      document.querySelectorAll('[data-join-100k]').forEach((btn) => {
+        btn.addEventListener('click', openGroup100k);
+      });
       document.querySelectorAll('[data-anticipate]').forEach((btn) => {
         btn.addEventListener('click', () => openAnticipate(btn.dataset.anticipate));
       });
@@ -1597,6 +1675,9 @@
             </div>
             <div class="prize-actions">
               <div class="price-tag">${esc(priceLabel)}</div>
+              ${prize.id === '100k' && prize.unlocked ? `
+                <button class="btn btn-group" type="button" data-join-100k>Entrar no Grupo 100k</button>
+              ` : ''}
               ${showAnticipate ? `
                 <div class="prize-cta-row">
                   <button class="btn btn-ghost" type="button" disabled>3 meses pagos necessários</button>
@@ -1780,6 +1861,72 @@
       closeAnticipate();
       render(currentData);
     }
+
+    function openGroup100k() {
+      group100kForm.hidden = false;
+      group100kOk.classList.remove('show');
+      group100kHelp.classList.remove('show');
+      group100kError.hidden = true;
+      group100kError.textContent = '';
+      group100kSubmit.disabled = false;
+      group100kSubmit.textContent = 'Entrar';
+      group100kOverlay.classList.add('open');
+      group100kOverlay.setAttribute('aria-hidden', 'false');
+      setTimeout(() => group100kPhone.focus(), 50);
+    }
+
+    function closeGroup100k() {
+      group100kOverlay.classList.remove('open');
+      group100kOverlay.setAttribute('aria-hidden', 'true');
+    }
+
+    function showGroup100kHelp(reason, helpUrl) {
+      group100kForm.hidden = true;
+      group100kOk.classList.remove('show');
+      group100kHelp.classList.add('show');
+      group100kHelpText.textContent = `não foi possível redirecionar por motivo: ${reason || 'erro desconhecido'}`;
+      group100kHelpBtn.href = helpUrl || `https://wa.me/5511987846444?text=${encodeURIComponent(`Preciso de ajuda para entrar no Grupo de 100k. Email: ${accountEmail || currentData?.user?.email || 'não informado'}`)}`;
+    }
+
+    async function submitGroup100k(event) {
+      event.preventDefault();
+      if (!currentData) return;
+      group100kError.hidden = true;
+      group100kHelp.classList.remove('show');
+      group100kSubmit.disabled = true;
+      group100kSubmit.textContent = 'Entrando…';
+      try {
+        const res = await fetch('/api/trilha-100k-group', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            account_id: currentData.account_id,
+            email: accountEmail,
+            whatsapp: group100kPhone.value
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) {
+          showGroup100kHelp(data.error || `HTTP ${res.status}`, data.help_url);
+          return;
+        }
+        group100kForm.hidden = true;
+        group100kHelp.classList.remove('show');
+        group100kOk.classList.add('show');
+        group100kOk.textContent = data.already
+          ? 'Esse WhatsApp já está no grupo.'
+          : 'Pronto. Esse WhatsApp foi puxado para o grupo.';
+      } catch (err) {
+        showGroup100kHelp(err.message);
+      } finally {
+        group100kSubmit.disabled = false;
+        group100kSubmit.textContent = 'Entrar';
+      }
+    }
+
+    document.getElementById('closeGroup100k').addEventListener('click', closeGroup100k);
+    group100kOverlay.addEventListener('click', (e) => { if (e.target === group100kOverlay) closeGroup100k(); });
+    group100kForm.addEventListener('submit', submitGroup100k);
 
     document.getElementById('closeCheckout').addEventListener('click', closeCheckout);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) closeCheckout(); });
