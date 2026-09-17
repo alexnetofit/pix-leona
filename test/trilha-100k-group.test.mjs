@@ -2,9 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_TRILHA_100K_GROUP_JID,
+  decideTrilha100kPhoneUse,
   groupHasPhone,
   interpretGroupAdd,
   normalizeWhatsappNumber,
+  TRILHA_100K_PHONE_LIMIT_REASON,
   trilha100kGroupConfig,
   trilha100kHelpMessage,
   trilha100kHelpUrl
@@ -55,6 +57,15 @@ test('add sem HTTP ok devolve o motivo da API', () => {
   });
   assert.equal(result.ok, false);
   assert.equal(result.reason, 'not-authorized');
+});
+
+test('permite até 3 WhatsApps diferentes e libera o mesmo de novo', () => {
+  const used = ['5511111111111', '5511222222222', '5511333333333'];
+  assert.deepEqual(decideTrilha100kPhoneUse(used, '5511111111111'), { ok: true, already: true });
+  const fourth = decideTrilha100kPhoneUse(used, '5511444444444');
+  assert.equal(fourth.ok, false);
+  assert.equal(fourth.reason, TRILHA_100K_PHONE_LIMIT_REASON);
+  assert.deepEqual(decideTrilha100kPhoneUse(['5511111111111'], '5511222222222'), { ok: true, already: false });
 });
 
 test('add 200 só confirma se o número entrou', () => {

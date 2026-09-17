@@ -7,7 +7,10 @@ import { getLeonaLifetimeRevenue } from '../lib/leona.js';
 import { resolveTrilhaAccess } from '../lib/trilha-access.js';
 import {
   addPhoneToTrilha100kGroup,
+  decideTrilha100kPhoneUse,
+  listTrilha100kPhones,
   normalizeWhatsappNumber,
+  rememberTrilha100kPhone,
   TRILHA_100K_MILESTONE,
   trilha100kHelpUrl,
   trilha100kGroupConfig
@@ -60,7 +63,30 @@ export default async function handler(req, res) {
       });
     }
 
+    const usedPhones = await listTrilha100kPhones(resolvedAccountId);
+    const quota = decideTrilha100kPhoneUse(usedPhones, parsed.phone);
+    if (!quota.ok) {
+      logAssinaturaEvent(req, {
+        action: 'trilha_100k_group_limit',
+        provider: 'uazapi',
+        email: profileEmail,
+        account_id: resolvedAccountId,
+        details: { phone: parsed.phone, used: usedPhones.length }
+      });
+      return res.status(403).json({ error: quota.reason, help_url: helpUrl });
+    }
+
     const result = await addPhoneToTrilha100kGroup(parsed.phone);
+    if (result.ok) {
+      const saved = await rememberTrilha100kPhone({
+        accountId: resolvedAccountId,
+        email: profileEmail,
+        phone: parsed.phone
+      });
+      if (!saved.ok) {
+        return res.status(403).json({ error: saved.reason, help_url: helpUrl });
+      }
+    }
     logAssinaturaEvent(req, {
       action: result.ok ? 'trilha_100k_group_joined' : 'trilha_100k_group_failed',
       provider: 'uazapi',
