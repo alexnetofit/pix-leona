@@ -59,6 +59,14 @@ test('grant de faturamento soma 85k só com conta e e-mail certos', () => {
   assert.equal(gabsCresceu.source, 'api+grant');
   const gabsErrado = resolveTrilhaRevenue('121', 286, 'outro@gmail.com');
   assert.equal(gabsErrado.value, 286);
+  const luide = resolveTrilhaRevenue('7468', 129_799.14, 'luidemorais73@gmail.com');
+  assert.equal(luide.value, 329_799.14);
+  assert.equal(luide.source, 'api+grant');
+  const luideCresceu = resolveTrilhaRevenue('7468', 129_799.14 + 1_000, 'Luidemorais73@gmail.com');
+  assert.equal(luideCresceu.value, 330_799.14);
+  assert.equal(luideCresceu.source, 'api+grant');
+  const luideErrado = resolveTrilhaRevenue('7468', 129_799.14, 'outro@gmail.com');
+  assert.equal(luideErrado.value, 129_799.14);
 });
 
 test('bonus do Ronaldinho desbloqueia 50k e 100k e continua somando', () => {
@@ -97,6 +105,29 @@ test('bonus de 2,1M do Multicursos desbloqueia todos os marcos e continua somand
   assert.equal(payload.prizes.every((p) => p.status === 'available'), true);
   assert.equal(payload.prizes.every((p) => p.can_anticipate === false), true);
   assert.equal(payload.revenue.next_milestone, null);
+});
+
+test('bonus de 200k do Luide desbloqueia 250k e continua somando', () => {
+  const email = 'luidemorais73@gmail.com';
+  const now = resolveTrilhaRevenue('7468', 129_799.14, email);
+  assert.equal(now.value, 329_799.14);
+  const payload = buildTrilhaPayload({
+    accountId: '7468',
+    profile: { user: { name: 'Luide Lazaro Morais Santos Junior', email }, plan_summary: '1 Starter', subscription_status: 'active' },
+    revenueValue: now.value,
+    revenueSource: now.source,
+    redeemEligibility: {
+      eligible: true,
+      granted: false,
+      required_months: 3,
+      paid_months: 3,
+      missing_months: 0
+    }
+  });
+  assert.equal(payload.prizes.find((p) => p.id === '250k').unlocked, true);
+  assert.equal(payload.prizes.find((p) => p.id === '250k').status, 'available');
+  assert.equal(payload.prizes.find((p) => p.id === '500k').unlocked, false);
+  assert.equal(payload.revenue.next_milestone.id, '500k');
 });
 
 test('bonus de 1M do Gabs desbloqueia até 1M e continua somando', () => {
