@@ -92,6 +92,10 @@
       "dest": "/public/guru/logs.html"
     },
     {
+      "src": "/verificar",
+      "dest": "/public/verificar.html"
+    },
+    {
       "src": "/(.*)",
       "dest": "/public/$1"
     }
