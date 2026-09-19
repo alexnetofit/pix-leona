@@ -4,6 +4,7 @@ import { logAssinaturaEvent } from '../lib/assinatura-log.js';
 import {
   extractContactPhones,
   extractInstances,
+  resolveGuruRenewalInstances,
   extractProductId,
   extractSrc,
   summarizeGuruWebhook
@@ -363,8 +364,17 @@ export default async function handler(req, res) {
       && previousGuruSubId !== guruSubId
       && previousGuruSubId !== guruSubCode;
 
+    const appliedInstances = resolveGuruRenewalInstances({
+      invoiceType,
+      offerQty: instances,
+      currentQty: match.starter_instances
+    }) ?? instances;
+    if (appliedInstances !== instances) {
+      console.log(`webhook-guru: renovação ${instances} não derruba Leona ${match.starter_instances} (conta ${match.account_id})`);
+    }
+
     const updateData = {
-      starter_instances: instances,
+      starter_instances: appliedInstances,
       status: 'active'
     };
 

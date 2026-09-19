@@ -6,6 +6,7 @@ import {
   extractInstances,
   extractProductId,
   extractSrc,
+  resolveGuruRenewalInstances,
   summarizeGuruWebhook
 } from '../lib/guru-webhook-payload.js';
 
@@ -33,6 +34,37 @@ test('extractInstances lê o plano Starter', () => {
   assert.equal(extractInstances('Plano Starter - 1 conexão'), 1);
   assert.equal(extractInstances('Plano Starter - 2 conexões'), 2);
   assert.equal(extractInstances('Outro produto'), null);
+});
+
+test('renovação Guru não derruba qty maior já na Leona', () => {
+  assert.equal(resolveGuruRenewalInstances({
+    invoiceType: 'cycle',
+    offerQty: 29,
+    currentQty: 34
+  }), 34);
+  assert.equal(resolveGuruRenewalInstances({
+    invoiceType: 'cycle',
+    offerQty: 5,
+    currentQty: 5
+  }), 5);
+  assert.equal(resolveGuruRenewalInstances({
+    invoiceType: 'cycle',
+    offerQty: 6,
+    currentQty: 4
+  }), 6);
+});
+
+test('upgrade/downgrade Guru continua usando a oferta', () => {
+  assert.equal(resolveGuruRenewalInstances({
+    invoiceType: 'upgrade',
+    offerQty: 10,
+    currentQty: 4
+  }), 10);
+  assert.equal(resolveGuruRenewalInstances({
+    invoiceType: 'downgrade',
+    offerQty: 2,
+    currentQty: 8
+  }), 2);
 });
 
 test('extractProductId prefere internal_id', () => {
