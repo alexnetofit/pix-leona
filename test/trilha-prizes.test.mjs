@@ -67,11 +67,11 @@ test('grant de faturamento soma 85k só com conta e e-mail certos', () => {
   assert.equal(luideCresceu.source, 'api+grant');
   const luideErrado = resolveTrilhaRevenue('7468', 129_799.14, 'outro@gmail.com');
   assert.equal(luideErrado.value, 129_799.14);
-  const mkt = resolveTrilhaRevenue('8691', 57_172.98, 'mktvirals@gmail.com');
-  assert.equal(mkt.value, 153_439.66);
+  const mkt = resolveTrilhaRevenue('8691', 57_182.98, 'mktvirals@gmail.com');
+  assert.equal(mkt.value, 96_266.68);
   assert.equal(mkt.source, 'api+grant');
-  const mktErrado = resolveTrilhaRevenue('8691', 57_172.98, 'outro@gmail.com');
-  assert.equal(mktErrado.value, 57_172.98);
+  const mktErrado = resolveTrilhaRevenue('8691', 57_182.98, 'outro@gmail.com');
+  assert.equal(mktErrado.value, 57_182.98);
 });
 
 test('bonus do Ronaldinho desbloqueia 50k e 100k e continua somando', () => {
