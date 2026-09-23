@@ -42,6 +42,7 @@ Prefixo fixo: **`/api/v1/integration/`**.
 | `GET` | `/accounts/billing_profile` | Buscar conta pelo **e-mail** ou **telefone** do **dono (owner)** |
 | `GET` | `/accounts/:account_id/billing_profile` | Buscar conta pelo **ID numérico** da conta |
 | `POST` | `/accounts/:account_id/billing_profile` | **Atualizar** cobrança (Guru, vencimento, instâncias, status, etc.) |
+| `POST` | `/accounts/:account_id/tokens` | **Creditar ou debitar** tokens da carteira |
 
 ### Fluxo recomendado
 
@@ -255,6 +256,8 @@ Campos podem ser `null` conforme o cadastro.
 | `subscription_status` | Sinônimo de `status`. Ignorado se `status` estiver preenchido |
 | `rewardful_referral` | Código ou referência Rewardful |
 
+O GET e o POST de perfil também devolvem `instances` (conexões WhatsApp: `id`, `name`, `phone_number`) e `tokens` (`available_units`, `balance_units`, `reserved_units`, `status`). Os números de token vêm como string com 4 casas. `instances` é lista, não a quantidade de slots — a quantidade continua em `starter_instances`.
+
 **Exemplo (instâncias e Guru):**
 
 ```bash
@@ -283,9 +286,36 @@ curl -sS -X POST 'https://SEU_DOMINIO_LEONA/api/v1/integration/accounts/1/billin
   -d '{"status":"active"}'
 ```
 
-**Resposta de sucesso (200):** JSON no mesmo formato do GET (perfil atualizado).
+**Resposta de sucesso (200):** JSON no mesmo formato do GET (perfil atualizado), inclusive `instances` e `tokens`.
 
 **Erros comuns:** `400` (parâmetros inválidos), `404` (conta inexistente), `422` (regra de negócio — mensagem em `error`).
+
+---
+
+## POST — creditar ou debitar tokens
+
+**Quando usar:** somar ou tirar tokens da carteira. Não altera slots, vencimento, status nem conexões.
+
+```text
+POST /api/v1/integration/accounts/:account_id/tokens
+```
+
+| Campo | Obrigatório | Descrição |
+|-------|-------------|-----------|
+| `action` | Sim | `add` (creditar) ou `remove` (debitar) |
+| `amount` | Sim | Quantidade positiva. Não enviar `amount_units` |
+| `note` | Não | Auditoria, no máximo 500 caracteres |
+
+`remove` usa `available_units`. Se o valor for maior que o disponível, a API responde 422 e não debita.
+
+```bash
+curl -sS -X POST 'https://SEU_DOMINIO_LEONA/api/v1/integration/accounts/42/tokens' \
+  -H 'Authorization: Bearer SEU_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"add","amount":1000,"note":"crédito comercial"}'
+```
+
+**Resposta de sucesso (200):** o mesmo JSON do perfil, com `tokens` já atualizado.
 
 ---
 
@@ -310,6 +340,7 @@ Este repositório consome principalmente os endpoints de **billing** (via `lib/l
 
 - Lookup por e-mail com tratamento de **409**
 - `POST billing_profile` a partir dos webhooks Guru e Paddle
+- `POST /accounts/:id/tokens` em `adjustLeonaTokens` (`lib/leona.js`)
 - Vinculação por `guru_account_id` e parâmetro `?src=<account_id>` no checkout
 
 A criação de conta (`POST /accounts`) está documentada acima para migrações e ferramentas externas; **ainda não há wrapper** dedicado no código do pix-leona.

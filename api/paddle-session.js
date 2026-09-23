@@ -1,5 +1,5 @@
 import { applyCors } from '../lib/auth.js';
-import { getLeonaBillingProfile } from '../lib/leona.js';
+import { getLeonaBillingProfile, leonaProfileQuantity } from '../lib/leona.js';
 import {
   createPaddleSession,
   serializePaddleSessionCookie,
@@ -68,7 +68,7 @@ function normalizedProfile(profile, accountId) {
       profile.full_name ??
       null,
     status: profile.subscription_status ?? profile.status ?? null,
-    instances: profile.starter_instances ?? profile.instances ?? profile.subscription_instances ?? 0,
+    instances: leonaProfileQuantity(profile),
     current_period_end: profile.current_period_end ?? null
   };
 }

@@ -491,9 +491,29 @@
                         ${p.pro_instances != null ? `<div><div class="label">Pro</div><div class="value">${escapeHtml(String(p.pro_instances))}</div></div>` : ''}
                         ${p.subscription_type ? `<div><div class="label">Tipo</div><div class="value">${escapeHtml(p.subscription_type)}</div></div>` : ''}
                         ${p.guru_account_id ? `<div><div class="label">Guru ID</div><div class="value" style="font-family: monospace; font-size: 0.82rem;">${escapeHtml(p.guru_account_id)}</div></div>` : ''}
+                        ${p.tokens ? `<div><div class="label">Tokens disponíveis</div><div class="value">${escapeHtml(fmtTokenUnits(p.tokens.available_units))}</div></div>` : ''}
+                        ${p.tokens && Number(p.tokens.reserved_units) > 0 ? `<div><div class="label">Tokens reservados</div><div class="value">${escapeHtml(fmtTokenUnits(p.tokens.reserved_units))}</div></div>` : ''}
                     </div>
+                    ${renderLeonaConnections(p.instances)}
                 </div>
             `;
+        }
+
+        function fmtTokenUnits(value) {
+            const n = Number(value);
+            if (!Number.isFinite(n)) return value == null ? '—' : String(value);
+            return n.toLocaleString('pt-BR', { maximumFractionDigits: 4 });
+        }
+
+        function renderLeonaConnections(instances) {
+            if (!Array.isArray(instances)) return '';
+            if (instances.length === 0) {
+                return `<div class="empty" style="margin-top: 10px;">Nenhuma conexão WhatsApp.</div>`;
+            }
+            const rows = instances.map((row) => `
+                <div><div class="label">${escapeHtml(row.name || 'Conexão')}</div><div class="value">${escapeHtml(row.phone_number || 'sem número')}</div></div>
+            `).join('');
+            return `<h3 class="card-section-title">Conexões WhatsApp</h3><div class="grid-2">${rows}</div>`;
         }
 
         function renderSubscription(s, email) {
