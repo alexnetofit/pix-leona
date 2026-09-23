@@ -22,6 +22,7 @@ import {
   fulfillPaidPaymentLink,
   reconcilePendingTrilhaCheckouts
 } from '../lib/trilha-fulfill.js';
+import { notifyPagarmeNewCheckoutFromWebhook } from '../lib/affiliates-new-checkout.js';
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -68,12 +69,20 @@ export default async function handler(req, res) {
       result = { kind: 'assinatura', ...(await processPagarmeAssinaturaPaid(orderId, { payload, req, source: 'webhook' })) };
     } else if (subscriptionId && pagarmeWebhookLooksPaid(payload)) {
       result = { kind: 'assinatura', ...(await processPagarmeSubscriptionRenewal(subscriptionId, { payload, req, source: 'webhook' })) };
-    } else if (pagarmeWebhookLooksPaid(payload)) {
-      const trilha = await reconcilePendingTrilhaCheckouts({ max: 20, payload });
-      const assinatura = await reconcilePendingPagarmeAssinatura({ max: 20, req });
-      result = { kind: 'reconcile', trilha, assinatura, processed: Boolean(trilha?.ok || assinatura?.processed) };
     } else {
-      return res.status(200).json({ received: true, processed: false, ignored: payload.type || null });
+      const affiliate = await notifyPagarmeNewCheckoutFromWebhook({ payload, orderId });
+      if (affiliate?.retry) {
+        throw new Error(affiliate.error || 'notify afiliados falhou');
+      }
+      if (affiliate?.handled) {
+        result = { kind: 'new_checkout_affiliate', processed: true, affiliate };
+      } else if (pagarmeWebhookLooksPaid(payload)) {
+        const trilha = await reconcilePendingTrilhaCheckouts({ max: 20, payload });
+        const assinatura = await reconcilePendingPagarmeAssinatura({ max: 20, req });
+        result = { kind: 'reconcile', trilha, assinatura, processed: Boolean(trilha?.ok || assinatura?.processed) };
+      } else {
+        return res.status(200).json({ received: true, processed: false, ignored: payload.type || null });
+      }
     }
   } catch (err) {
     // 5xx de propósito: a Pagar.me reenvia 3x, e o corpo abaixo mostra o erro

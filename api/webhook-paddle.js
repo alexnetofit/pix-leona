@@ -13,17 +13,19 @@
  *       subscription.paused
  *       subscription.resumed
  *       subscription.updated
+ *       adjustment.updated
  *
  * O endpoint só sincroniza Leona quando o evento traz custom_data.leona_account_id
  * (que injetamos em paddle-subscription.js → action create_renewal_checkout).
- * Eventos de outras integrações (sem o marker) são reconhecidos mas ignorados,
- * o que mantém o ambiente seguro pra "migrar aos poucos".
+ * O checkout novo não manda esse campo: avisa o painel de afiliados pelo
+ * custom_data.leona_order_code e não mexe no billing da Leona.
  */
 
 import crypto from 'crypto';
 import { updateLeonaBillingProfile, getLeonaBillingProfile } from '../lib/leona.js';
 import { findGuruActiveSubscriptionsByEmail, cancelGuruSubscription } from '../lib/guru.js';
 import { isOneShotKind } from '../lib/dlocal-go.js';
+import { notifyPaddleNewCheckoutEvent } from '../lib/affiliates-new-checkout.js';
 
 export const config = {
   api: { bodyParser: false }
@@ -282,9 +284,25 @@ export async function processPaddleEvent(event, opts = {}) {
   const eventType = event?.event_type || event?.type;
   const data = event?.data || {};
   const accountId = extractLeonaAccountId(data);
+  const affiliate = await notifyPaddleNewCheckoutEvent(event, { leonaToken });
 
   if (!accountId) {
-    return { status: 200, body: { received: true, ignored: true, reason: 'sem leona_account_id', event_type: eventType } };
+    if (affiliate?.retry) {
+      return {
+        status: 502,
+        body: { received: true, error: affiliate.error || 'notify afiliados falhou', affiliate, event_type: eventType }
+      };
+    }
+    return {
+      status: 200,
+      body: {
+        received: true,
+        ignored: true,
+        reason: 'sem leona_account_id',
+        event_type: eventType,
+        ...(affiliate?.handled ? { affiliate } : {})
+      }
+    };
   }
   if (!leonaToken) {
     return { status: 200, body: { received: true, error: 'LEONA_BILLING_TOKEN ausente', event_type: eventType } };
@@ -422,6 +440,7 @@ export async function processPaddleEvent(event, opts = {}) {
       event_type: eventType,
       leona_sync: { ok: true, account_id: accountId, payload },
       guru_cancel: guruCancel,
+      ...(affiliate?.handled ? { affiliate } : {}),
       ...(migrationAnchorResult ? { migration_anchor: migrationAnchorResult } : {})
     }
   };
