@@ -75,6 +75,12 @@ function toDueDate(iso) {
   try { return new Date(s).toISOString().slice(0, 10); } catch { return null; }
 }
 
+export function paddleEventTouchesLeona(eventType) {
+  return !['subscription.canceled', 'subscription.past_due', 'transaction.payment_failed'].includes(
+    String(eventType || '')
+  );
+}
+
 /**
  * Ajuste avulso (pró-rata) manda qty alvo no custom_data e 1 item de valor.
  * Sem isso o webhook leria quantity=1 e ainda puxaria due_date da Paddle.
@@ -308,6 +314,10 @@ export async function processPaddleEvent(event, opts = {}) {
     return { status: 200, body: { received: true, error: 'LEONA_BILLING_TOKEN ausente', event_type: eventType } };
   }
 
+  if (!paddleEventTouchesLeona(eventType)) {
+    return { status: 200, body: { received: true, action: 'log_only', event_type: eventType, account_id: accountId } };
+  }
+
   let payload = null;
   let migrationAnchorResult = null;
   let oneShotUpgrade = false;
@@ -371,15 +381,9 @@ export async function processPaddleEvent(event, opts = {}) {
         : null;
       break;
     }
-    case 'subscription.canceled':
-      payload = { status: 'canceled', starter_instances: 0 };
-      break;
     case 'subscription.paused':
       payload = { status: 'inactive' };
       break;
-    case 'subscription.past_due':
-    case 'transaction.payment_failed':
-      return { status: 200, body: { received: true, action: 'log_only', event_type: eventType, account_id: accountId } };
     default:
       return { status: 200, body: { received: true, ignored: true, reason: `evento ${eventType} sem handler`, account_id: accountId } };
   }
