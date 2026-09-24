@@ -68,6 +68,10 @@
   },
   "routes": [
     {
+      "src": "/tracking",
+      "dest": "/api/tracking"
+    },
+    {
       "src": "/api/(.*)",
       "dest": "/api/$1"
     },
