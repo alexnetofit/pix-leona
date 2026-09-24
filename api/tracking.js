@@ -3,6 +3,7 @@
  * invisível (U+200B / U+200C / U+200D) no meio da frase, para a uazapi receber.
  *
  * GET /tracking?code=T2
+ * O código fica entre "Olá, gostaria de " e "receber as receitas".
  */
 
 const DEST_PHONE = '5521966169943';
