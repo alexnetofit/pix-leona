@@ -8,6 +8,7 @@ import {
   isPagarmeLeonaOrder,
   isPagarmeOneShotOrder,
   isPagarmeRefundedOrder,
+  isPagarmeSubscriptionRevenueOrder,
   isPagarmeTokenOrder,
   mergePagarmeOrdersById,
   pagarmeChunkWindows,
@@ -180,6 +181,39 @@ test('payment link da /assinatura entra; Guru e trilha nao', () => {
     code: 'pl_abc',
     items: [{ description: 'Placa trilha' }]
   }), false);
+});
+
+test('faturamento é só assinatura: trilha com Garrafa Leona e tokens ficam fora', () => {
+  const trilha = {
+    code: 'pl_pe62oyvY37AlOnatxf5VEDxJ1kWKZaMV',
+    items: [
+      { description: 'Carta + Pulseira + Pin 50k' },
+      { description: 'Kit Placa Premium' },
+      { description: 'Garrafa Leona' },
+      { description: 'Jaqueta Leona' }
+    ]
+  };
+  assert.equal(isPagarmeLeonaOrder(trilha), false);
+  assert.equal(isPagarmeSubscriptionRevenueOrder(trilha), false);
+
+  for (const token of [
+    { code: 'leona-tokens-22-10000-110926', items: [{ description: '10000 tokens Leona' }] },
+    { code: 'leona-c25489b488f8ffd24bebf45a4f9c04d3', items: [{ description: '12000 tokens Leona' }] },
+    { code: 'pl_tok', items: [{ description: '10000 tokens Leona' }] }
+  ]) {
+    assert.equal(isPagarmeTokenOrder(token), true, token.code);
+    assert.equal(isPagarmeSubscriptionRevenueOrder(token), false, token.code);
+  }
+
+  for (const sub of [
+    { code: 'leona-1050-2-sub', items: [{ description: 'Leona Flow — 2 conexões' }] },
+    { code: 'leona-1780-55-prorata', items: [{ description: 'Ajuste Leona — 55 conexões' }] },
+    { code: 'leona-1-3-sub-20260901-1', items: [{ description: 'Regularização · 3 instâncias' }] },
+    { code: 'pl_sub', items: [{ description: 'Leona Flow — 1 conexão' }] },
+    { code: 'pl_adj', items: [{ description: 'Ajuste Leona — 4 conexões' }] }
+  ]) {
+    assert.equal(isPagarmeSubscriptionRevenueOrder(sub), true, sub.code);
+  }
 });
 
 test('assinatura nativa conta no recorrente', () => {
