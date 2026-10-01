@@ -5,7 +5,7 @@
  *   - URL: https://client.leonaflow.com/api/webhook-paddle
  *   - Secret: salvar como PADDLE_WEBHOOK_SECRET (formato pdl_ntfset_...)
  *   - Eventos:
- *       transaction.completed
+ *       transaction.completed       (único que estende o vencimento na renovação)
  *       transaction.payment_failed
  *       subscription.activated
  *       subscription.canceled
@@ -26,6 +26,11 @@ import { updateLeonaBillingProfile, getLeonaBillingProfile } from '../lib/leona.
 import { findGuruActiveSubscriptionsByEmail, cancelGuruSubscription } from '../lib/guru.js';
 import { isOneShotKind } from '../lib/dlocal-go.js';
 import { notifyPaddleNewCheckoutEvent } from '../lib/affiliates-new-checkout.js';
+import {
+  findUnpaidRenewal,
+  pullBackDueDate,
+  unpaidRenewalDueDate
+} from '../lib/paddle-unpaid.js';
 
 export const config = {
   api: { bodyParser: false }
@@ -255,6 +260,39 @@ async function applyMigrationAnchor({ subscriptionId, anchorAt, tierDiscountId, 
   return result;
 }
 
+/**
+ * subscription.updated / resumed / past_due não provam pagamento. Com
+ * renovação em aberto (ou falha ao consultar), não estende; se dá pra saber
+ * até quando foi pago, puxa o vencimento pra lá — nunca pra frente.
+ */
+export async function resolveRenewalGuard({
+  subscriptionId,
+  status,
+  accountId,
+  leonaToken,
+  paddleApiKey,
+  findUnpaid = findUnpaidRenewal,
+  getProfile = getLeonaBillingProfile
+} = {}) {
+  const unpaid = await findUnpaid(subscriptionId, { token: paddleApiKey });
+  if (unpaid?.error) {
+    return { blockExtend: true, dueDate: null, reason: 'paddle_lookup_failed', error: unpaid.error };
+  }
+  const target = unpaid ? unpaidRenewalDueDate(unpaid) : null;
+  if (!target) {
+    return String(status) === 'past_due'
+      ? { blockExtend: true, dueDate: null, reason: 'past_due_sem_renovacao_aberta' }
+      : { blockExtend: false, dueDate: null };
+  }
+  const profile = await getProfile(accountId, leonaToken);
+  return {
+    blockExtend: true,
+    dueDate: profile ? pullBackDueDate(profile.current_period_end, target) : null,
+    reason: 'renovacao_nao_paga',
+    unpaid_transaction_id: unpaid.id
+  };
+}
+
 function extractLeonaAccountId(data) {
   const raw =
     data?.custom_data?.leona_account_id ??
@@ -278,8 +316,14 @@ export async function processPaddleEvent(event, opts = {}) {
   const {
     leonaToken = process.env.LEONA_BILLING_TOKEN,
     paddleApiKey = process.env.PADDLE_API_KEY,
-    guruToken = process.env.GURU_TOKEN
+    guruToken = process.env.GURU_TOKEN,
+    findUnpaid = findUnpaidRenewal,
+    getProfile = getLeonaBillingProfile,
+    updateProfile = updateLeonaBillingProfile
   } = opts;
+  const renewalGuard = (subscriptionId, status) => resolveRenewalGuard({
+    subscriptionId, status, accountId, leonaToken, paddleApiKey, findUnpaid, getProfile
+  });
 
   const eventType = event?.event_type || event?.type;
   const data = event?.data || {};
@@ -311,6 +355,7 @@ export async function processPaddleEvent(event, opts = {}) {
   let payload = null;
   let migrationAnchorResult = null;
   let oneShotUpgrade = false;
+  let renewalCheck = null;
   switch (eventType) {
     case 'transaction.completed': {
       const cd = data.custom_data || {};
@@ -352,8 +397,7 @@ export async function processPaddleEvent(event, opts = {}) {
       payload = sync.payload;
       break;
     }
-    case 'subscription.activated':
-    case 'subscription.resumed': {
+    case 'subscription.activated': {
       const qty = sumQuantities(data.items);
       const dueDate = toDueDate(data.next_billed_at);
       payload = {
@@ -363,12 +407,22 @@ export async function processPaddleEvent(event, opts = {}) {
       };
       break;
     }
+    case 'subscription.resumed':
     case 'subscription.updated': {
       const qty = sumQuantities(data.items);
-      const dueDate = toDueDate(data.next_billed_at);
-      payload = (qty > 0 || dueDate)
-        ? { ...(qty > 0 ? { starter_instances: qty } : {}), ...(dueDate ? { due_date: dueDate } : {}) }
-        : null;
+      renewalCheck = await renewalGuard(data.id, data.status);
+      const dueDate = renewalCheck.blockExtend
+        ? renewalCheck.dueDate
+        : toDueDate(data.next_billed_at);
+      const fields = {
+        ...(qty > 0 ? { starter_instances: qty } : {}),
+        ...(dueDate ? { due_date: dueDate } : {})
+      };
+      if (eventType === 'subscription.resumed') {
+        payload = { status: 'active', ...fields };
+      } else {
+        payload = Object.keys(fields).length ? fields : null;
+      }
       break;
     }
     case 'subscription.canceled':
@@ -377,18 +431,42 @@ export async function processPaddleEvent(event, opts = {}) {
     case 'subscription.paused':
       payload = { status: 'inactive' };
       break;
-    case 'subscription.past_due':
-    case 'transaction.payment_failed':
-      return { status: 200, body: { received: true, action: 'log_only', event_type: eventType, account_id: accountId } };
+    case 'subscription.past_due': {
+      renewalCheck = await renewalGuard(data.id, 'past_due');
+      payload = renewalCheck.dueDate ? { due_date: renewalCheck.dueDate } : null;
+      break;
+    }
+    case 'transaction.payment_failed': {
+      const target = data.origin === 'subscription_recurring'
+        ? toDueDate(data.billing_period?.starts_at)
+        : null;
+      if (target) {
+        const profile = await getProfile(accountId, leonaToken);
+        const dueDate = profile ? pullBackDueDate(profile.current_period_end, target) : null;
+        renewalCheck = { blockExtend: true, dueDate, reason: 'renovacao_nao_paga', unpaid_transaction_id: data.id };
+        payload = dueDate ? { due_date: dueDate } : null;
+      }
+      break;
+    }
     default:
       return { status: 200, body: { received: true, ignored: true, reason: `evento ${eventType} sem handler`, account_id: accountId } };
   }
 
   if (!payload) {
-    return { status: 200, body: { received: true, action: 'noop', reason: 'payload vazio', account_id: accountId } };
+    return {
+      status: 200,
+      body: {
+        received: true,
+        action: renewalCheck ? 'log_only' : 'noop',
+        reason: renewalCheck?.reason || 'payload vazio',
+        event_type: eventType,
+        account_id: accountId,
+        ...(renewalCheck ? { renewal_guard: renewalCheck } : {})
+      }
+    };
   }
 
-  const result = await updateLeonaBillingProfile(accountId, payload, leonaToken);
+  const result = await updateProfile(accountId, payload, leonaToken);
   if (!result.ok) {
     return {
       status: 200,
@@ -398,6 +476,7 @@ export async function processPaddleEvent(event, opts = {}) {
         account_id: accountId,
         payload_attempted: payload,
         leona_sync: { ok: false, status: result.status, error: result.body?.error || result.error, body: result.body },
+        ...(renewalCheck ? { renewal_guard: renewalCheck } : {}),
         ...(migrationAnchorResult ? { migration_anchor: migrationAnchorResult } : {})
       }
     };
@@ -440,6 +519,7 @@ export async function processPaddleEvent(event, opts = {}) {
       event_type: eventType,
       leona_sync: { ok: true, account_id: accountId, payload },
       guru_cancel: guruCancel,
+      ...(renewalCheck ? { renewal_guard: renewalCheck } : {}),
       ...(affiliate?.handled ? { affiliate } : {}),
       ...(migrationAnchorResult ? { migration_anchor: migrationAnchorResult } : {})
     }

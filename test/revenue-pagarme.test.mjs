@@ -15,7 +15,8 @@ import {
   pagarmeListDateWindow,
   pagarmeNetCents,
   pagarmePartyEmail,
-  pagarmePaymentDay
+  pagarmePaymentDay,
+  pendingPagarmeOrdersWithPaidCharge
 } from '../lib/revenue-source.js';
 
 test('so pedido Leona entra no faturamento da Pagar.me', () => {
@@ -120,6 +121,35 @@ test('estorno nao conta como venda paga', () => {
     status: 'paid',
     charges: [{ status: 'paid', paid_at: '2026-08-27T12:00:00.000Z' }]
   }), false);
+});
+
+test('pedido pending com cobranca paga entra; pending sem pagamento nao', () => {
+  const pixPago = {
+    id: 'or_pix',
+    code: 'leona-1875-7-sub-20260927-1790549846',
+    status: 'pending',
+    charges: [{ status: 'paid', paid_at: '2026-09-27T22:58:02Z', paid_amount: 55300 }]
+  };
+  const cartaoCapturado = {
+    id: 'or_card',
+    code: 'leona-2226-11-sub',
+    status: 'pending',
+    charges: [{ status: 'paid', paid_at: '2026-09-06T12:46:13Z', paid_amount: 86900 }]
+  };
+  const aguardando = {
+    id: 'or_wait',
+    code: 'leona-9-1-sub',
+    status: 'pending',
+    charges: [{ status: 'pending', paid_amount: 0 }]
+  };
+  const estornado = {
+    id: 'or_ref',
+    code: 'leona-10-1-sub',
+    status: 'pending',
+    charges: [{ status: 'refunded', paid_at: '2026-09-10T12:00:00Z', paid_amount: 12700 }]
+  };
+  const kept = pendingPagarmeOrdersWithPaidCharge([pixPago, cartaoCapturado, aguardando, estornado]);
+  assert.deepEqual(kept.map((order) => order.id), ['or_pix', 'or_card']);
 });
 
 test('pedido Guru (UUID) nao entra no checkout', () => {
