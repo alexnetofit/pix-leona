@@ -13,6 +13,7 @@ import {
 import { cancelAssinaturaCardLinkIfLimited } from '../lib/pagarme-card-limits.js';
 import {
   findPagarmeAssinaturaIntent,
+  notifyPagarmeAssinaturaReversal,
   processPagarmeAssinaturaPaid,
   processPagarmeSubscriptionRenewal,
   reconcilePendingPagarmeAssinatura
@@ -46,7 +47,11 @@ export default async function handler(req, res) {
         result = { kind: 'trilha', ...(await fulfillPaidPaymentLink(paymentLinkId, { source: 'webhook', payload })) };
       } else {
         const intent = await findPagarmeAssinaturaIntent(paymentLinkId);
-        if (intent) {
+        const reversal = intent ? await notifyPagarmeAssinaturaReversal(paymentLinkId, payload) : null;
+        if (reversal?.retry) throw new Error(reversal.error || 'estorno afiliados falhou');
+        if (reversal && !reversal.skipped) {
+          result = { kind: 'assinatura_reversal', processed: true, affiliate: reversal };
+        } else if (intent) {
           if (pagarmeWebhookLooksPaid(payload)) {
             result = { kind: 'assinatura', ...(await processPagarmeAssinaturaPaid(paymentLinkId, { payload, req, source: 'webhook' })) };
           } else if (pagarmeWebhookLooksFailed(payload)) {
@@ -66,7 +71,11 @@ export default async function handler(req, res) {
         }
       }
     } else if (orderId && await findPagarmeAssinaturaIntent(orderId)) {
-      result = { kind: 'assinatura', ...(await processPagarmeAssinaturaPaid(orderId, { payload, req, source: 'webhook' })) };
+      const reversal = await notifyPagarmeAssinaturaReversal(orderId, payload);
+      if (reversal?.retry) throw new Error(reversal.error || 'estorno afiliados falhou');
+      result = reversal && !reversal.skipped
+        ? { kind: 'assinatura_reversal', processed: true, affiliate: reversal }
+        : { kind: 'assinatura', ...(await processPagarmeAssinaturaPaid(orderId, { payload, req, source: 'webhook' })) };
     } else if (subscriptionId && pagarmeWebhookLooksPaid(payload)) {
       result = { kind: 'assinatura', ...(await processPagarmeSubscriptionRenewal(subscriptionId, { payload, req, source: 'webhook' })) };
     } else {
@@ -107,9 +116,11 @@ export default async function handler(req, res) {
   }
 
   logAssinaturaEvent(req, {
-    action: result.kind === 'assinatura'
-      ? (result.processed ? 'pagarme_assinatura_paid' : 'pagarme_assinatura_failed')
-      : (result.ok ? 'trilha_pontohub_ok' : 'trilha_pontohub_failed'),
+    action: result.kind === 'assinatura_reversal'
+      ? 'pagarme_assinatura_reversal'
+      : result.kind === 'assinatura'
+        ? (result.processed ? 'pagarme_assinatura_paid' : 'pagarme_assinatura_failed')
+        : (result.ok ? 'trilha_pontohub_ok' : 'trilha_pontohub_failed'),
     provider: 'pagarme',
     account_id: result.account_id || null,
     details: { payment_link_id: paymentLinkId, type: payload.type || null, ...result }
