@@ -95,10 +95,27 @@
     return 1;
   }
 
+  function invoiceDate(value) {
+    const raw = String(value || '').trim();
+    const day = raw.slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : '';
+  }
+
+  function invoiceReadyForPayment(inv, today) {
+    today = today || new Date().toISOString().slice(0, 10);
+    if (!inv || typeof inv !== 'object') return false;
+    const status = String(inv.status || '').toLowerCase();
+    if (status !== 'waiting_payment' && status !== 'pending') return false;
+    const chargeAt = invoiceDate(inv.charge_at);
+    if (chargeAt && chargeAt > String(today).slice(0, 10)) return false;
+    return true;
+  }
+
   global.AssinaturaQty = {
     qtyFromPlanName,
     qtyFromLeonaCode,
     qtyFromPayment,
-    resolveExpiredCheckoutQty
+    resolveExpiredCheckoutQty,
+    invoiceReadyForPayment
   };
 })(typeof globalThis !== 'undefined' ? globalThis : window);
