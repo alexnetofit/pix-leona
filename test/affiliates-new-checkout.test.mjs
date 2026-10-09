@@ -91,6 +91,30 @@ test('webhook Pagarme do checkout novo avisa e o código antigo não', async () 
   assert.equal(calls.length, 1);
 });
 
+test('charge.paid do checkout novo usa o pedido, não a cobrança', async () => {
+  const calls = [];
+  const paid = await notifyPagarmeNewCheckoutFromWebhook({
+    payload: {
+      type: 'charge.paid',
+      data: {
+        id: 'ch_1',
+        code: 'leona-5062-10-sub-20260922-1790123456',
+        status: 'paid',
+        paid_amount: 79000,
+        order: { id: 'or_novo', code: 'leona-5062-10-sub-20260922-1790123456' }
+      }
+    },
+    getProfile: async () => ({ user: { email: 'dono@leona.com', name: 'Dono' } }),
+    notify: async (args) => {
+      calls.push(args);
+      return { ok: true, http: 200, body: { status: 'processed' } };
+    }
+  });
+  assert.equal(paid.handled, true);
+  assert.equal(calls[0].txId, 'pagarme:or_novo');
+  assert.equal(calls[0].amountCents, 79000);
+});
+
 test('estorno Pagarme do checkout novo reusa o mesmo id', async () => {
   const calls = [];
   const result = await notifyPagarmeNewCheckoutFromWebhook({
