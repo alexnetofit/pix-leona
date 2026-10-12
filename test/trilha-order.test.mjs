@@ -82,6 +82,30 @@ test('grant de extra no preço da trilha cobra 29,90 no 50k já resgatado', () =
   assert.equal(order.items[0].amount, 2990);
 });
 
+test('conta com preço da primeira compra em tudo não volta ao custo', () => {
+  const order = buildTrilhaCartOrder({
+    prizeIds: ['50k', '100k', '250k'],
+    extras: { '50k': 3, '100k': 2 },
+    acquiredIds: ['50k', '100k', '250k'],
+    cheapAll: true
+  });
+  assert.equal(order.ok, true);
+  assert.equal(order.totalCents, 2990 * 3 + 29700 * 2 + 2990);
+  assert.equal(order.items.every((item) => item.code.endsWith('-extra-trilha')), true);
+  assert.equal(order.items.some((item) => item.amount === 6750 || item.amount === 34650 || item.amount === 5450), false);
+
+  const anticipate = buildTrilhaCartOrder({
+    prizeIds: ['50k', '100k'],
+    anticipatedIds: ['50k', '100k'],
+    extras: { '50k': 2 },
+    cheapAll: true
+  });
+  assert.equal(anticipate.ok, true);
+  assert.equal(anticipate.totalCents, 2990 + 2990 * 2 + 29700);
+  assert.equal(anticipate.items.find((item) => item.code === 'trilha-50k')?.amount, 2990);
+  assert.equal(anticipate.items.find((item) => item.code === 'trilha-100k')?.amount, 29700);
+});
+
 test('segunda unidade extra depois do grant volta ao custo', () => {
   const order = buildTrilhaCartOrder({
     prizeIds: ['50k'],

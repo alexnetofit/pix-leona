@@ -1351,8 +1351,22 @@
       </span>`;
     }
 
+    function cheapAllPrices() {
+      return currentData?.cheap_all === true;
+    }
+
     function cheapExtraLeft() {
+      if (cheapAllPrices()) return Infinity;
       return Math.max(0, Number(currentData?.cheap_extra_remaining) || 0);
+    }
+
+    function firstPriceCents(prize) {
+      return prize.priceCents || 0;
+    }
+
+    function extraOrCostCents(prize) {
+      if (cheapAllPrices() || prize?.cheap_extra) return firstPriceCents(prize);
+      return prize.extraUnitCents || prize.priceCents || 0;
     }
 
     function acquiredUnitsCents(prize, qty) {
@@ -1405,7 +1419,7 @@
           continue;
         }
         if (anticipatedPrizeIds.has(prize.id)) {
-          total += prize.extraUnitCents || 0;
+          total += extraOrCostCents(prize);
         } else {
           total += prize.priceCents || 0;
         }
@@ -1642,10 +1656,10 @@
       const reached = prize.unlocked;
       const continues = reached && prizes[index + 1]?.unlocked;
       const qty = extraQty(prize.id);
-      const extraLabel = formatBrl(((prize.cheap_extra ? prize.priceCents : prize.extraUnitCents) || 0) / 100);
+      const extraLabel = formatBrl((extraOrCostCents(prize) || 0) / 100);
       const showAnticipate = prize.can_anticipate && !anticipated;
       const priceLabel = anticipated
-        ? formatBrl((prize.extraUnitCents || prize.priceCents || 0) / 100)
+        ? formatBrl((extraOrCostCents(prize) || 0) / 100)
         : prize.priceFormatted;
       const cta = canResgate
         ? (inCart ? 'No carrinho' : prize.acquired ? (prize.cta || 'Adicionar extra') : 'Adicionar')
@@ -1691,7 +1705,7 @@
               <div class="qty-bump">
                 <div class="qty-bump-label">Unidades extras</div>
                 <div class="qty-row">
-                  <div class="qty-copy">${prize.acquired ? (prize.cheap_extra ? 'Preço da trilha' : 'Custo de produção') : 'Unidades extras'}<br><strong>${esc(extraLabel)}</strong> cada${prize.cheap_extra ? '' : extraPriceHintHtml()}</div>
+                  <div class="qty-copy">${prize.acquired ? (prize.cheap_extra || cheapAllPrices() ? 'Preço da trilha' : 'Custo de produção') : 'Unidades extras'}<br><strong>${esc(extraLabel)}</strong> cada${prize.cheap_extra || cheapAllPrices() ? '' : extraPriceHintHtml()}</div>
                   <div class="qty-stepper">
                     <button type="button" data-qty="-1" data-prize="${esc(prize.id)}" ${qty <= 0 || !canResgate ? 'disabled' : ''}>−</button>
                     <span>${qty}</span>
@@ -1714,7 +1728,7 @@
     }
 
     function extraUnitsCents(prize) {
-      return extraQty(prize.id) * (prize.extraUnitCents || 0);
+      return extraQty(prize.id) * (cheapAllPrices() ? firstPriceCents(prize) : (prize.extraUnitCents || 0));
     }
 
     function calcCheckoutTotalCents() {
@@ -1727,7 +1741,7 @@
         return formatBrl(acquiredUnitsCents(prize, qty) / 100);
       }
       if (anticipatedPrizeIds.has(prize.id)) {
-        return formatBrl((prize.extraUnitCents || 0) / 100);
+        return formatBrl(extraOrCostCents(prize) / 100);
       }
       return formatBrl((prize.priceCents || 0) / 100);
     }
@@ -1764,13 +1778,12 @@
         <div class="order-bumps-title">Unidades extras</div>
         ${selected.map((prize) => {
           const qty = extraQty(prize.id);
-          const extraLabel = formatBrl((prize.extraUnitCents || 0) / 100);
           return `
             <div class="bump-item">
               <img src="${esc(prize.image || '')}" alt="${esc(prize.title)}" loading="lazy">
               <div class="bump-copy">
                 <strong>${esc(prize.title)}</strong>
-                <span>Unidade extra · ${esc(formatBrl(((prize.cheap_extra ? prize.priceCents : prize.extraUnitCents) || 0) / 100))} cada${prize.cheap_extra ? '' : extraPriceHintHtml('start')}</span>
+                <span>Unidade extra · ${esc(formatBrl(extraOrCostCents(prize) / 100))} cada${prize.cheap_extra || cheapAllPrices() ? '' : extraPriceHintHtml('start')}</span>
               </div>
               <div class="qty-stepper">
                 <button type="button" data-extra="${esc(prize.id)}" data-delta="-1" ${qty <= 0 ? 'disabled' : ''}>−</button>
@@ -1848,8 +1861,10 @@
       const prize = (currentData?.prizes || []).find((item) => item.id === prizeId);
       if (!prize?.can_anticipate) return;
       pendingAnticipateId = prizeId;
-      const cost = formatBrl((prize.extraUnitCents || prize.anticipateCents || 0) / 100);
-      anticipateCopy.innerHTML = `Antecipando, o <strong>${esc(prize.title)}</strong> sai pelo <strong>preço de custo</strong>, sem o desconto da trilha: <strong>${esc(cost)}</strong>.`;
+      const cost = formatBrl(extraOrCostCents(prize) / 100);
+      anticipateCopy.innerHTML = cheapAllPrices()
+        ? `Antecipando, o <strong>${esc(prize.title)}</strong> sai pelo <strong>preço da trilha</strong>: <strong>${esc(cost)}</strong>.`
+        : `Antecipando, o <strong>${esc(prize.title)}</strong> sai pelo <strong>preço de custo</strong>, sem o desconto da trilha: <strong>${esc(cost)}</strong>.`;
       anticipateOverlay.classList.add('open');
       anticipateOverlay.setAttribute('aria-hidden', 'false');
     }

@@ -77,6 +77,7 @@ export default async function handler(req, res) {
     return res.status(200).json(buildTrilhaPayload({
       accountId: resolvedAccountId,
       profile,
+      email: profileEmail,
       revenueValue,
       revenueSource,
       redeemEligibility,
