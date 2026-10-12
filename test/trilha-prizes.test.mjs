@@ -6,6 +6,7 @@ import {
   remainingCheapExtraUnits,
   resolveTrilhaRevenue,
   formatRevenueDisplay,
+  trilhaCheapAll,
   trilhaCheapExtraGrantQty
 } from '../lib/trilha-prizes.js';
 
@@ -290,11 +291,13 @@ test('quem já adquiriu vê o preço da unidade extra', () => {
   assert.equal(payload.prizes.find((p) => p.id === '100k').acquired, false);
 });
 
-test('Yuri ganha 1 extra no preço da trilha depois de já ter resgatado tudo', () => {
-  assert.equal(trilhaCheapExtraGrantQty('2884', 'yuriautomacoes@gmail.com'), 1);
+test('Yuri paga o preço da primeira compra em toda a trilha', () => {
+  assert.equal(trilhaCheapAll('2884', 'yuriautomacoes@gmail.com'), true);
+  assert.equal(trilhaCheapAll('2884', 'outro@gmail.com'), false);
+  assert.equal(trilhaCheapExtraGrantQty('2884', 'yuriautomacoes@gmail.com'), 999);
   assert.equal(trilhaCheapExtraGrantQty('2884', 'outro@gmail.com'), 0);
-  assert.equal(remainingCheapExtraUnits('2884', 'yuriautomacoes@gmail.com', 0), 1);
-  assert.equal(remainingCheapExtraUnits('2884', 'yuriautomacoes@gmail.com', 1), 0);
+  assert.equal(remainingCheapExtraUnits('2884', 'yuriautomacoes@gmail.com', 0), 999);
+  assert.equal(remainingCheapExtraUnits('2884', 'yuriautomacoes@gmail.com', 40), 999);
 
   const payload = buildTrilhaPayload({
     accountId: '2884',
@@ -302,12 +305,22 @@ test('Yuri ganha 1 extra no preço da trilha depois de já ter resgatado tudo', 
     revenueValue: 2_742_052,
     revenueSource: 'api',
     purchasedPrizeIds: ['50k', '100k', '250k', '500k', '1m', '2m'],
-    cheapExtraRemaining: 1
+    cheapExtraRemaining: 0
   });
+  assert.equal(payload.cheap_all, true);
+  assert.equal(payload.cheap_extra_remaining, 999);
   const fifty = payload.prizes.find((p) => p.id === '50k');
-  assert.equal(payload.cheap_extra_remaining, 1);
+  const placa = payload.prizes.find((p) => p.id === '100k');
   assert.equal(fifty.acquired, true);
   assert.equal(fifty.cheap_extra, true);
   assert.equal(fifty.displayCents, 2990);
+  assert.equal(fifty.anticipateCents, 2990);
   assert.equal(fifty.cta, 'Resgatar extra');
+  assert.equal(placa.displayCents, 29700);
+  assert.equal(placa.anticipateCents, 29700);
+  for (const prize of payload.prizes) {
+    assert.equal(prize.displayCents, prize.priceCents);
+    assert.equal(prize.anticipateCents, prize.priceCents);
+    assert.equal(prize.cheap_extra, true);
+  }
 });

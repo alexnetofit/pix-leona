@@ -11,7 +11,8 @@ import { getLeonaLifetimeRevenue } from '../lib/leona.js';
 import {
   pickBrlLifetimeRevenue,
   remainingCheapExtraUnits,
-  resolveTrilhaRevenue
+  resolveTrilhaRevenue,
+  trilhaCheapAll
 } from '../lib/trilha-prizes.js';
 import { extraUnitsPurchasedFromCheckouts, purchasedPrizeIdsFromCheckouts } from '../lib/trilha-account-orders.js';
 import { expireAbandonedTrilhaCheckouts, listTrilhaAccountCheckouts, saveTrilhaCheckout } from '../lib/trilha-fulfill.js';
@@ -99,7 +100,8 @@ export default async function handler(req, res) {
     bumps: body.bumps || {},
     acquiredIds,
     anticipatedIds,
-    cheapExtraRemaining
+    cheapExtraRemaining,
+    cheapAll: trilhaCheapAll(resolvedAccountId, profileEmail)
   });
   if (!order.ok) return res.status(400).json({ error: order.error });
   for (const prize of order.prizes) {
