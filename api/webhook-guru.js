@@ -6,6 +6,7 @@ import {
   extractInstances,
   extractProductId,
   extractSrc,
+  srcFromFirstSubscriptionSale,
   summarizeGuruWebhook
 } from '../lib/guru-webhook-payload.js';
 
@@ -202,10 +203,10 @@ export default async function handler(req, res) {
 
     // Priorizacao por src (account_id Leona vindo do checkout):
     // se o front mandou ?src=<account_id> no checkout, a Guru repassa esse
-    // valor no webhook. Isso evita problemas quando o cliente compra com um
-    // email diferente do cadastrado na Leona.
+    // valor no webhook. Renovação não repete o src: aí buscamos a primeira
+    // venda dessa assinatura na Guru e usamos o src dela.
     // Aceita int (legado) ou UUID — tratamos como string opaca.
-    const srcRaw = extractSrc(payload);
+    const srcRaw = await resolveCheckoutSrc(payload);
     const srcAccountId = srcRaw ? String(srcRaw).trim() : '';
 
     let match = null;
@@ -218,10 +219,14 @@ export default async function handler(req, res) {
         const r = await fetch(`${LEONA_BASE}/accounts/${encodeURIComponent(srcAccountId)}/billing_profile`, { headers: leonaHeaders });
         if (r.ok) {
           const profile = await r.json();
-          match = profile;
-          profiles = [profile];
-          firstLink = !profile.guru_account_id || (profile.guru_account_id !== guruSubId && profile.guru_account_id !== guruSubCode);
-          console.log(`webhook-guru: conta ${srcAccountId} encontrada via src${firstLink ? ' (precisa vincular guru_account_id)' : ''}`);
+          if (profile?.account_id != null && String(profile.account_id).trim() !== '') {
+            match = profile;
+            profiles = [profile];
+            firstLink = !profile.guru_account_id || (profile.guru_account_id !== guruSubId && profile.guru_account_id !== guruSubCode);
+            console.log(`webhook-guru: conta ${srcAccountId} encontrada via src${firstLink ? ' (precisa vincular guru_account_id)' : ''}`);
+          } else {
+            console.log(`webhook-guru: GET da conta ${srcAccountId} veio sem account_id, caindo no fluxo de email`);
+          }
         } else {
           console.log(`webhook-guru: conta ${srcAccountId} (src) nao encontrada na Leona (status ${r.status}), caindo no fluxo de email`);
         }
@@ -596,17 +601,77 @@ async function handleRefundOrChargeback(payload, leonaToken, res, opts = {}) {
 }
 
 /**
+ * src da venda atual, ou o da primeira venda dessa assinatura na Guru.
+ * Renovação chega sem src; o e-mail pode ter várias assinaturas, cada uma
+ * com o src da própria abertura.
+ */
+async function resolveCheckoutSrc(payload) {
+  const direct = extractSrc(payload);
+  if (direct) return direct;
+
+  const subId = payload?.subscription?.internal_id || payload?.subscription?.id || null;
+  if (!subId) return null;
+
+  const txs = await listGuruSubscriptionTransactions(subId);
+  const src = srcFromFirstSubscriptionSale(txs);
+  if (src) {
+    console.log(`webhook-guru: src ${src} da primeira venda da assinatura ${subId}`);
+  }
+  return src;
+}
+
+async function listGuruSubscriptionTransactions(subscriptionId) {
+  const guruToken = process.env.GURU_TOKEN;
+  if (!guruToken || !subscriptionId) return [];
+
+  const headers = {
+    Authorization: `Bearer ${guruToken}`,
+    Accept: 'application/json',
+    'User-Agent': 'n8n'
+  };
+  const all = [];
+  let cursor = null;
+
+  try {
+    for (let page = 0; page < 8; page++) {
+      const url = new URL(`${GURU_BASE}/transactions`);
+      url.searchParams.set('subscription_id', String(subscriptionId));
+      url.searchParams.set('limit', '50');
+      if (cursor) url.searchParams.set('cursor', cursor);
+
+      const r = await fetch(url, { headers });
+      if (!r.ok) {
+        console.error(`webhook-guru: txs da sub ${subscriptionId} HTTP ${r.status}`);
+        break;
+      }
+      const body = await r.json().catch(() => ({}));
+      if (Array.isArray(body.data)) all.push(...body.data);
+      cursor = body.next_cursor || null;
+      if (!body.has_more_pages || !cursor) break;
+    }
+  } catch (e) {
+    console.error(`webhook-guru: erro listando txs da sub ${subscriptionId}:`, e.message);
+  }
+
+  return all;
+}
+
+/**
  * Resolve conta Leona para eventos Guru (reembolso, cancelamento, etc.).
- * Prioriza ?src=account_id, depois guru_account_id, depois unica conta no email.
+ * Prioriza ?src=account_id, depois o src da primeira venda da assinatura,
+ * depois guru_account_id, depois unica conta no email.
  */
 async function resolveLeonaMatchForGuruEvent(payload, email, guruSubId, guruSubCode, leonaHeaders) {
-  const srcRaw = extractSrc(payload);
+  const srcRaw = await resolveCheckoutSrc(payload);
   const srcAccountId = srcRaw ? String(srcRaw).trim() : '';
 
   if (srcAccountId) {
     try {
       const r = await fetch(`${LEONA_BASE}/accounts/${encodeURIComponent(srcAccountId)}/billing_profile`, { headers: leonaHeaders });
-      if (r.ok) return await r.json();
+      if (r.ok) {
+        const profile = await r.json();
+        if (profile?.account_id != null && String(profile.account_id).trim() !== '') return profile;
+      }
     } catch (e) {
       console.error(`webhook-guru: erro buscando conta ${srcAccountId} via src:`, e.message);
     }
@@ -784,6 +849,7 @@ async function fetchLeonaProfilesByQuery(query, headers) {
 
   if (res.ok) {
     const profile = await res.json();
+    if (profile?.account_id == null || String(profile.account_id).trim() === '') return [];
     return [profile];
   }
 

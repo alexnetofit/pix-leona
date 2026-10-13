@@ -6,6 +6,7 @@ import {
   extractInstances,
   extractProductId,
   extractSrc,
+  srcFromFirstSubscriptionSale,
   summarizeGuruWebhook
 } from '../lib/guru-webhook-payload.js';
 
@@ -19,6 +20,31 @@ test('extractSrc lê trackings.source (formato da API Guru)', () => {
 
 test('extractSrc aceita source como string', () => {
   assert.equal(extractSrc({ source: '8652' }), '8652');
+});
+
+test('src da primeira venda ignora renovações mais novas sem src', () => {
+  const src = srcFromFirstSubscriptionSale([
+    { id: 'nova', status: 'approved', dates: { ordered_at: 1791812122 }, trackings: { source: null } },
+    { id: 'meio', status: 'approved', dates: { ordered_at: 1781271141 }, trackings: { source: null } },
+    { id: 'primeira', status: 'approved', dates: { ordered_at: 1778597004 }, trackings: { source: '7638' } }
+  ]);
+  assert.equal(src, '7638');
+});
+
+test('src da primeira venda não usa src de uma cobrança posterior', () => {
+  const src = srcFromFirstSubscriptionSale([
+    { id: 'primeira', status: 'approved', dates: { ordered_at: 100 }, trackings: { source: null } },
+    { id: 'depois', status: 'approved', dates: { ordered_at: 200 }, trackings: { source: '9999' } }
+  ]);
+  assert.equal(src, null);
+});
+
+test('src da primeira venda ignora tentativa anterior não aprovada', () => {
+  const src = srcFromFirstSubscriptionSale([
+    { id: 'recusa', status: 'canceled', dates: { ordered_at: 50 }, trackings: { source: '111' } },
+    { id: 'primeira', status: 'approved', dates: { ordered_at: 100 }, trackings: { source: '7638' } }
+  ]);
+  assert.equal(src, '7638');
 });
 
 test('extractSrc vazio no upgrade sem checkout', () => {
