@@ -60,14 +60,14 @@ test('grant de faturamento soma 85k só com conta e e-mail certos', () => {
   assert.equal(gabsCresceu.source, 'api+grant');
   const gabsErrado = resolveTrilhaRevenue('121', 286, 'outro@gmail.com');
   assert.equal(gabsErrado.value, 286);
-  const luide = resolveTrilhaRevenue('7468', 129_799.14, 'luidemorais73@gmail.com');
-  assert.equal(luide.value, 329_799.14);
+  const luide = resolveTrilhaRevenue('7468', 134_595.09, 'luidemorais73@gmail.com');
+  assert.equal(luide.value, 2_000_000);
   assert.equal(luide.source, 'api+grant');
-  const luideCresceu = resolveTrilhaRevenue('7468', 129_799.14 + 1_000, 'Luidemorais73@gmail.com');
-  assert.equal(luideCresceu.value, 330_799.14);
+  const luideCresceu = resolveTrilhaRevenue('7468', 134_595.09 + 1_000, 'Luidemorais73@gmail.com');
+  assert.equal(luideCresceu.value, 2_001_000);
   assert.equal(luideCresceu.source, 'api+grant');
-  const luideErrado = resolveTrilhaRevenue('7468', 129_799.14, 'outro@gmail.com');
-  assert.equal(luideErrado.value, 129_799.14);
+  const luideErrado = resolveTrilhaRevenue('7468', 134_595.09, 'outro@gmail.com');
+  assert.equal(luideErrado.value, 134_595.09);
   const mkt = resolveTrilhaRevenue('8691', 57_182.98, 'mktvirals@gmail.com');
   assert.equal(mkt.value, 96_266.68);
   assert.equal(mkt.source, 'api+grant');
@@ -113,27 +113,29 @@ test('bonus de 2,1M do Multicursos desbloqueia todos os marcos e continua somand
   assert.equal(payload.revenue.next_milestone, null);
 });
 
-test('bonus de 200k do Luide desbloqueia 250k e continua somando', () => {
+test('liberação do Luide desbloqueia todos os marcos e continua somando', () => {
   const email = 'luidemorais73@gmail.com';
-  const now = resolveTrilhaRevenue('7468', 129_799.14, email);
-  assert.equal(now.value, 329_799.14);
+  const now = resolveTrilhaRevenue('7468', 134_595.09, email);
+  assert.equal(now.value, 2_000_000);
   const payload = buildTrilhaPayload({
     accountId: '7468',
-    profile: { user: { name: 'Luide Lazaro Morais Santos Junior', email }, plan_summary: '1 Starter', subscription_status: 'active' },
+    profile: { user: { name: 'Luide Lazaro Morais Santos Junior', email }, plan_summary: '2 instâncias', subscription_status: 'active' },
     revenueValue: now.value,
     revenueSource: now.source,
     redeemEligibility: {
       eligible: true,
       granted: false,
       required_months: 3,
-      paid_months: 3,
+      paid_months: 4,
       missing_months: 0
     }
   });
-  assert.equal(payload.prizes.find((p) => p.id === '250k').unlocked, true);
-  assert.equal(payload.prizes.find((p) => p.id === '250k').status, 'available');
-  assert.equal(payload.prizes.find((p) => p.id === '500k').unlocked, false);
-  assert.equal(payload.revenue.next_milestone.id, '500k');
+  assert.equal(payload.prizes.every((p) => p.unlocked), true);
+  assert.equal(payload.prizes.every((p) => p.status === 'available'), true);
+  assert.equal(payload.prizes.every((p) => p.can_anticipate === false), true);
+  assert.equal(payload.revenue.next_milestone, null);
+  const grew = resolveTrilhaRevenue('7468', 134_595.09 + 1_000, email);
+  assert.equal(grew.value, 2_001_000);
 });
 
 test('bonus de 1M do Gabs desbloqueia até 1M e continua somando', () => {
