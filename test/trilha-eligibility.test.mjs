@@ -186,4 +186,20 @@ test('pagarmeCycleKey conta renovação e checkout Guru, ignora pró-rata e toke
     code: 'leona-tokens-8691-1000',
     created_at: '2026-09-01T00:00:00Z'
   }), null);
+
+  assert.equal(pagarmeCycleKey({
+    status: 'paid',
+    amount: 29700,
+    code: 'leona-433-3-sub-20260926-1790399354',
+    charges: [{ status: 'paid', paid_at: '2026-09-26T05:09:36Z' }],
+    items: [{ description: 'Regularização · 3 instâncias' }]
+  }), 'pagarme:m2026-09');
+
+  assert.equal(pagarmeCycleKey({
+    status: 'paid',
+    amount: 1457,
+    code: 'leona-433-1-pro-rata-20261002-1790960823',
+    charges: [{ status: 'paid', paid_at: '2026-10-02T17:07:40Z' }],
+    items: [{ description: 'Instância adicional (proporcional · 23 de 30 dias)' }]
+  }), null);
 });
