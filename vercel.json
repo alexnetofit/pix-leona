@@ -64,6 +64,10 @@
     },
     "api/webhook-pagarme.js": {
       "maxDuration": 60
+    },
+    "api/webhook-leona-pay-group.js": {
+      "maxDuration": 60,
+      "includeFiles": "lib/leona-pay-group.jpg"
     }
   },
   "routes": [
