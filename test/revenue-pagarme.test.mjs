@@ -12,11 +12,15 @@ import {
   isPagarmeTokenOrder,
   mergePagarmeOrdersById,
   pagarmeChunkWindows,
+  guruDisputeRevenue,
   pagarmeGrossCents,
   pagarmeListDateWindow,
   pagarmeNetCents,
   pagarmePartyEmail,
+  pagarmeRevenueSplit,
   pagarmePaymentDay,
+  pagarmeReleasedCents,
+  pagarmeStillPaidCents,
   pendingPagarmeOrdersWithPaidCharge
 } from '../lib/revenue-source.js';
 
@@ -151,6 +155,83 @@ test('pedido pending com cobranca paga entra; pending sem pagamento nao', () => 
   };
   const kept = pendingPagarmeOrdersWithPaidCharge([pixPago, cartaoCapturado, aguardando, estornado]);
   assert.deepEqual(kept.map((order) => order.id), ['or_pix', 'or_card']);
+});
+
+test('estorno parcial da assinatura conta o saldo e o cancelado vai pra reembolso', () => {
+  const split = pagarmeRevenueSplit({
+    code: 'leona-191-15-sub-20261006-1791336843',
+    status: 'paid',
+    charges: [{
+      status: 'paid',
+      paid_amount: 118500,
+      amount: 118500,
+      canceled_amount: 39500,
+      paid_at: '2026-10-06T12:00:00Z'
+    }]
+  });
+  assert.equal(split.sale, true);
+  assert.equal(split.gross_cents, 79000);
+  assert.equal(split.refund_gross_cents, 39500);
+
+  const intact = pagarmeRevenueSplit({
+    code: 'leona-1-1-sub',
+    status: 'paid',
+    amount: 12700,
+    charges: [{ status: 'paid', paid_amount: 12700, paid_at: '2026-10-01T12:00:00Z', last_transaction: { fee: 380 } }]
+  });
+  assert.equal(intact.gross_cents, 12700);
+  assert.equal(intact.net_cents, 12320);
+  assert.equal(intact.refund_gross_cents, 0);
+
+  const refunded = pagarmeRevenueSplit({
+    status: 'canceled',
+    charges: [{ status: 'refunded', paid_amount: 12700, paid_at: '2026-10-01T12:00:00Z' }]
+  });
+  assert.equal(refunded.sale, false);
+  assert.equal(refunded.gross_cents, 0);
+  assert.equal(refunded.refund_gross_cents, 12700);
+});
+
+test('dispute ainda paga na Pagar.me entra pelo que sobrou', () => {
+  const transaction = { payment: { gross: 1185, net: 1173.29 } };
+  const partial = {
+    status: 'paid',
+    code: 'a2e2b5ca-52c6-4e80-99a2-7a391a4d3e2d',
+    charges: [{
+      status: 'paid',
+      paid_amount: 118500,
+      amount: 118500,
+      canceled_amount: 71100,
+      paid_at: '2026-10-04T13:04:31Z'
+    }]
+  };
+  assert.equal(pagarmeStillPaidCents(partial), 47400);
+  assert.equal(pagarmeReleasedCents(partial), 71100);
+  const kept = guruDisputeRevenue(transaction, partial);
+  assert.equal(kept.gross_cents, 47400);
+  assert.equal(kept.refund_gross_cents, 71100);
+  assert.equal(kept.net_cents + kept.refund_net_cents, 117329);
+
+  const intact = {
+    status: 'paid',
+    charges: [{ status: 'paid', paid_amount: 19800, canceled_amount: 0, paid_at: '2026-10-09T13:11:09Z' }]
+  };
+  assert.equal(guruDisputeRevenue({ payment: { gross: 198, net: 190 } }, intact).gross_cents, 19800);
+  assert.equal(guruDisputeRevenue({ payment: { gross: 198, net: 190 } }, intact).refund_gross_cents, 0);
+
+  const devolvido = {
+    status: 'canceled',
+    charges: [{ status: 'refunded', paid_amount: 19800, canceled_amount: 19800, paid_at: '2026-10-09T13:11:09Z' }]
+  };
+  const out = guruDisputeRevenue({ payment: { gross: 198, net: 190 } }, devolvido);
+  assert.equal(out.gross_cents, 0);
+  assert.equal(out.refund_gross_cents, 19800);
+  assert.deepEqual(guruDisputeRevenue(transaction, null), {
+    gross_cents: 0,
+    net_cents: 0,
+    refund_gross_cents: 0,
+    refund_net_cents: 0
+  });
 });
 
 test('pedido Guru (UUID) nao entra no checkout', () => {
