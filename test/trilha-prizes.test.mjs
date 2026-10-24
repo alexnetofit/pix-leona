@@ -73,6 +73,13 @@ test('grant de faturamento soma 85k só com conta e e-mail certos', () => {
   assert.equal(mkt.source, 'api+grant');
   const mktErrado = resolveTrilhaRevenue('8691', 57_182.98, 'outro@gmail.com');
   assert.equal(mktErrado.value, 57_182.98);
+  const leone = resolveTrilhaRevenue('71', 2_121.99, 'leonegocionline@gmail.com');
+  assert.equal(leone.value, 2_002_121.99);
+  assert.equal(leone.source, 'api+grant');
+  const leoneCresceu = resolveTrilhaRevenue('71', 2_121.99 + 500, 'Leonegocionline@gmail.com');
+  assert.equal(leoneCresceu.value, 2_002_621.99);
+  const leoneErrado = resolveTrilhaRevenue('71', 2_121.99, 'outro@gmail.com');
+  assert.equal(leoneErrado.value, 2_121.99);
 });
 
 test('bonus do Ronaldinho desbloqueia 50k e 100k e continua somando', () => {
@@ -111,6 +118,31 @@ test('bonus de 2,1M do Multicursos desbloqueia todos os marcos e continua somand
   assert.equal(payload.prizes.every((p) => p.status === 'available'), true);
   assert.equal(payload.prizes.every((p) => p.can_anticipate === false), true);
   assert.equal(payload.revenue.next_milestone, null);
+});
+
+test('bonus de 2M do Leonardo libera a trilha inteira e continua somando', () => {
+  const email = 'leonegocionline@gmail.com';
+  const now = resolveTrilhaRevenue('71', 2_121.99, email);
+  assert.equal(now.value, 2_002_121.99);
+  const payload = buildTrilhaPayload({
+    accountId: '71',
+    profile: { user: { name: 'Leonardo Leite', email }, plan_summary: '2 instâncias', subscription_status: 'past_due' },
+    revenueValue: now.value,
+    revenueSource: now.source,
+    redeemEligibility: {
+      eligible: true,
+      granted: true,
+      required_months: 3,
+      paid_months: 3,
+      missing_months: 0
+    }
+  });
+  assert.equal(payload.prizes.every((p) => p.unlocked), true);
+  assert.equal(payload.prizes.every((p) => p.status === 'available'), true);
+  assert.equal(payload.prizes.every((p) => p.can_anticipate === false), true);
+  assert.equal(payload.revenue.next_milestone, null);
+  const grew = resolveTrilhaRevenue('71', 2_121.99 + 500, email);
+  assert.equal(grew.value, 2_002_621.99);
 });
 
 test('liberação do Luide desbloqueia todos os marcos e continua somando', () => {

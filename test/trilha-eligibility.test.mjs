@@ -49,6 +49,9 @@ test('grant só vale com account_id e e-mail certos', () => {
   assert.equal(isTrilhaRedeemGranted('8691', 'mktvirals@gmail.com'), true);
   assert.equal(isTrilhaRedeemGranted(8691, 'Mktvirals@gmail.com'), true);
   assert.equal(isTrilhaRedeemGranted('8691', 'outro@gmail.com'), false);
+  assert.equal(isTrilhaRedeemGranted('71', 'leonegocionline@gmail.com'), true);
+  assert.equal(isTrilhaRedeemGranted(71, 'Leonegocionline@gmail.com'), true);
+  assert.equal(isTrilhaRedeemGranted('71', 'outro@gmail.com'), false);
 });
 
 test('grant Praxedes libera resgate no preço normal sem meses pagos', () => {
@@ -105,6 +108,20 @@ test('grant do Multicursos libera resgate no preço da trilha', () => {
   const e = buildTrilhaRedeemEligibility({
     accountId: '1508',
     email: 'multicursossuporte@gmail.com',
+    paidMonths: 0
+  });
+  assert.equal(e.eligible, true);
+  assert.equal(e.granted, true);
+  assert.equal(e.paid_months, TRILHA_MIN_PAID_MONTHS);
+  assert.equal(e.missing_months, 0);
+  assert.equal(e.sources.grant, true);
+  assert.match(e.message, /suporte/);
+});
+
+test('grant do Leonardo libera resgate no preço da trilha', () => {
+  const e = buildTrilhaRedeemEligibility({
+    accountId: '71',
+    email: 'leonegocionline@gmail.com',
     paidMonths: 0
   });
   assert.equal(e.eligible, true);
