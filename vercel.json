@@ -84,6 +84,14 @@
       "dest": "/api/tracking"
     },
     {
+      "src": "/n/([^/]+)/v/dados",
+      "dest": "/api/leona-pay-historico?t=$1&dados=1"
+    },
+    {
+      "src": "/n/([^/]+)/v",
+      "dest": "/api/leona-pay-historico?t=$1"
+    },
+    {
       "src": "/api/(.*)",
       "dest": "/api/$1"
     },
