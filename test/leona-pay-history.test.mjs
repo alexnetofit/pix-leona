@@ -93,6 +93,15 @@ test('o histórico explica sucesso, falha e fila', () => {
           body: approved('emp-9', 'Ana Antiga', 'antiga@example.com'),
           group: { ok: false, reason: 'a instância recusou a criação' }
         }
+      },
+      {
+        id: 'wh-teste',
+        created_at: '2026-10-26T18:10:00.000Z',
+        email: 'lp0dt1r6l3ye@maxxspace.com',
+        details: {
+          body: approved('emp-teste', 'Carlos Teste Operador', 'lp0dt1r6l3ye@maxxspace.com'),
+          group: { ok: false, reason: 'true' }
+        }
       }
     ]
   });
@@ -109,6 +118,7 @@ test('o histórico explica sucesso, falha e fila', () => {
   assert.match(diego.reason, /recusou a criação/);
   assert.equal(board.history.filter((item) => item.email === 'ruan@example.com').length, 1);
   assert.equal(board.history.some((item) => item.email === 'antiga@example.com'), true);
+  assert.equal(board.history.some((item) => /teste/i.test(item.name)), false);
   assert.equal(board.counts.queued, 1);
   assert.equal(board.counts.creating, 1);
   assert.equal(board.queue[0].outcome, 'creating');
