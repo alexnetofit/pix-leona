@@ -63,7 +63,7 @@ test('o histórico explica sucesso, falha e fila', () => {
       queueRow('leona_pay_group_failed', {
         status: 'failed',
         attempts: 3,
-        lastError: 'a instância recusou a criação',
+        lastError: 'true',
         payload: approved('emp-3', 'Diego Santos', 'diego@example.com')
       }, '2026-10-24T17:00:00.000Z'),
       queueRow('leona_pay_group_pending', {
@@ -106,7 +106,7 @@ test('o histórico explica sucesso, falha e fila', () => {
   assert.equal(zilda.outcome, 'partial');
   assert.match(zilda.reason, /não está no WhatsApp/);
   assert.equal(diego.outcome, 'failed');
-  assert.match(diego.reason, /instância recusou/);
+  assert.match(diego.reason, /recusou a criação/);
   assert.equal(board.history.filter((item) => item.email === 'ruan@example.com').length, 1);
   assert.equal(board.history.some((item) => item.email === 'antiga@example.com'), true);
   assert.equal(board.counts.queued, 1);
