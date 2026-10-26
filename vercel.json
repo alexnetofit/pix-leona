@@ -41,6 +41,10 @@
     {
       "path": "/api/cron/pagarme-reconcile",
       "schedule": "*/2 * * * *"
+    },
+    {
+      "path": "/api/cron/leona-pay-group-queue",
+      "schedule": "* * * * *"
     }
   ],
   "functions": {
@@ -66,6 +70,10 @@
       "maxDuration": 60
     },
     "api/webhook-leona-pay-group.js": {
+      "maxDuration": 60,
+      "includeFiles": "lib/leona-pay-group.jpg"
+    },
+    "api/cron/leona-pay-group-queue.js": {
       "maxDuration": 60,
       "includeFiles": "lib/leona-pay-group.jpg"
     }

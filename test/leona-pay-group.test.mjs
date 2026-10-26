@@ -43,6 +43,15 @@ function fakeClient(handlers) {
       const handler = handlers[path];
       if (!handler) return { httpOk: true, status: 200, payload: {} };
       return handler(body);
+    },
+    async get(path) {
+      calls.push({ path, body: null });
+      const handler = handlers[path];
+      if (handler) return handler();
+      if (path === '/instance/status') {
+        return { httpOk: true, status: 200, payload: { instance: { owner: '5512991426510' } } };
+      }
+      return { httpOk: true, status: 200, payload: {} };
     }
   };
 }
@@ -203,6 +212,9 @@ test('privacidade do cliente vira convite', async () => {
   });
   client.get = async (path) => {
     client.calls.push({ path, body: null });
+    if (path === '/instance/status') {
+      return { httpOk: true, status: 200, payload: { instance: { owner: '5512991426510' } } };
+    }
     return { httpOk: true, status: 200, payload: { inviteLink: 'https://chat.whatsapp.com/Abc' } };
   };
 
@@ -242,6 +254,9 @@ test('sem código de convite, manda o link no privado', async () => {
   });
   client.get = async (path) => {
     client.calls.push({ path, body: null });
+    if (path === '/instance/status') {
+      return { httpOk: true, status: 200, payload: { instance: { owner: '5512991426510' } } };
+    }
     assert.equal(path, '/group/invitelink/120%40g.us');
     return { httpOk: true, status: 200, payload: { inviteLink: 'https://chat.whatsapp.com/Abc' } };
   };
@@ -314,6 +329,23 @@ test('cliente entrou no grupo, não manda nada no privado', async () => {
   assert.equal(welcome.body.number, '120@g.us');
   assert.equal(client.calls.some((call) => call.path === '/send/group-invite'), false);
   assert.equal(client.calls.filter((call) => call.path === '/send/text').length, 1);
+});
+
+test('não cria grupo se a instância conectada não for a nossa', async () => {
+  const client = fakeClient({
+    '/instance/status': () => ({
+      httpOk: true,
+      status: 200,
+      payload: { instance: { owner: '5521964746924' } }
+    }),
+    '/group/create': () => {
+      throw new Error('não deveria criar');
+    }
+  });
+  const result = await createLeonaPayGroup(SAMPLE, { env: ENV, client, image: 'data:image/jpeg;base64,abc' });
+  assert.equal(result.ok, false);
+  assert.equal(result.step, 'instance');
+  assert.equal(client.calls.some((call) => call.path === '/group/create'), false);
 });
 
 test('telefone da Leona prefere a conta ativa', async () => {

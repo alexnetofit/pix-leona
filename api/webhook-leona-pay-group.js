@@ -1,11 +1,13 @@
 /**
  * POST /api/webhook-leona-pay-group
- * business.approved cria o grupo "{primeiro nome} - Leona Pay" no WhatsApp do Alex.
+ * business.approved entra na fila. O cron cria um grupo por vez,
+ * das 06:00 até 00:00 em Brasília, com 5 a 10 minutos entre cada um.
  * URL: https://client.leonaflow.com/api/webhook-leona-pay-group
  */
 import { sbConfigured, sbInsert } from '../lib/supabase.js';
 import { leonaPayWebhookRecord } from '../lib/leona-pay-group-webhook.js';
-import { createLeonaPayGroup, leonaPayGroupImageDataUri, leonaPhoneForEmail, parseApprovedBusiness } from '../lib/leona-pay-group.js';
+import { leonaPayGroupImageDataUri, parseApprovedBusiness } from '../lib/leona-pay-group.js';
+import { enqueueLeonaPayGroup } from '../lib/leona-pay-group-queue.js';
 
 function clientIp(req) {
   const forwarded = req?.headers?.['x-forwarded-for'] || req?.headers?.['x-real-ip'] || '';
@@ -14,6 +16,7 @@ function clientIp(req) {
 
 function publicGroup(result) {
   if (!result) return null;
+  if (result.queued) return { queued: true, id: result.id || null, already: Boolean(result.already) };
   if (result.skipped) return { skipped: true, reason: result.reason || null };
   if (!result.ok) return { ok: false, reason: result.reason || null, step: result.step || null };
   return {
@@ -42,6 +45,8 @@ export default async function handler(req, res) {
       ok: true,
       service: 'leona-pay-group',
       photo,
+      queue: true,
+      window: '06:00-00:00 America/Sao_Paulo',
       webhook: 'https://client.leonaflow.com/api/webhook-leona-pay-group'
     });
   }
@@ -52,19 +57,11 @@ export default async function handler(req, res) {
   const parsed = parseApprovedBusiness(req.body);
   let group = null;
   if (parsed.ok) {
-    let leonaPhone = null;
-    if (!parsed.phone && parsed.email) {
-      try {
-        leonaPhone = await leonaPhoneForEmail(parsed.email);
-      } catch (error) {
-        console.error('webhook-leona-pay-group: leona phone', error.message);
-      }
-    }
     try {
-      group = await createLeonaPayGroup(req.body, { phone: leonaPhone });
+      group = await enqueueLeonaPayGroup(req.body);
     } catch (error) {
-      console.error('webhook-leona-pay-group: criação falhou', error.message);
-      group = { ok: false, reason: 'falha ao criar o grupo', step: 'create' };
+      console.error('webhook-leona-pay-group: fila', error.message);
+      group = { ok: false, reason: 'falha ao entrar na fila', step: 'queue' };
     }
   } else if (parsed.skipped) {
     group = parsed;
@@ -101,7 +98,7 @@ export default async function handler(req, res) {
     }
   }
 
-  if (parsed.ok && !group?.groupJid) {
+  if (parsed.ok && !group?.queued) {
     return res.status(500).json({
       ok: false,
       received: true,
