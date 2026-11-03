@@ -121,6 +121,71 @@ test('cria o grupo com foto, descrição e o Max admin, sem cliente quando não 
   assert.equal(client.calls.some((call) => call.path === '/send/text'), false);
 });
 
+test('o número novo cria o grupo e o Alex entra como admin junto com o Max', async () => {
+  const client = fakeClient({
+    '/instance/status': () => ({
+      httpOk: true,
+      status: 200,
+      payload: { instance: { owner: '5511911112222' } }
+    }),
+    '/group/list': () => ({ httpOk: true, status: 200, payload: { groups: [] } }),
+    '/group/create': (body) => {
+      assert.deepEqual(body.participants, ['5521964746924', '5512991426510']);
+      return { httpOk: true, status: 200, payload: { group: { JID: '120@g.us' }, failed: [] } };
+    },
+    '/group/updateParticipants': (body) => {
+      assert.equal(body.action, 'promote');
+      assert.deepEqual(body.participants, ['5521964746924', '5512991426510']);
+      return {
+        httpOk: true,
+        status: 200,
+        payload: {
+          groupUpdated: [
+            { JID: '5521964746924@s.whatsapp.net', Error: 0 },
+            { JID: '5512991426510@s.whatsapp.net', Error: 0 }
+          ]
+        }
+      };
+    }
+  });
+
+  const result = await createLeonaPayGroup(SAMPLE, { env: ENV, client, image: 'data:image/jpeg;base64,abc' });
+  assert.equal(result.ok, true);
+  assert.equal(result.alexAdmin, true);
+  assert.equal(result.maxAdmin, true);
+  assert.equal(client.calls.some((call) => call.path === '/group/updateParticipants' && call.body.action === 'add'), false);
+});
+
+test('grupo já aberto pelo número novo ganha o Alex antes de promover', async () => {
+  const added = [];
+  const client = fakeClient({
+    '/instance/status': () => ({
+      httpOk: true,
+      status: 200,
+      payload: { instance: { owner: '5511911112222' } }
+    }),
+    '/group/list': () => ({
+      httpOk: true,
+      status: 200,
+      payload: { groups: [{ jid: '999@g.us', name: 'Ana - Leona Pay' }] }
+    }),
+    '/group/info': () => ({
+      httpOk: true,
+      status: 200,
+      payload: { Topic: 'E-mail: ana@lojaexemplo.com\nID: empresa_exemplo', Participants: [] }
+    }),
+    '/group/updateParticipants': (body) => {
+      added.push(body.action + ':' + body.participants.join(','));
+      return { httpOk: true, status: 200, payload: { groupUpdated: body.participants.map((phone) => ({ JID: `${phone}@s.whatsapp.net`, Error: 0 })) } };
+    }
+  });
+
+  const result = await createLeonaPayGroup(SAMPLE, { env: ENV, client, image: 'data:image/jpeg;base64,abc' });
+  assert.equal(result.ok, true);
+  assert.equal(result.created, false);
+  assert.deepEqual(added, ['add:5512991426510', 'promote:5521964746924,5512991426510']);
+});
+
 test('reaproveita grupo existente e adiciona o cliente', async () => {
   const client = fakeClient({
     '/group/list': () => ({
