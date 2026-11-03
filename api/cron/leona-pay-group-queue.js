@@ -1,6 +1,6 @@
 /**
  * Manda o próximo grupo do Leona Pay que estiver na fila.
- * Um por vez, só das 06:00 até 00:00 em Brasília, com 5 a 10 minutos de espera.
+ * Um por vez, só das 06:00 até 00:00 em Brasília, com 10 a 20 minutos de espera.
  */
 import { timingSafeStringEqual } from '../../lib/paddle-session.js';
 import { runLeonaPayGroupQueue } from '../../lib/leona-pay-group-queue.js';

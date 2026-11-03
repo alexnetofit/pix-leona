@@ -1,7 +1,7 @@
 /**
  * POST /api/webhook-leona-pay-group
  * business.approved entra na fila. O cron cria um grupo por vez,
- * das 06:00 até 00:00 em Brasília, com 5 a 10 minutos entre cada um.
+ * das 06:00 até 00:00 em Brasília, com 10 a 20 minutos entre cada um.
  * URL: https://client.leonaflow.com/api/webhook-leona-pay-group
  */
 import { sbConfigured, sbInsert } from '../lib/supabase.js';

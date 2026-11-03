@@ -96,9 +96,9 @@ test('a janela é das 6h até meia-noite em Brasília', () => {
   assert.equal(withinLeonaPaySendWindow(new Date('2026-10-27T03:00:00.000Z')), false);
 });
 
-test('o intervalo fica entre 5 e 10 minutos', () => {
-  assert.equal(leonaPayDelayMs(() => 0), 5 * 60 * 1000);
-  assert.equal(leonaPayDelayMs(() => 0.999999), 10 * 60 * 1000);
+test('o intervalo fica entre 10 e 20 minutos', () => {
+  assert.equal(leonaPayDelayMs(() => 0), 10 * 60 * 1000);
+  assert.equal(leonaPayDelayMs(() => 0.999999), 20 * 60 * 1000);
 });
 
 test('vários aceites entram na fila e saem um por vez', async () => {
@@ -140,7 +140,7 @@ test('vários aceites entram na fila e saem um por vez', async () => {
   assert.deepEqual(sent, ['empresa_a']);
 
   const second = await runLeonaPayGroupQueue({
-    now: new Date(morning.getTime() + 5 * 60 * 1000),
+    now: new Date(morning.getTime() + 10 * 60 * 1000),
     random: () => 0,
     db,
     client: ourClient(),
