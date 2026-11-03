@@ -156,6 +156,65 @@ test('o número novo cria o grupo e o Alex entra como admin junto com o Max', as
   assert.equal(client.calls.some((call) => call.path === '/group/updateParticipants' && call.body.action === 'add'), false);
 });
 
+test('se a criação não colocar o Max, ele entra e vira admin', async () => {
+  let maxInGroup = false;
+  const actions = [];
+  const client = fakeClient({
+    '/instance/status': () => ({
+      httpOk: true,
+      status: 200,
+      payload: { instance: { owner: '5512992060767', status: 'connected' } }
+    }),
+    '/group/list': () => ({ httpOk: true, status: 200, payload: { groups: [] } }),
+    '/group/create': (body) => {
+      assert.deepEqual(body.participants, ['5521964746924', '5512991426510']);
+      return { httpOk: true, status: 200, payload: { group: { JID: '120@g.us' }, failed: [] } };
+    },
+    '/group/info': () => ({
+      httpOk: true,
+      status: 200,
+      payload: {
+        Participants: [
+          { PhoneNumber: '5512992060767', IsAdmin: true, IsSuperAdmin: true },
+          { PhoneNumber: '5512991426510', IsAdmin: true, IsSuperAdmin: false },
+          ...(maxInGroup ? [{ PhoneNumber: '5521964746924', IsAdmin: true, IsSuperAdmin: false }] : [])
+        ]
+      }
+    }),
+    '/group/updateParticipants': (body) => {
+      actions.push(body.action + ':' + body.participants.join(','));
+      if (body.action === 'add' && body.participants.includes('5521964746924')) maxInGroup = true;
+      return {
+        httpOk: true,
+        status: 200,
+        payload: { groupUpdated: body.participants.map((phone) => ({ JID: `${phone}@s.whatsapp.net`, Error: 0 })) }
+      };
+    }
+  });
+
+  const result = await createLeonaPayGroup(SAMPLE, { env: ENV, client, image: 'data:image/jpeg;base64,abc' });
+  assert.equal(result.ok, true);
+  assert.equal(result.maxAdmin, true);
+  assert.deepEqual(actions, ['add:5521964746924', 'promote:5521964746924,5512991426510']);
+});
+
+test('não cria grupo com o WhatsApp desconectado', async () => {
+  const client = fakeClient({
+    '/instance/status': () => ({
+      httpOk: true,
+      status: 200,
+      payload: { instance: { owner: '5512992060767', status: 'disconnected' } }
+    }),
+    '/group/create': () => {
+      throw new Error('não deveria criar');
+    }
+  });
+  const result = await createLeonaPayGroup(SAMPLE, { env: ENV, client, image: 'data:image/jpeg;base64,abc' });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'WhatsApp desconectado');
+  assert.equal(client.calls.some((call) => call.path === '/group/create'), false);
+});
+
 test('grupo já aberto pelo número novo ganha o Alex antes de promover', async () => {
   const added = [];
   const client = fakeClient({
@@ -183,7 +242,7 @@ test('grupo já aberto pelo número novo ganha o Alex antes de promover', async 
   const result = await createLeonaPayGroup(SAMPLE, { env: ENV, client, image: 'data:image/jpeg;base64,abc' });
   assert.equal(result.ok, true);
   assert.equal(result.created, false);
-  assert.deepEqual(added, ['add:5512991426510', 'promote:5521964746924,5512991426510']);
+  assert.deepEqual(added, ['add:5521964746924,5512991426510', 'promote:5521964746924,5512991426510']);
 });
 
 test('reaproveita grupo existente e adiciona o cliente', async () => {
@@ -199,11 +258,11 @@ test('reaproveita grupo existente e adiciona o cliente', async () => {
       payload: { Topic: 'E-mail: ana@lojaexemplo.com\nID: empresa_exemplo', Participants: [] }
     }),
     '/group/updateParticipants': (body) => {
-      if (body.action === 'add') {
+      if (body.action === 'add' && body.participants.includes('5512999998888')) {
         assert.deepEqual(body.participants, ['5512999998888']);
         return { httpOk: true, status: 200, payload: { groupUpdated: [{ JID: '5512999998888@s.whatsapp.net', Error: 0 }] } };
       }
-      return { httpOk: true, status: 200, payload: { groupUpdated: [{ JID: '5521964746924@s.whatsapp.net', Error: 0 }] } };
+      return { httpOk: true, status: 200, payload: { groupUpdated: body.participants.map((phone) => ({ JID: `${phone}@s.whatsapp.net`, Error: 0 })) } };
     }
   });
 
