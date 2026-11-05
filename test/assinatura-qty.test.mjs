@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  invoiceReadyForPayment,
   qtyFromLeonaCode,
   qtyFromPayment,
   qtyFromPlanName,
@@ -197,4 +198,18 @@ test('script do browser devolve a mesma qty que o helper', async () => {
     }]
   };
   assert.equal(ctx.AssinaturaQty.resolveExpiredCheckoutQty(sample), resolveExpiredCheckoutQty(sample));
+});
+
+test('fatura de downgrade com charge_at futuro não está liberada pra pagar', () => {
+  const inv = {
+    type: 'downgrade',
+    status: 'waiting_payment',
+    value: 198,
+    charge_at: '2026-09-06',
+    payment_url: 'https://go.leonaflow.com/pay/x/invoice'
+  };
+  assert.equal(invoiceReadyForPayment(inv, '2026-09-03'), false);
+  assert.equal(invoiceReadyForPayment(inv, '2026-09-06'), true);
+  assert.equal(invoiceReadyForPayment({ ...inv, status: 'paid' }, '2026-09-06'), false);
+  assert.equal(invoiceReadyForPayment({ status: 'waiting_payment' }, '2026-09-03'), true);
 });
