@@ -193,6 +193,26 @@ test('bonus de 1M do Gabs desbloqueia até 1M e continua somando', () => {
   assert.equal(payload.revenue.next_milestone.id, '2m');
 });
 
+test('bonus de 800 mil do val18rv soma no faturamento e continua crescendo', () => {
+  const email = 'val18rv@hotmail.com';
+  const now = resolveTrilhaRevenue('855', 194_313.48, email);
+  assert.equal(now.value, 994_313.48);
+  assert.equal(now.source, 'api+grant');
+  const payload = buildTrilhaPayload({
+    accountId: '855',
+    profile: { user: { name: 'Jean Patrick Ferreira Adorno', email }, plan_summary: '7 instâncias', subscription_status: 'active' },
+    revenueValue: now.value,
+    revenueSource: now.source
+  });
+  assert.equal(payload.prizes.find((p) => p.id === '500k').unlocked, true);
+  assert.equal(payload.prizes.find((p) => p.id === '1m').unlocked, false);
+  assert.equal(payload.revenue.next_milestone.id, '1m');
+  const wrong = resolveTrilhaRevenue('855', 194_313.48, 'outro@gmail.com');
+  assert.equal(wrong.value, 194_313.48);
+  const grew = resolveTrilhaRevenue('855', 194_313.48 + 1_000, email);
+  assert.equal(grew.value, 995_313.48);
+});
+
 test('bonus de 2M do João Lucas desbloqueia todos os marcos e continua somando', () => {
   const email = 'joaolucasmarketingytofc@gmail.com';
   const now = resolveTrilhaRevenue('10726', 3_940.89, email);
