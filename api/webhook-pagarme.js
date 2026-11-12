@@ -24,6 +24,7 @@ import {
   reconcilePendingTrilhaCheckouts
 } from '../lib/trilha-fulfill.js';
 import { notifyPagarmeNewCheckoutFromWebhook } from '../lib/affiliates-new-checkout.js';
+import { fulfillCorvoOfferWebhook } from '../lib/pagarme-offer.js';
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -64,8 +65,14 @@ export default async function handler(req, res) {
             result = { kind: 'assinatura', processed: false, ignored: true };
           }
         } else if (pagarmeWebhookLooksPaid(payload)) {
-          const assinatura = await reconcilePendingPagarmeAssinatura({ max: 20, req });
-          result = { kind: 'reconcile', assinatura, processed: Boolean(assinatura?.processed) };
+          const offer = await fulfillCorvoOfferWebhook({ paymentLinkId, orderId, payload });
+          if (offer?.retry) throw new Error(offer.error || 'oferta corvo falhou');
+          if (offer?.handled) {
+            result = { kind: 'corvo_offer', ...offer };
+          } else {
+            const assinatura = await reconcilePendingPagarmeAssinatura({ max: 20, req });
+            result = { kind: 'reconcile', assinatura, processed: Boolean(assinatura?.processed) };
+          }
         } else {
           result = { kind: null, processed: false, error: 'checkout não encontrado' };
         }
@@ -79,18 +86,24 @@ export default async function handler(req, res) {
     } else if (subscriptionId && pagarmeWebhookLooksPaid(payload)) {
       result = { kind: 'assinatura', ...(await processPagarmeSubscriptionRenewal(subscriptionId, { payload, req, source: 'webhook' })) };
     } else {
-      const affiliate = await notifyPagarmeNewCheckoutFromWebhook({ payload, orderId });
-      if (affiliate?.retry) {
-        throw new Error(affiliate.error || 'notify afiliados falhou');
-      }
-      if (affiliate?.handled) {
-        result = { kind: 'new_checkout_affiliate', processed: true, affiliate };
-      } else if (pagarmeWebhookLooksPaid(payload)) {
-        const trilha = await reconcilePendingTrilhaCheckouts({ max: 20, payload });
-        const assinatura = await reconcilePendingPagarmeAssinatura({ max: 20, req });
-        result = { kind: 'reconcile', trilha, assinatura, processed: Boolean(trilha?.ok || assinatura?.processed) };
+      const offer = await fulfillCorvoOfferWebhook({ paymentLinkId, orderId, payload });
+      if (offer?.retry) throw new Error(offer.error || 'oferta corvo falhou');
+      if (offer?.handled) {
+        result = { kind: 'corvo_offer', ...offer };
       } else {
-        return res.status(200).json({ received: true, processed: false, ignored: payload.type || null });
+        const affiliate = await notifyPagarmeNewCheckoutFromWebhook({ payload, orderId });
+        if (affiliate?.retry) {
+          throw new Error(affiliate.error || 'notify afiliados falhou');
+        }
+        if (affiliate?.handled) {
+          result = { kind: 'new_checkout_affiliate', processed: true, affiliate };
+        } else if (pagarmeWebhookLooksPaid(payload)) {
+          const trilha = await reconcilePendingTrilhaCheckouts({ max: 20, payload });
+          const assinatura = await reconcilePendingPagarmeAssinatura({ max: 20, req });
+          result = { kind: 'reconcile', trilha, assinatura, processed: Boolean(trilha?.ok || assinatura?.processed) };
+        } else {
+          return res.status(200).json({ received: true, processed: false, ignored: payload.type || null });
+        }
       }
     }
   } catch (err) {
@@ -116,7 +129,9 @@ export default async function handler(req, res) {
   }
 
   logAssinaturaEvent(req, {
-    action: result.kind === 'assinatura_reversal'
+    action: result.kind === 'corvo_offer'
+      ? (result.processed ? 'pagarme_corvo_offer_paid' : 'pagarme_corvo_offer_failed')
+      : result.kind === 'assinatura_reversal'
       ? 'pagarme_assinatura_reversal'
       : result.kind === 'assinatura'
         ? (result.processed ? 'pagarme_assinatura_paid' : 'pagarme_assinatura_failed')
