@@ -7,6 +7,7 @@ import {
   findOfferInParts,
   fulfillCorvoOfferWebhook,
   offerActivationPatch,
+  pickPaidOfferOrder,
   offerAmountCents,
   offerExpiresInMinutes,
   offerItemCode,
@@ -149,6 +150,64 @@ test('valor diferente do desconto não libera a conta', async () => {
   assert.equal(result.processed, false);
   assert.equal(result.error, 'amount_mismatch');
   assert.equal(activated, false);
+});
+
+test('vários pagos no mesmo link ativa só quem o webhook identificou', async () => {
+  const calls = [];
+  const orders = [
+    {
+      id: 'or_outro',
+      status: 'paid',
+      amount: 7620,
+      code: 'offer-corvo40-1-48B29E6C',
+      customer: { email: 'outro@example.com' },
+      charges: [{ id: 'ch_outro', status: 'paid', paid_amount: 7620 }]
+    },
+    {
+      id: 'or_bruno',
+      status: 'paid',
+      amount: 7620,
+      code: 'offer-corvo40-1-48B29E6C',
+      customer: { email: 'bruno@example.com' },
+      charges: [{ id: 'ch_bruno', status: 'paid', paid_amount: 7620 }]
+    }
+  ];
+  const result = await fulfillCorvoOfferWebhook({
+    paymentLinkId: 'pl_corvo',
+    payload: {
+      type: 'charge.paid',
+      data: {
+        id: 'ch_bruno',
+        code: 'offer-corvo40-1-48B29E6C',
+        customer: { email: 'bruno@example.com' }
+      }
+    }
+  }, {
+    getPaymentLink: async () => ({
+      ok: true,
+      body: {
+        order_code: 'offer-corvo40-1-48B29E6C',
+        cart_settings: { items: [{ code: 'offer-corvo40-1-48B29E6C' }] }
+      }
+    }),
+    listOrdersByCode: async () => ({ ok: true, body: { data: orders } }),
+    lookupAccounts: async () => ({
+      ok: true,
+      profiles: [{ account_id: 22360, starter_instances: 0, rewardful_referral: null }]
+    }),
+    activate: async (input) => {
+      calls.push(input.email);
+      return { ok: true };
+    },
+    updateProfile: async () => ({ ok: true }),
+    dueDate: '2026-12-14'
+  });
+
+  assert.equal(result.processed, true);
+  assert.equal(result.email, 'bruno@example.com');
+  assert.deepEqual(calls, ['bruno@example.com']);
+  assert.equal(pickPaidOfferOrder(orders, { email: 'bruno@example.com' }).order.id, 'or_bruno');
+  assert.equal(pickPaidOfferOrder(orders, { email: 'ninguem@example.com' }).error, 'ambiguous_order');
 });
 
 test('encontra a oferta no item do link', () => {
