@@ -2,13 +2,16 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  DLOCAL_CREATED_FLOOR,
+  DLOCAL_CREATED_LOOKBACK_DAYS,
   buildDlocalSubscriberSnapshot,
   dlocalBrtDay,
   dlocalGrossBrlCents,
   dlocalListDateWindow,
   dlocalNetBrlCents,
   isDlocalOneShotPayment,
-  isDlocalSubActive
+  isDlocalSubActive,
+  shiftDays
 } from '../lib/revenue-source.js';
 
 test('data da Go sem fuso conta no dia BRT, não no relógio da máquina', () => {
@@ -17,15 +20,27 @@ test('data da Go sem fuso conta no dia BRT, não no relógio da máquina', () =>
 });
 
 test('janela da Go inclui o dia UTC seguinte pra não perder venda depois das 21h', () => {
-  assert.deepEqual(dlocalListDateWindow(['2026-08-26']), {
+  assert.deepEqual(dlocalListDateWindow(['2026-08-26'], { createdLookbackDays: 0 }), {
     startDate: '2026-08-26',
     endDate: '2026-08-27'
   });
-  assert.deepEqual(dlocalListDateWindow(['2026-08-25', '2026-08-26']), {
+  assert.deepEqual(dlocalListDateWindow(['2026-08-25', '2026-08-26'], { createdLookbackDays: 0 }), {
     startDate: '2026-08-25',
     endDate: '2026-08-27'
   });
   assert.equal(dlocalListDateWindow([]), null);
+});
+
+test('janela da Go volta na data de criação pra renovação não sumir do mês', () => {
+  const window = dlocalListDateWindow(['2026-10-01', '2026-10-11']);
+  assert.equal(window.endDate, '2026-10-12');
+  assert.equal(
+    window.startDate,
+    shiftDays('2026-10-01', -DLOCAL_CREATED_LOOKBACK_DAYS)
+  );
+  assert.ok(window.startDate <= DLOCAL_CREATED_FLOOR);
+  const late = dlocalListDateWindow(['2028-03-01'], { createdLookbackDays: 30 });
+  assert.equal(late.startDate, DLOCAL_CREATED_FLOOR);
 });
 
 test('dlocalGrossBrlCents usa o BRL do cliente, nao o USD do settlement', () => {
