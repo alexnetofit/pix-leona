@@ -146,3 +146,16 @@ test('subscription.resumed com renovação não paga ativa sem estender', async 
   await processPaddleEvent(subscriptionEvent('subscription.resumed'), h.opts);
   assert.deepEqual(h.updates[0].payload, { status: 'active', starter_instances: 2, due_date: '2026-10-01' });
 });
+
+test('subscription.canceled no prazo não marca a Leona como cancelada', async () => {
+  const h = harness({ currentPeriodEnd: '2099-12-07T15:33:00-03:00' });
+  const r = await processPaddleEvent(subscriptionEvent('subscription.canceled', { status: 'canceled' }), h.opts);
+  assert.equal(h.updates.length, 0);
+  assert.equal(r.body.renewal_guard.reason, 'ainda_no_prazo');
+});
+
+test('subscription.canceled fora do prazo cancela e zera as instâncias', async () => {
+  const h = harness({ currentPeriodEnd: '2020-01-01T00:00:00-03:00' });
+  await processPaddleEvent(subscriptionEvent('subscription.canceled', { status: 'canceled' }), h.opts);
+  assert.deepEqual(h.updates, [{ accountId: 10740, payload: { status: 'canceled', starter_instances: 0 } }]);
+});
