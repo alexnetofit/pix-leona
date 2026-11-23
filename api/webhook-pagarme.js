@@ -25,6 +25,17 @@ import {
 } from '../lib/trilha-fulfill.js';
 import { notifyPagarmeNewCheckoutFromWebhook } from '../lib/affiliates-new-checkout.js';
 import { fulfillCorvoOfferWebhook } from '../lib/pagarme-offer.js';
+import { fulfillAnnualWebhook } from '../lib/pagarme-anual.js';
+
+async function fulfillSharedLink({ paymentLinkId, orderId, payload }) {
+  const offer = await fulfillCorvoOfferWebhook({ paymentLinkId, orderId, payload });
+  if (offer?.retry) throw new Error(offer.error || 'oferta corvo falhou');
+  if (offer?.handled) return { kind: 'corvo_offer', ...offer };
+  const annual = await fulfillAnnualWebhook({ paymentLinkId, orderId, payload });
+  if (annual?.retry) throw new Error(annual.error || 'plano anual falhou');
+  if (annual?.handled) return { kind: 'anual', ...annual };
+  return null;
+}
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -65,10 +76,9 @@ export default async function handler(req, res) {
             result = { kind: 'assinatura', processed: false, ignored: true };
           }
         } else if (pagarmeWebhookLooksPaid(payload)) {
-          const offer = await fulfillCorvoOfferWebhook({ paymentLinkId, orderId, payload });
-          if (offer?.retry) throw new Error(offer.error || 'oferta corvo falhou');
-          if (offer?.handled) {
-            result = { kind: 'corvo_offer', ...offer };
+          const shared = await fulfillSharedLink({ paymentLinkId, orderId, payload });
+          if (shared) {
+            result = shared;
           } else {
             const assinatura = await reconcilePendingPagarmeAssinatura({ max: 20, req });
             result = { kind: 'reconcile', assinatura, processed: Boolean(assinatura?.processed) };
@@ -86,10 +96,9 @@ export default async function handler(req, res) {
     } else if (subscriptionId && pagarmeWebhookLooksPaid(payload)) {
       result = { kind: 'assinatura', ...(await processPagarmeSubscriptionRenewal(subscriptionId, { payload, req, source: 'webhook' })) };
     } else {
-      const offer = await fulfillCorvoOfferWebhook({ paymentLinkId, orderId, payload });
-      if (offer?.retry) throw new Error(offer.error || 'oferta corvo falhou');
-      if (offer?.handled) {
-        result = { kind: 'corvo_offer', ...offer };
+      const shared = await fulfillSharedLink({ paymentLinkId, orderId, payload });
+      if (shared) {
+        result = shared;
       } else {
         const affiliate = await notifyPagarmeNewCheckoutFromWebhook({ payload, orderId });
         if (affiliate?.retry) {
@@ -129,7 +138,9 @@ export default async function handler(req, res) {
   }
 
   logAssinaturaEvent(req, {
-    action: result.kind === 'corvo_offer'
+    action: result.kind === 'anual'
+      ? (result.processed ? 'pagarme_anual_paid' : 'pagarme_anual_failed')
+      : result.kind === 'corvo_offer'
       ? (result.processed ? 'pagarme_corvo_offer_paid' : 'pagarme_corvo_offer_failed')
       : result.kind === 'assinatura_reversal'
       ? 'pagarme_assinatura_reversal'
