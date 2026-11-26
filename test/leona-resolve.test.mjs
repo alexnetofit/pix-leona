@@ -43,7 +43,7 @@ test('resolveLeonaAccount prioriza ID e só cai no e-mail se o ID não achar', a
   globalThis.fetch = prev;
 });
 
-test('isLeonaProfileActivelyPaid exige status active e período vigente', () => {
+test('isLeonaProfileActivelyPaid exige período vigente e não derruba cancelada ainda no prazo', () => {
   assert.equal(isLeonaProfileActivelyPaid({
     subscription_status: 'active',
     current_period_end: '2099-01-01T00:00:00-03:00'
@@ -54,6 +54,14 @@ test('isLeonaProfileActivelyPaid exige status active e período vigente', () => 
   }), false);
   assert.equal(isLeonaProfileActivelyPaid({
     subscription_status: 'active',
+    current_period_end: '2020-01-01T00:00:00-03:00'
+  }), false);
+  assert.equal(isLeonaProfileActivelyPaid({
+    subscription_status: 'canceled',
+    current_period_end: '2099-01-01T00:00:00-03:00'
+  }), true);
+  assert.equal(isLeonaProfileActivelyPaid({
+    subscription_status: 'canceled',
     current_period_end: '2020-01-01T00:00:00-03:00'
   }), false);
 });

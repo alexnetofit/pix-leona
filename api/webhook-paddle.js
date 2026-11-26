@@ -22,7 +22,7 @@
  */
 
 import crypto from 'crypto';
-import { updateLeonaBillingProfile, getLeonaBillingProfile } from '../lib/leona.js';
+import { updateLeonaBillingProfile, getLeonaBillingProfile, leonaPeriodStillOpen } from '../lib/leona.js';
 import { findGuruActiveSubscriptionsByEmail, cancelGuruSubscription } from '../lib/guru.js';
 import { isOneShotKind } from '../lib/dlocal-go.js';
 import { notifyPaddleNewCheckoutEvent } from '../lib/affiliates-new-checkout.js';
@@ -425,9 +425,21 @@ export async function processPaddleEvent(event, opts = {}) {
       }
       break;
     }
-    case 'subscription.canceled':
-      payload = { status: 'canceled', starter_instances: 0 };
+    case 'subscription.canceled': {
+      const profile = await getProfile(accountId, leonaToken);
+      if (leonaPeriodStillOpen(profile)) {
+        renewalCheck = {
+          blockExtend: true,
+          dueDate: null,
+          reason: 'ainda_no_prazo',
+          current_period_end: profile.current_period_end || profile.due_date
+        };
+        payload = null;
+      } else {
+        payload = { status: 'canceled', starter_instances: 0 };
+      }
       break;
+    }
     case 'subscription.paused':
       payload = { status: 'inactive' };
       break;
