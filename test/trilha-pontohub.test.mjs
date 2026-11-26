@@ -8,7 +8,7 @@ import {
   pagarmePayerHasAddress,
   pagarmeWebhookLooksPaid
 } from '../lib/pagarme.js';
-import { mergeTrilhaPayer, paymentLinkLooksAbandoned, paymentLinkLooksPaid } from '../lib/trilha-fulfill.js';
+import { mergeTrilhaPayer, paymentLinkLooksAbandoned, paymentLinkLooksPaid, pendingExtraOrderIds } from '../lib/trilha-fulfill.js';
 
 test('kit 50k usa o produto novo com pin', () => {
   const line = buildPontohubFulfillmentLines({ prizeId: '50k' })[0];
@@ -25,6 +25,33 @@ test('placa 100k usa só productId e productName, sem linkId', () => {
   assert.equal(lines.filter((l) => l.code === 'garrafa').length, 2);
   assert.deepEqual(lines.filter((l) => l.code === '100k').map((l) => l.index), [0, 1]);
   assert.equal(lines.find((l) => l.code === 'jaqueta'), undefined);
+});
+
+test('reenvio da unidade extra usa orderId extra1 e não manda jaqueta', () => {
+  const checkout = {
+    payment_link_id: 'pl_VKOMj6oR5Be8wWIz0hKv8Gbv3gqpryLJ',
+    pontohub: {
+      results: [
+        { orderId: 'pl_VKOMj6oR5Be8wWIz0hKv8Gbv3gqpryLJ:50k:0', request_id: 'abc' },
+        { orderId: 'pl_VKOMj6oR5Be8wWIz0hKv8Gbv3gqpryLJ:50k:0', request_id: 'abc' }
+      ]
+    }
+  };
+  const pending = pendingExtraOrderIds(checkout);
+  assert.equal(pending.find((row) => row.code === '50k').orderId, 'pl_VKOMj6oR5Be8wWIz0hKv8Gbv3gqpryLJ:50k:extra1');
+  assert.equal(pending.some((row) => row.code === 'jaqueta'), false);
+  const apex = pendingExtraOrderIds({
+    payment_link_id: 'pl_Wg4QaX5lYV9KdZAcxpi46vNEGD81eBzk',
+    pontohub: { results: [] }
+  });
+  assert.deepEqual(apex.map((row) => row.code), ['100k']);
+  const done = pendingExtraOrderIds({
+    ...checkout,
+    pontohub: {
+      results: [{ orderId: 'pl_VKOMj6oR5Be8wWIz0hKv8Gbv3gqpryLJ:50k:extra1', request_id: 'novo' }]
+    }
+  });
+  assert.equal(done.some((row) => row.code === '50k'), false);
 });
 
 test('unidade extra não reusa o índice 0 da unidade base', () => {
@@ -125,6 +152,33 @@ test('extrai cliente e endereço do order.paid da Pagar.me', () => {
   assert.equal(pagarmePayerHasAddress(payer), true);
 
   const merged = mergeTrilhaPayer({ name: 'Conta Demo', email: 'teste123@gmail.com' }, payer);
+  const kept = mergeTrilhaPayer({
+    name: 'Gustavo',
+    cep: '12608680',
+    address: 'Avenida São João, nº 111, Lorena — SP',
+    pontohub: {
+      shipping: { cep: '12608680', street: 'Avenida São João', number: '111', city: 'Lorena', state: 'SP' }
+    }
+  }, { name: '', cep: '', address: '', shipping: { cep: '', street: '', number: '', city: '', state: '' } });
+  assert.equal(kept.cep, '12608680');
+  assert.equal(kept.pontohub.shipping.number, '111');
+
+  const locked = mergeTrilhaPayer({
+    cep: '58037700',
+    address: 'João Pessoa',
+    pontohub: {
+      shipping_lock: {
+        cep: '88107100',
+        street: 'Rua Antônio Jovita Duarte',
+        number: '8800',
+        neighborhood: 'Forquilhas Leste',
+        city: 'São José',
+        state: 'SC'
+      }
+    }
+  }, { cep: '58037700', address: 'João Pessoa — PB', shipping: { cep: '58037700', street: 'Rua Severino', city: 'João Pessoa', state: 'PB' } });
+  assert.equal(locked.cep, '88107100');
+  assert.equal(locked.pontohub.shipping.city, 'São José');
   assert.equal(merged.cep, '12306753');
   assert.equal(merged.pontohub.shipping.city, 'Jacareí');
   assert.equal(pagarmePayerHasAddress(merged), true);
