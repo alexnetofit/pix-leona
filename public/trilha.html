@@ -1580,9 +1580,14 @@
               <li><span>${esc(item.title)}</span>${item.qty > 1 ? `<em>× ${item.qty}</em>` : ''}</li>
             `).join('')}</ul>`
           : '<div class="order-meta-block"><span>Itens</span><p>Pedido da trilha</p></div>';
-        const codes = [...new Set(order.tracking_codes || [])];
-        const tracking = codes.length
-          ? codes.map((code) => `<a href="${esc(trackingHref(code))}" target="_blank" rel="noopener">${esc(code)}</a>`).join('<br>')
+        const ships = order.shipments || [];
+        const tracking = ships.length
+          ? ships.map((ship) => {
+            const code = ship.tracking_code
+              ? `<a href="${esc(trackingHref(ship.tracking_code))}" target="_blank" rel="noopener">${esc(ship.tracking_code)}</a>`
+              : (String(ship.status || '').toUpperCase() === 'REJECTED' ? 'recusado pela fábrica' : 'aguardando código');
+            return `${esc(ship.product || 'Item')} — ${code}`;
+          }).join('<br>')
           : (order.status === 'pending' ? '' : 'Aguardando código da fábrica');
         const ship = order.shipping || {};
         const address = order.shipping?.formatted || order.address_editable

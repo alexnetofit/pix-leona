@@ -6,7 +6,8 @@ import {
   extraUnitsPurchasedFromCheckouts,
   purchasedPrizeIdsFromCheckouts,
   resolveFactoryState,
-  uniqueTrackingCodes
+  uniqueTrackingCodes,
+  dropInheritedTracking
 } from '../lib/trilha-account-orders.js';
 import { normalizeTrilhaAddress } from '../lib/trilha-fulfill.js';
 
@@ -98,8 +99,69 @@ test('rastreio do pedido é único e endereço vem formatado', () => {
   assert.equal(presentTrilhaShipping({}), null);
   assert.equal(resolveFactoryState({ shipments: [{ status: 'APPROVED' }], trackingCodes: [] }), 'in_cart');
   assert.equal(resolveFactoryState({ shipments: [{ status: 'SENT' }], trackingCodes: [] }), 'shipped');
+  assert.equal(resolveFactoryState({
+    shipments: [{ status: 'DELIVERED' }, { status: 'APPROVED' }],
+    trackingCodes: ['AP111']
+  }), 'partial');
   assert.equal(normalizeTrilhaAddress({ cep: '35660146', street: 'Rua Paraíba', number: '91', neighborhood: 'São José', city: 'Pará de Minas', state: 'mg' }).ok, true);
   assert.equal(normalizeTrilhaAddress({ cep: '123', street: 'Rua' }).ok, false);
+});
+
+test('pedido com unidade nova não herda o rastreio da que já foi', () => {
+  const [order] = presentTrilhaOrders([{
+    id: 'humberto',
+    status: 'fulfilled',
+    amount_cents: 50000,
+    prize_id: '50k',
+    extra_qty: 1,
+    pontohub: {
+      results: [
+        { productName: 'Kit 50k', request_id: 'a', tracking_code: 'AP756150566BR' },
+        { productName: 'Kit 50k', request_id: 'a', tracking_code: 'AP756150566BR' },
+        { productName: 'Kit 50k', request_id: 'b', approved: true, tracking_code: null }
+      ]
+    }
+  }]);
+  assert.deepEqual(order.request_ids, ['a', 'b']);
+  assert.equal(order.shipments.length, 2);
+  assert.equal(order.factory_state, 'partial');
+  assert.equal(order.status_label, 'Parte enviada');
+  assert.equal(order.address_editable, false);
+  assert.deepEqual(order.tracking_codes, ['AP756150566BR']);
+  assert.equal(order.shipments[1].tracking_code, null);
+});
+
+test('código de rastreio de outro pedido, semanas depois, não aparece', () => {
+  const [first, later] = dropInheritedTracking([
+    {
+      id: 'primeiro',
+      status: 'fulfilled',
+      status_label: 'Enviado',
+      shipments: [{ product: 'Pin 50k', status: 'DELIVERED', request_number: 'REQ-1788000000000-AAAA', tracking_code: 'AP620405045BR' }]
+    },
+    {
+      id: 'depois',
+      status: 'fulfilled',
+      status_label: 'Enviado',
+      shipments: [{ product: 'Pin 500k', status: 'DELIVERED', request_number: 'REQ-1791585698047-DEFBA2', tracking_code: 'AP620405045BR' }]
+    }
+  ]);
+  assert.equal(first.tracking_codes[0], 'AP620405045BR');
+  assert.equal(first.factory_state, 'shipped');
+  assert.equal(later.shipments[0].tracking_code, null);
+  assert.equal(later.shipments[0].inherited_tracking, 'AP620405045BR');
+  assert.equal(later.factory_state, 'tracking_stale');
+  assert.equal(later.status_label, 'Rastreio repetido do pedido anterior');
+  const [sameDay] = dropInheritedTracking([
+    {
+      status: 'fulfilled',
+      shipments: [
+        { status: 'DELIVERED', request_number: 'REQ-1788260293405-0C68D4', tracking_code: 'AP620296076BR' },
+        { status: 'DELIVERED', request_number: 'REQ-1788260532604-71B9E4', tracking_code: 'AP620296076BR' }
+      ]
+    }
+  ]).slice(0, 1);
+  assert.deepEqual(sameDay.tracking_codes, ['AP620296076BR']);
 });
 
 test('carrinho expirado some da aba de pedidos', () => {
