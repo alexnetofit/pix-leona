@@ -23,7 +23,19 @@ test('placa 100k usa só productId e productName, sem linkId', () => {
   assert.equal(lines[0].linkId, undefined);
   assert.equal(lines[1].productName, lines[0].productName);
   assert.equal(lines.filter((l) => l.code === 'garrafa').length, 2);
-  assert.equal(lines.find((l) => l.code === 'jaqueta').productId, '3089dcef-dfff-488e-af0c-9bd4f6d55102');
+  assert.deepEqual(lines.filter((l) => l.code === '100k').map((l) => l.index), [0, 1]);
+  assert.equal(lines.find((l) => l.code === 'jaqueta'), undefined);
+});
+
+test('unidade extra não reusa o índice 0 da unidade base', () => {
+  const lines = buildPontohubFulfillmentLines({
+    prizes: { '50k': { extra: 1 }, '100k': { extra: 2 } },
+    bumps: { garrafa: 2, jaqueta: 1 }
+  });
+  assert.deepEqual(lines.filter((l) => l.code === '50k').map((l) => l.index), [0, 1]);
+  assert.deepEqual(lines.filter((l) => l.code === '100k').map((l) => l.index), [0, 1, 2]);
+  assert.deepEqual(lines.filter((l) => l.code === 'garrafa').map((l) => l.index), [0, 1]);
+  assert.equal(lines.some((l) => l.code === 'jaqueta'), false);
 });
 
 test('carrinho manda todos os prêmios e bumps numa leva', () => {
