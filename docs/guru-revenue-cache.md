@@ -88,7 +88,13 @@ mes anterior e mais curto, a data gruda no ultimo dia dele: 31/mar compara com
 ## Semantica dos valores
 
 - **Guru**: transacao aprovada entra em bruto/liquido. Transacao reembolsada ou
-  com chargeback **sai** do bruto e entra so em reembolsos.
+  com chargeback **sai** do bruto e entra so em reembolsos. `dispute` entra no
+  bruto só se a Pagar.me ainda mostra a cobrança paga, pelo valor que sobrou
+  (`paid_amount` − `canceled_amount`). O pedaço cancelado entra em reembolsos.
+  Se a Stone devolveu tudo, não entra no bruto.
+- **dLocal**: o dia é o `approved_date`. A API filtra por `created_date`, e a
+  renovação guarda a data de criação da assinatura — a listagem volta 400 dias
+  nessa data pra o mês da renovação não zerar.
 - **Paddle**: transacao completada entra em bruto/liquido; havendo ajuste, a
   diferenca entra em reembolsos **sem** sair do bruto.
 - Em ambos, o reembolso e atribuido ao dia da venda original, nao ao dia em que
@@ -101,9 +107,12 @@ mes anterior e mais curto, a data gruda no ultimo dia dele: 31/mar compara com
   entram iguais; renovação mensal já recai nessa janela).
 - **Pagar.me**: o bruto do dia vem da API Stone (code `leona-…` / `pl_` da
   `/assinatura`). Assinante = e-mail com **ciclo novo** (`-sub` / `pl_` /
-  assinatura nativa) nos últimos 32 dias. Ajuste pró-rata e compra de
-  tokens entram no faturamento, mas **não** viram cabeça — ou já estão na
-  Guru/Paddle ou não são assinatura. Cobrança UUID da Guru não entra.
+  assinatura nativa) nos últimos 32 dias. Ajuste pró-rata entra no
+  faturamento e não vira cabeça. Tokens e trilha ficam fora. Estorno
+  parcial continua `paid` na Stone e entra pelo saldo (`paid_amount` −
+  `canceled_amount`); o pedaço cancelado vai para reembolsos. Cobrança UUID
+  da Guru não entra neste card — o card da Guru já conta, inclusive a
+  dispute que a Stone ainda mostra paga.
 - `active_subscribers` e snapshot do momento da sincronizacao, nao fluxo do dia.
   Fica gravado no dia em que foi coletado e a tela usa o mais recente; dias de
   carga historica ficam com `null`.
